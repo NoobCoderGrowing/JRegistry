@@ -6,6 +6,7 @@
     <modules>
         <module>JRegistryClient</module>
         <module>JRegistryCore</module>
+        <module>JRegistryCenter</module>
     </modules>
 
     <parent>

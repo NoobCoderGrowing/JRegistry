@@ -1,4 +1,4 @@
-package hawk.JRegitstryCore;
+package hawk.JRegistryCenter.network;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;

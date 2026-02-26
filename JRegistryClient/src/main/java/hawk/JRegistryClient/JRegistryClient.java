@@ -1,25 +1,48 @@
 package hawk.JRegistryClient;
 
 import java.util.Scanner;
+import hawk.JRegistryClient.network.NettyClient;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Bean;
+import org.springframework.beans.factory.annotation.Autowired; 
+
+@SpringBootApplication
 public class JRegistryClient {
+
+    
+    @Autowired
+    private NettyClient nettyClient;
+
     public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        System.out.println("JRegistryClient started. Type 'exit' to quit.");
+        SpringApplication.run(JRegistryClient.class, args);
+    }
 
-        while (true) {
-            System.out.print("> ");
-            String line = scanner.nextLine().trim();
 
-            if ("exit".equalsIgnoreCase(line)) {
-                System.out.println("Bye.");
-                break;
+
+    @Bean
+    public CommandLineRunner cliRunner() {
+        return args -> {
+            Scanner scanner = new Scanner(System.in);
+            System.out.println("JRegistryClient started. Type 'exit' to quit.");
+
+            while (true) {
+                System.out.print("> ");
+                String line = scanner.nextLine().trim();
+
+                if ("exit".equalsIgnoreCase(line)) {
+                    System.out.println("Bye.");
+                    break;
+                }
+
+                // 通过 NettyClient 把命令发给 JRegistry
+                nettyClient.send(line);
             }
 
-            // TODO: 在这里解析用户命令，并调用你的 JRegistry 服务
-            System.out.println("You typed: " + line);
-        }
-
-        scanner.close();
+            scanner.close();
+            nettyClient.stop();
+        };
     }
 
 }
