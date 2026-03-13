@@ -1,3 +1,7 @@
+server:
+  port: 6602
+
+
 netty:
   host: 127.0.0.1
   port: 6604

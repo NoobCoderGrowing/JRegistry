@@ -2,11 +2,13 @@ package hawk.JRegistryCenter;
 import lombok.Data;
 
 import java.util.HashMap;
-import java.util.Map;
 import java.util.Set;
 
-@Data
-public class BPlusNode {
+
+
+
+@Data   
+public class BPlusNode{
 
     private String key;
 
@@ -14,19 +16,21 @@ public class BPlusNode {
 
     private HashMap<String, BPlusNode> children;
 
-    private Map<String, Object> values;
 
-    public BPlusNode(String key, String path) {
+    private String value;
+
+  
+
+    public BPlusNode(String key) {
         this.key = key;
-        this.path = path;
         this.children = new HashMap<>();
-        this.values = new HashMap<>();
+        
     }
 
-    public BPlusNode(String key, Map<String, Object> values) {
+    public BPlusNode(String key, String value) {
         this.key = key;
         this.children = new HashMap<>();
-        this.values = values;
+        this.value = value;
     }
 
 
@@ -47,6 +51,7 @@ public class BPlusNode {
         return false;
     }
 
+
     public Set<String> ls(){
         return children.keySet();
     }
@@ -62,9 +67,6 @@ public class BPlusNode {
         return path;
     }
 
-
-
-
-
+    
 
 }
