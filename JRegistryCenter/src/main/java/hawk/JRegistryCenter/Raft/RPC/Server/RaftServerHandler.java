@@ -2,63 +2,50 @@ package hawk.JRegistryCenter.Raft.RPC.Server;
 
 import com.alibaba.fastjson.JSON;
 import hawk.JRegistryCenter.Raft.RaftNode;
-import hawk.JRegistryCenter.Raft.RPC.AppendEntriesRequest;
-import hawk.JRegistryCenter.Raft.RPC.AppendEntriesReply;
-import hawk.JRegistryCenter.Raft.RPC.RequestVoteRequest;
-import hawk.JRegistryCenter.Raft.RPC.RequestVoteReply;
+import hawk.JRegistryCenter.Raft.RPC.RPCReply;
+import hawk.JRegistryCenter.Raft.RPC.RPCRequest;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.timeout.IdleStateEvent;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import hawk.JRegistryCenter.Raft.RPC.Server.Services.AppendEntriesService;
+import hawk.JRegistryCenter.Raft.RPC.Server.Services.RequestVoteService;
 
 @Component
 public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
     
     @Autowired
     private RaftNode raftNode;
-    
+
+    @Autowired
+    private AppendEntriesService appendEntriesService;
+
+    @Autowired
+    private RequestVoteService requestVoteService;
+
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, String msg) {
         try {
-            // 解析 JSON 消息
-            if (msg.trim().equals("HEARTBEAT")) {
-                // 心跳消息，直接返回
-                ctx.writeAndFlush("HEARTBEAT_OK\n");
-                return;
+            RPCReply reply = JSON.parseObject(msg, RPCReply.class);
+            RPCRequest request = null;
+            switch (reply.getType()) {
+                case "appendEntries":
+                    request = appendEntriesService.handleAppendEntriesReply(reply);
+                    ctx.writeAndFlush(JSON.toJSONString(request) + "\n");
+                    break;
+                case "heartbeat":
+                    request = appendEntriesService.handleHeartbeatReply(reply);
+                    ctx.writeAndFlush(JSON.toJSONString(request) + "\n");
+                    break;
+                case "requestVote":
+                    request = requestVoteService.handleRequestVoteReply(reply);
+                    ctx.writeAndFlush(JSON.toJSONString(request) + "\n");
+                    break;
+                default:
+                    break;
             }
-            
-            // 尝试解析为 AppendEntriesRequest
-            if (msg.contains("\"leaderId\"") || msg.contains("\"prevLogIndex\"")) {
-                AppendEntriesRequest request = JSON.parseObject(msg, AppendEntriesRequest.class);
-                AppendEntriesReply reply = raftNode.appendEntries(
-                    request.getTerm(),
-                    request.getLeaderId(),
-                    request.getPrevLogIndex(),
-                    request.getPrevLogTerm(),
-                    request.getEntries(),
-                    request.getLeaderCommit()
-                );
-                ctx.writeAndFlush(JSON.toJSONString(reply) + "\n");
-                return;
-            }
-            
-            // 尝试解析为 RequestVoteRequest
-            if (msg.contains("\"candidateId\"") || msg.contains("\"lastLogIndex\"")) {
-                RequestVoteRequest request = JSON.parseObject(msg, RequestVoteRequest.class);
-                RequestVoteReply reply = raftNode.requestVote(
-                    request.getTerm(),
-                    request.getCandidateId(),
-                    request.getLastLogIndex(),
-                    request.getLastLogTerm()
-                );
-                ctx.writeAndFlush(JSON.toJSONString(reply) + "\n");
-                return;
-            }
-            
-            // 未知消息类型
-            ctx.writeAndFlush("{\"error\":\"Unknown message type\"}\n");
-            
+
         } catch (Exception e) {
             e.printStackTrace();
             ctx.writeAndFlush("{\"error\":\"" + e.getMessage() + "\"}\n");

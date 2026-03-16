@@ -1,0 +1,19 @@
+package hawk.JRegistryCenter.Raft.RPC;
+
+import lombok.Data;
+
+@Data
+public class RPCReply {
+
+     //coomon part
+     private String type;
+     private long term;
+
+     //Appenentries reply part
+     private boolean success;
+     private long nextIndex;
+
+     //Request Vote reply part
+     public boolean voteGranted;
+
+}

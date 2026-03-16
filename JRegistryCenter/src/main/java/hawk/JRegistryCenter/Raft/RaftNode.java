@@ -1,7 +1,6 @@
 package hawk.JRegistryCenter.Raft;
 
-import hawk.JRegistryCenter.Raft.RPC.AppendEntriesReply;
-import hawk.JRegistryCenter.Raft.RPC.RequestVoteReply;
+
 
 public class RaftNode {
 
@@ -27,14 +26,5 @@ public class RaftNode {
         this.nodeId = nodeId;
     }
 
-   public AppendEntriesReply appendEntries(long leaderTerm, int leaderId, long prevLogIndex, long prevLogTerm, String[] entries, long leaderCommit) {
-    
-        return null;
-   }
-
-   public RequestVoteReply requestVote(long candidateTerm, int candidateId, long lastLogIndex, long lastLogTerm) {
-
-        return null;
-
-   }
+   
 }
