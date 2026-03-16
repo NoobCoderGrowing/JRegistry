@@ -8,6 +8,8 @@ public class RPCReply {
      //coomon part
      private String type;
      private long term;
+     private int id;
+     private boolean isLeader;
 
      //Appenentries reply part
      private boolean success;

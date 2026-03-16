@@ -10,6 +10,7 @@ import hawk.JRegistryCenter.Raft.RPC.RPCReply;
 import hawk.JRegistryCenter.Raft.RPC.Server.Services.AppendEntriesService;
 import hawk.JRegistryCenter.Raft.RPC.Server.Services.RequestVoteService;
 import com.alibaba.fastjson.JSON;
+import hawk.JRegistryCenter.Raft.RaftNode;
 
 public class RaftClientHandler extends SimpleChannelInboundHandler<String> {
     private final int peerNodeId;
@@ -21,6 +22,10 @@ public class RaftClientHandler extends SimpleChannelInboundHandler<String> {
     @Autowired
     private RequestVoteService requestVoteService;
 
+    @Autowired
+    private RaftNode raftNode;
+
+
     public RaftClientHandler(int peerNodeId) {
         this.peerNodeId = peerNodeId;
     }
@@ -30,31 +35,38 @@ public class RaftClientHandler extends SimpleChannelInboundHandler<String> {
         // 处理来自 peer 的 Raft RPC 响应
         // 解析并交给 RaftNode 处理
         try {
-        RPCRequest request = JSON.parseObject(msg, RPCRequest.class);
-        RPCReply reply = null;
-        switch (request.getType()) {
+        RPCReply reply = JSON.parseObject(msg, RPCReply.class);
+        RPCRequest request = null;
+        switch (reply.getType()) {
             case "appendEntries":
-                reply = appendEntriesService.handleAppendEntriesRequest(request);
+                request = appendEntriesService.handleAppendEntriesReply(reply);
                 break;
             case "heartbeat":
-                reply = appendEntriesService.handleHeartbeatRequest(request);
+                //do nothing, because leader needn't respond to follower's heartbeat response
+                // request = appendEntriesService.handleHeartbeatReply(reply);
                 break;
             case "requestVote":
-                reply = requestVoteService.handleRequestVoteRequest(request);
+                request = requestVoteService.handleRequestVoteReply(reply);
                 break;
             default:
                     break;
             }
-            ctx.writeAndFlush(JSON.toJSONString(reply) + "\n");
+            ctx.writeAndFlush(JSON.toJSONString(request) + "\n");
         } catch (Exception e) {
             e.printStackTrace();
-            ctx.writeAndFlush("{\"error\":\"" + e.getMessage() + "\"}\n");
+            // ctx.writeAndFlush("{\"error\":\"" + e.getMessage() + "\"}\n");
         }
     }
     
     @Override
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) {
         if (evt instanceof IdleStateEvent) {
+            if(raftNode.isLeader()){
+                appendEntriesService.sendHeartBeat(ctx.channel(), raftNode.getId());
+            }else{
+                requestVoteService.sendRequestVote();
+            }
+
             // 发送心跳
             ctx.writeAndFlush("HEARTBEAT\n");
         }
@@ -63,7 +75,6 @@ public class RaftClientHandler extends SimpleChannelInboundHandler<String> {
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
         System.out.println("Connection to peer " + peerNodeId + " lost");
-        // 触发重连逻辑
     }
     
     @Override

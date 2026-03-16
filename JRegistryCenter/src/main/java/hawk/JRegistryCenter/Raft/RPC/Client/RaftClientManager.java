@@ -15,18 +15,32 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Value;
+import javax.annotation.PostConstruct;
+import lombok.Data;
 
 @Component
+@Data
 public class RaftClientManager {
     
     private final ConcurrentHashMap<Integer, Channel> peerChannels = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, String> peerAddresses = new ConcurrentHashMap<>();
     private EventLoopGroup group;
-    
+
+    @Value("#{${raft.peers}}")
+    private Map<Integer, String> peers;
+
+
+    @PostConstruct
+    public void init(){
+        group = new NioEventLoopGroup();
+        initPeers(peers);
+        connectAllPeers();
+   }
+
     // 初始化：配置所有 peer 节点的地址
     public void initPeers(Map<Integer, String> peers) {
         peerAddresses.putAll(peers);
-        group = new NioEventLoopGroup();
     }
     
     // 连接到指定节点
@@ -46,7 +60,7 @@ public class RaftClientManager {
              protected void initChannel(SocketChannel ch) {
                  ChannelPipeline p = ch.pipeline();
                  // 心跳检测：30秒无读写则触发
-                 p.addLast(new IdleStateHandler(0, 0, 30, TimeUnit.SECONDS)); //心跳检测，30秒无读写则触发
+                 p.addLast(new IdleStateHandler(0, 0, 30, TimeUnit.SECONDS)); 
                  p.addLast(new LineBasedFrameDecoder(8192)); //使用行分隔符解码器，每行一个消息
                  p.addLast(new StringDecoder(StandardCharsets.UTF_8)); //使用字符串解码器，将字符串解码为消息
                  p.addLast(new StringEncoder(StandardCharsets.UTF_8)); //使用字符串编码器，将消息编码为字符串

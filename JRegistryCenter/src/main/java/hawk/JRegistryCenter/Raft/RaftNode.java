@@ -1,30 +1,36 @@
 package hawk.JRegistryCenter.Raft;
 
+import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Value;
+import lombok.Data;
 
-
+@Component
+@Data
 public class RaftNode {
 
-    int nodeId;
+    @Value("${raft.node-id}")
+    private int id;
+    private boolean isLeader;
+
+
     //State part in raft paper
-    long currentTerm;
-    long votedFor;
-    long commitIndex;
-    long lastApplied;
-    long[] nextIndex;
-    long[] matchIndex;
+    private long currentTerm;
+    private long votedFor;
+    private long commitIndex;
+    private long lastApplied;
+    private long[] nextIndex;
+    private long[] matchIndex;
 
     //Append Entries part in raft paper
-    long leaderTerm;
-    int leaderId;
-    long prevLogIndex;
-    long prevLogTerm;
-    String[] entries;
-    long leaderCommit;
+    private long leaderTerm;
+    private int leaderId;
+    private long prevLogIndex;
+    private long prevLogTerm;
+    private String[] entries;
+    private long leaderCommit;
 
+    //Request Vote part in raft paper
+    private long lastLogIndex;
+    private long lastLogTerm;
 
-    public RaftNode(int nodeId) {
-        this.nodeId = nodeId;
-    }
-
-   
 }

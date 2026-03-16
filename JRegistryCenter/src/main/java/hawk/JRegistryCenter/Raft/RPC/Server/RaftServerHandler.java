@@ -1,7 +1,6 @@
 package hawk.JRegistryCenter.Raft.RPC.Server;
 
 import com.alibaba.fastjson.JSON;
-import hawk.JRegistryCenter.Raft.RaftNode;
 import hawk.JRegistryCenter.Raft.RPC.RPCReply;
 import hawk.JRegistryCenter.Raft.RPC.RPCRequest;
 import io.netty.channel.ChannelHandlerContext;
@@ -14,9 +13,6 @@ import hawk.JRegistryCenter.Raft.RPC.Server.Services.RequestVoteService;
 
 @Component
 public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
-    
-    @Autowired
-    private RaftNode raftNode;
 
     @Autowired
     private AppendEntriesService appendEntriesService;
@@ -27,20 +23,20 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, String msg) {
         try {
-            RPCReply reply = JSON.parseObject(msg, RPCReply.class);
-            RPCRequest request = null;
-            switch (reply.getType()) {
+            RPCRequest request = JSON.parseObject(msg, RPCRequest.class);
+            RPCReply reply = null;
+            switch (request.getType()) {
                 case "appendEntries":
-                    request = appendEntriesService.handleAppendEntriesReply(reply);
-                    ctx.writeAndFlush(JSON.toJSONString(request) + "\n");
+                    reply = appendEntriesService.handleAppendEntriesRequest(request);
+                    ctx.writeAndFlush(JSON.toJSONString(reply) + "\n");
                     break;
                 case "heartbeat":
-                    request = appendEntriesService.handleHeartbeatReply(reply);
-                    ctx.writeAndFlush(JSON.toJSONString(request) + "\n");
+                    reply =appendEntriesService.handleHeartbeatRequest();
+                    ctx.writeAndFlush(JSON.toJSONString(reply) + "\n");
                     break;
                 case "requestVote":
-                    request = requestVoteService.handleRequestVoteReply(reply);
-                    ctx.writeAndFlush(JSON.toJSONString(request) + "\n");
+                    reply = requestVoteService.handleRequestVoteRequest(request);
+                    ctx.writeAndFlush(JSON.toJSONString(reply) + "\n");
                     break;
                 default:
                     break;
@@ -48,7 +44,7 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
 
         } catch (Exception e) {
             e.printStackTrace();
-            ctx.writeAndFlush("{\"error\":\"" + e.getMessage() + "\"}\n");
+            // ctx.writeAndFlush("{\"error\":\"" + e.getMessage() + "\"}\n");
         }
     }
     

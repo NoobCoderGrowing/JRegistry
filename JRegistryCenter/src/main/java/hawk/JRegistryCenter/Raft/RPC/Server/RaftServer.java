@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit;
 @Component
 public class RaftServer {
     
-    @Value("${raft.port:6605}")
+    @Value("${raft.port}")
     private int raftPort;
     
     @Autowired
@@ -46,7 +46,7 @@ public class RaftServer {
                  @Override
                  protected void initChannel(SocketChannel ch) {
                      ChannelPipeline p = ch.pipeline();
-                     // 心跳检测：30秒无读写则关闭连接
+                     // 心跳检测：30秒无读写发送选举
                      p.addLast(new IdleStateHandler(0, 0, 30, TimeUnit.SECONDS));
                      p.addLast(new LineBasedFrameDecoder(8192));
                      p.addLast(new StringDecoder(StandardCharsets.UTF_8));
