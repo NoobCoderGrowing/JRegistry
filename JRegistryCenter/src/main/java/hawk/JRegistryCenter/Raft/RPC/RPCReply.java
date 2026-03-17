@@ -16,6 +16,10 @@ public class RPCReply {
      private long nextIndex;
 
      //Request Vote reply part
-     public boolean voteGranted;
+     private boolean voteGranted;
+     private long lastLogIndex;
+     private long lastLogTerm;
+
+
 
 }

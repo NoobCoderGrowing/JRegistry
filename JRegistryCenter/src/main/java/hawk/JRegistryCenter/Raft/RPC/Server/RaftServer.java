@@ -16,8 +16,13 @@ import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.Map;
+import lombok.Data;
+import java.util.Map.Entry; 
 
 @Component
+@Data
 public class RaftServer {
     
     @Value("${raft.port}")
@@ -29,9 +34,23 @@ public class RaftServer {
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
     private Channel channel;
+
+    @Value("#{${raft.peers}}")
+    private Map<Integer, String> peers;
+    private final ConcurrentHashMap<Integer, Channel> peerChannels = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Integer> addressToPeer= new ConcurrentHashMap<>();
     
+    public void initPeers(Map<Integer, String> peers) {
+        for (Map.Entry<Integer, String> entry : peers.entrySet()) {
+            addressToPeer.put(entry.getValue(), entry.getKey());
+        }
+    }
+
+
     @PostConstruct
     public void start() throws InterruptedException {
+        initPeers(peers);
+
         bossGroup = new NioEventLoopGroup(1);
         workerGroup = new NioEventLoopGroup();
         
@@ -83,5 +102,13 @@ public class RaftServer {
             workerGroup.shutdownGracefully();
         }
         System.out.println("Raft Server shutdown gracefully");
+    }
+
+    // 发送消息到指定节点
+    public void sendToPeer(int nodeId, String message) {
+        Channel channel = peerChannels.get(nodeId);
+        if (channel != null && channel.isActive()) {
+            channel.writeAndFlush(message + "\n");
+        } 
     }
 }

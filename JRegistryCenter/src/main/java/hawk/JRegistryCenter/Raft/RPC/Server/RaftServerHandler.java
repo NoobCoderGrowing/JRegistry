@@ -10,15 +10,25 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import hawk.JRegistryCenter.Raft.RPC.Server.Services.AppendEntriesService;
 import hawk.JRegistryCenter.Raft.RPC.Server.Services.RequestVoteService;
+import hawk.JRegistryCenter.Raft.RaftNode;
 
 @Component
 public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
+
+    private Integer peerNodeId;
+
+    @Autowired
+    private RaftServer raftServer;
 
     @Autowired
     private AppendEntriesService appendEntriesService;
 
     @Autowired
     private RequestVoteService requestVoteService;
+
+    @Autowired
+    private RaftNode raftNode;
+
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, String msg) {
@@ -51,20 +61,27 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
     @Override
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) {
         if (evt instanceof IdleStateEvent) {
-            // 30秒无活动，关闭连接
-            System.out.println("Closing idle connection from " + ctx.channel().remoteAddress());
-            ctx.close();
+            if(raftNode.getLeaderId()==this.peerNodeId){ // 如果对方是Leader, 发起选举
+                requestVoteService.startElection();
+            }
+    
         }
     }
     
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
         System.out.println("Raft peer connected: " + ctx.channel().remoteAddress());
+        Integer peerNodeId = raftServer.getAddressToPeer().get(ctx.channel().remoteAddress().toString());
+        this.peerNodeId = peerNodeId;
+        if(peerNodeId != null){
+            raftServer.getPeerChannels().put(peerNodeId, ctx.channel());
+        }
     }
     
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
         System.out.println("Raft peer disconnected: " + ctx.channel().remoteAddress());
+        raftServer.getPeerChannels().remove(peerNodeId);
     }
     
     @Override

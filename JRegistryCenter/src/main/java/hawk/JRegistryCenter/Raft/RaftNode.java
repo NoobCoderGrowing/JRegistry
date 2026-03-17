@@ -3,6 +3,9 @@ package hawk.JRegistryCenter.Raft;
 import org.springframework.stereotype.Component;
 import org.springframework.beans.factory.annotation.Value;
 import lombok.Data;
+import java.util.Map;
+import io.netty.channel.Channel;
+import java.util.HashMap;
 
 @Component
 @Data
@@ -11,6 +14,12 @@ public class RaftNode {
     @Value("${raft.node-id}")
     private int id;
     private boolean isLeader;
+    private boolean isCandidate;
+
+    //peer nodes
+    private Map<Integer, Channel> peerChannels;
+
+    private long termVoted;
 
 
     //State part in raft paper
@@ -33,4 +42,16 @@ public class RaftNode {
     private long lastLogIndex;
     private long lastLogTerm;
 
+    public RaftNode(){
+        this.isLeader = false;
+        this.isCandidate = false;
+        this.currentTerm = -1;
+        this.votedFor = -1;
+        this.commitIndex = -1;
+        this.lastApplied = -1;
+        this.nextIndex = new long[10];
+        this.matchIndex = new long[10];
+        this.leaderTerm = -1;
+        this.termVoted = -1;
+    }
 }

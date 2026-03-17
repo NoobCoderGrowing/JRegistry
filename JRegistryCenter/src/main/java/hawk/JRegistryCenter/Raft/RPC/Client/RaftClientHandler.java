@@ -61,14 +61,9 @@ public class RaftClientHandler extends SimpleChannelInboundHandler<String> {
     @Override
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) {
         if (evt instanceof IdleStateEvent) {
-            if(raftNode.isLeader()){
+            if(raftNode.isLeader()){ // 如果自己是leader，发送心跳
                 appendEntriesService.sendHeartBeat(ctx.channel(), raftNode.getId());
-            }else{
-                requestVoteService.sendRequestVote();
             }
-
-            // 发送心跳
-            ctx.writeAndFlush("HEARTBEAT\n");
         }
     }
     
