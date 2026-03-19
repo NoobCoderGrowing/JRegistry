@@ -18,6 +18,7 @@ import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
 import javax.annotation.PostConstruct;
 import lombok.Data;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Component
 @Data
@@ -25,6 +26,7 @@ public class RaftClientManager {
     
     private final ConcurrentHashMap<Integer, Channel> peerChannels = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, String> peerAddresses = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<Integer, AtomicBoolean> reconnectLock = new ConcurrentHashMap<>();
     private EventLoopGroup group;
 
     @Value("#{${raft.peers}}")
@@ -41,13 +43,25 @@ public class RaftClientManager {
     // 初始化：配置所有 peer 节点的地址
     public void initPeers(Map<Integer, String> peers) {
         peerAddresses.putAll(peers);
+        for (Map.Entry<Integer, String> entry : peers.entrySet()) {
+            reconnectLock.put(entry.getKey(), new AtomicBoolean(false));
+        }
     }
     
     // 连接到指定节点
     public void connectToPeer(int nodeId, String host, int port) {
+        
         if (peerChannels.containsKey(nodeId) && peerChannels.get(nodeId).isActive()) {
             return; // 已连接
         }
+
+        //如果正在重连，则不进行重连
+        if(reconnectLock.containsKey(nodeId) && 
+            !reconnectLock.get(nodeId).compareAndSet(false, true)){
+            return; //正在重连，不进行重连
+        }
+        
+        
         
         Bootstrap b = new Bootstrap();
         b.group(group)
@@ -75,9 +89,10 @@ public class RaftClientManager {
                 System.out.println("Connected to Raft peer " + nodeId + " at " + host + ":" + port);
             } else {
                 System.err.println("Failed to connect to peer " + nodeId + ": " + future.cause());
-                // 延迟重连
+                // 延迟重连     
                 scheduleReconnect(nodeId, host, port); //失败延迟重连
             }
+            reconnectLock.get(nodeId).set(false);
         });
     }
     
@@ -97,7 +112,7 @@ public class RaftClientManager {
     }
     
     // 延迟重连
-    private void scheduleReconnect(int nodeId, String host, int port) {
+    public void scheduleReconnect(int nodeId, String host, int port) {
         group.schedule(() -> {
             if (!peerChannels.containsKey(nodeId) || 
                 !peerChannels.get(nodeId).isActive()) {

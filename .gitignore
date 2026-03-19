@@ -1,0 +1,26 @@
+# 编译输出
+/target/
+target/
+/out/
+/build/
+
+# 常见 IDE / 编辑器
+# IntelliJ IDEA
+*.iml
+.idea/
+
+
+
+# VS Code / Cursor
+.vscode/
+.history/
+.settings.json
+
+# Maven / Gradle
+.mvn/wrapper/maven-wrapper.jar
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# 日志文件
+*.log

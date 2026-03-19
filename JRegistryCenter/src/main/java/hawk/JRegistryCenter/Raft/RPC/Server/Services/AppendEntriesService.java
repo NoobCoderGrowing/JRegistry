@@ -7,8 +7,9 @@ import hawk.JRegistryCenter.Raft.RPC.RPCRequest;
 import com.alibaba.fastjson.JSON;
 import hawk.JRegistryCenter.Raft.RaftNode;
 import org.springframework.beans.factory.annotation.Autowired;
-import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.Channel;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Service
 public class AppendEntriesService {
@@ -21,11 +22,18 @@ public class AppendEntriesService {
         RPCRequest request = new RPCRequest();
         request.setType("heartbeat");
         request.setId(id);
+        request.setTerm(raftNode.getCurrentTerm());
         channel.writeAndFlush(JSON.toJSONString(request) + "\n");
     }
 
-    //server to client （passive）
-    public RPCRequest handleAppendEntriesReply(RPCReply reply) {
+    public void sendHeartBeatToAll(Map<Integer, Channel> peerChannels){
+        for (Map.Entry<Integer, Channel> entry : peerChannels.entrySet()) {
+            sendHeartBeat(entry.getValue(), entry.getKey());
+        }
+    }
+
+    //client to server（passive）
+    public RPCReply clientHandleAppendEntriesRequest(RPCRequest request) {
 
         return null;
 
@@ -46,12 +54,15 @@ public class AppendEntriesService {
     }
 
     //follower to leader (passive)
-    public RPCReply handleHeartbeatRequest() {
-        RPCReply reply = new RPCReply();
-        reply.setType("heartbeat");
-        reply.setId(raftNode.getId());
-        reply.setLeader(raftNode.isLeader());
-        return reply;
+    public RPCReply handleHeartbeatRequest(RPCRequest request) {
+        if(request.getTerm() > raftNode.getCurrentTerm()){
+            //收到更高term的心跳包，放弃投票
+            raftNode.getVoting().set(false);
+            raftNode.setCurrentTerm(request.getTerm());
+            raftNode.setLeaderId(request.getId());   
+        }
+
+        return null;
     }
 
 }

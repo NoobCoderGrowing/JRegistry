@@ -4,8 +4,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.beans.factory.annotation.Value;
 import lombok.Data;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import io.netty.channel.Channel;
-import java.util.HashMap;
 
 @Component
 @Data
@@ -20,6 +22,10 @@ public class RaftNode {
     private Map<Integer, Channel> peerChannels;
 
     private long termVoted;
+
+    private AtomicInteger voteReceived;
+
+    private AtomicBoolean voting;
 
 
     //State part in raft paper
@@ -53,5 +59,7 @@ public class RaftNode {
         this.matchIndex = new long[10];
         this.leaderTerm = -1;
         this.termVoted = -1;
+        this.voteReceived = new AtomicInteger(0);
+        this.voting = new AtomicBoolean(false);
     }
 }

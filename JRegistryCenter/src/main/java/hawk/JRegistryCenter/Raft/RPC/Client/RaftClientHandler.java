@@ -25,6 +25,9 @@ public class RaftClientHandler extends SimpleChannelInboundHandler<String> {
     @Autowired
     private RaftNode raftNode;
 
+    @Autowired
+    private RaftClientManager raftClientManager;
+
 
     public RaftClientHandler(int peerNodeId) {
         this.peerNodeId = peerNodeId;
@@ -35,23 +38,23 @@ public class RaftClientHandler extends SimpleChannelInboundHandler<String> {
         // 处理来自 peer 的 Raft RPC 响应
         // 解析并交给 RaftNode 处理
         try {
-        RPCReply reply = JSON.parseObject(msg, RPCReply.class);
-        RPCRequest request = null;
-        switch (reply.getType()) {
+        RPCRequest request = JSON.parseObject(msg, RPCRequest.class);
+        RPCReply reply = null;
+        switch (request.getType()) {
             case "appendEntries":
-                request = appendEntriesService.handleAppendEntriesReply(reply);
+                reply = appendEntriesService.clientHandleAppendEntriesRequest(request);
                 break;
             case "heartbeat":
                 //do nothing, because leader needn't respond to follower's heartbeat response
                 // request = appendEntriesService.handleHeartbeatReply(reply);
                 break;
             case "requestVote":
-                request = requestVoteService.handleRequestVoteReply(reply);
+                reply = requestVoteService.clientHandleRequestVoteRequest(request);
                 break;
             default:
                     break;
             }
-            ctx.writeAndFlush(JSON.toJSONString(request) + "\n");
+            ctx.writeAndFlush(JSON.toJSONString(reply) + "\n");
         } catch (Exception e) {
             e.printStackTrace();
             // ctx.writeAndFlush("{\"error\":\"" + e.getMessage() + "\"}\n");
@@ -70,6 +73,9 @@ public class RaftClientHandler extends SimpleChannelInboundHandler<String> {
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
         System.out.println("Connection to peer " + peerNodeId + " lost");
+        raftClientManager.getPeerChannels().remove(peerNodeId);
+        String[] address = raftClientManager.getPeerAddresses().get(peerNodeId).split(":");
+        raftClientManager.scheduleReconnect(peerNodeId, address[0], Integer.parseInt(address[1]));
     }
     
     @Override
