@@ -18,5 +18,6 @@ public class RPCRequest {
     //Request Vote part in raft paper
     private long lastLogIndex;     // Candidate 最后一条日志的索引
     private long lastLogTerm; 
+    private int voteTerm;
 
 }

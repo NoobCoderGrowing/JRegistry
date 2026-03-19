@@ -9,7 +9,6 @@ import io.netty.handler.codec.LineBasedFrameDecoder;
 import io.netty.handler.codec.string.StringDecoder;
 import io.netty.handler.codec.string.StringEncoder;
 import io.netty.handler.timeout.IdleStateHandler;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import javax.annotation.PostConstruct;
@@ -19,17 +18,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
 import lombok.Data;
-import java.util.Map.Entry; 
 
 @Component
 @Data
-public class RaftServer {
+public class RaftServerManager {
     
     @Value("${raft.port}")
     private int raftPort;
-    
-    @Autowired
-    private RaftServerHandler raftServerHandler;
     
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
@@ -70,7 +65,7 @@ public class RaftServer {
                      p.addLast(new LineBasedFrameDecoder(8192));
                      p.addLast(new StringDecoder(StandardCharsets.UTF_8));
                      p.addLast(new StringEncoder(StandardCharsets.UTF_8));
-                     p.addLast(raftServerHandler);
+                     p.addLast(new RaftServerHandler());
                  }
              });
             
@@ -110,5 +105,15 @@ public class RaftServer {
         if (channel != null && channel.isActive()) {
             channel.writeAndFlush(message + "\n");
         } 
+    }
+
+    public int getActivePeers() {
+        int activePeers = 0;
+        for (Channel channel : peerChannels.values()) {
+            if(channel.isActive()) {
+                activePeers++;
+            }
+        }
+        return activePeers;
     }
 }

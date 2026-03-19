@@ -11,14 +11,16 @@ import org.springframework.stereotype.Component;
 import hawk.JRegistryCenter.Raft.RPC.Server.Services.AppendEntriesService;
 import hawk.JRegistryCenter.Raft.RPC.Server.Services.RequestVoteService;
 import hawk.JRegistryCenter.Raft.RaftNode;
+import lombok.Data;
 
 @Component
+@Data
 public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
 
-    private Integer peerNodeId;
+    private int peerNodeId;
 
     @Autowired
-    private RaftServer raftServer;
+    private RaftServerManager raftServer;
 
     @Autowired
     private AppendEntriesService appendEntriesService;
@@ -28,7 +30,6 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
 
     @Autowired
     private RaftNode raftNode;
-
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, String msg) {
@@ -41,27 +42,31 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
                     ctx.writeAndFlush(JSON.toJSONString(reply) + "\n");
                     break;
                 case "heartbeat":
-                    reply =appendEntriesService.handleHeartbeatRequest();
+                    reply =appendEntriesService.handleHeartbeatRequest(request);
                     ctx.writeAndFlush(JSON.toJSONString(reply) + "\n");
                     break;
                 case "requestVote":
-                    reply = requestVoteService.handleRequestVoteRequest(request);
+                    reply = requestVoteService.serverHandleRequestVoteRequest(request);
                     ctx.writeAndFlush(JSON.toJSONString(reply) + "\n");
                     break;
                 default:
                     break;
             }
-
+            if(reply != null){
+                ctx.writeAndFlush(JSON.toJSONString(reply) + "\n");
+            }
         } catch (Exception e) {
             e.printStackTrace();
             // ctx.writeAndFlush("{\"error\":\"" + e.getMessage() + "\"}\n");
         }
+        
     }
     
     @Override
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) {
         if (evt instanceof IdleStateEvent) {
-            if(raftNode.getLeaderId()==this.peerNodeId){ // 如果对方是Leader, 发起选举
+            //如果对方是Leader超时没有发送心跳，发起选举
+            if(raftNode.getLeaderId()==this.peerNodeId ){ // 如果对方是Leader, 发起选举
                 requestVoteService.startElection();
             }
     
