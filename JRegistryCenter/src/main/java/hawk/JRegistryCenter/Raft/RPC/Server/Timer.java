@@ -22,15 +22,16 @@ public class Timer {
     public synchronized void resetTimer() {
         timerIsUP.set(false);
         cancelCurrentTimeout();
+        long timeout = 20000L + random.nextInt(10000);
         timeoutFuture = scheduler.schedule(() -> {
             timerIsUP.set(true);
-        }, 15000, TimeUnit.MILLISECONDS);
+        }, timeout, TimeUnit.MILLISECONDS);
     }
 
     public synchronized void resetTimerWithDelay(int delay) {
         timerIsUP.set(false);
         cancelCurrentTimeout();
-        long timeout = 15000L + random.nextInt(Math.max(1, delay));
+        long timeout = 20000L + random.nextInt(Math.max(1, delay));
         timeoutFuture = scheduler.schedule(() -> {
             timerIsUP.set(true);
         }, timeout, TimeUnit.MILLISECONDS);

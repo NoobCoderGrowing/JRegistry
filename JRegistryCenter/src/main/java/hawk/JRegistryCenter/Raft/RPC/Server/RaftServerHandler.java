@@ -30,9 +30,7 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
 
     @Autowired
     private RaftNode raftNode;
-
-    @Autowired
-    private Timer timer;
+;
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, String msg) {

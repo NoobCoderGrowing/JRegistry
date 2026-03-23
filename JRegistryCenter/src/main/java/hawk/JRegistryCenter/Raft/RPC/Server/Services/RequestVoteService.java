@@ -13,6 +13,7 @@ import io.netty.channel.Channel;
 import hawk.JRegistryCenter.Raft.RaftNode;
 import hawk.JRegistryCenter.Raft.RPC.Server.RaftServerManager;
 import hawk.JRegistryCenter.Raft.RPC.Client.RaftClientManager;
+import hawk.JRegistryCenter.Raft.RPC.Server.Timer;
 
 
 @Service
@@ -32,10 +33,20 @@ public class RequestVoteService {
 
     private ReentrantLock voteLock = new ReentrantLock();
 
+    @Autowired
+    private Timer serverTimer;
+
 
    
 // voting logic
     public RPCReply serverHandleRequestVoteRequest(RPCRequest request) {
+
+        if(!serverTimer.isTimerUp()){
+            //如果计时器没有超时，拒绝投票
+            return rejectVote();
+        }
+
+
         RPCReply reply = null;
         if(request.getTerm() < raftNode.getCurrentTerm()){// term比自己小，拒绝投票
             reply = rejectVote();
@@ -80,7 +91,7 @@ public class RequestVoteService {
     
     
     public RPCReply acceptVote(RPCRequest request){
-
+        
         // return to candidate
         raftNode.getIsCandidate().compareAndSet(true, false);
 
