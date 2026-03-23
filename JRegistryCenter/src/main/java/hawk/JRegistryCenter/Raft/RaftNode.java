@@ -15,17 +15,15 @@ public class RaftNode {
 
     @Value("${raft.node-id}")
     private int id;
-    private boolean isLeader;
-    private boolean isCandidate;
+    private AtomicBoolean isLeader;
+    private AtomicBoolean isCandidate;
 
     //peer nodes
     private Map<Integer, Channel> peerChannels;
 
-    private long termVoted;
+    private volatile long termVoted;
 
     private AtomicInteger voteReceived;
-
-    private AtomicBoolean voting;
 
 
     //State part in raft paper
@@ -49,8 +47,8 @@ public class RaftNode {
     private long lastLogTerm;
 
     public RaftNode(){
-        this.isLeader = false;
-        this.isCandidate = false;
+        this.isLeader = new AtomicBoolean(false);
+        this.isCandidate = new AtomicBoolean(false);
         this.currentTerm = -1;
         this.votedFor = -1;
         this.commitIndex = -1;
@@ -60,6 +58,6 @@ public class RaftNode {
         this.leaderTerm = -1;
         this.termVoted = -1;
         this.voteReceived = new AtomicInteger(0);
-        this.voting = new AtomicBoolean(false);
+       
     }
 }

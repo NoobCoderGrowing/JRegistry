@@ -18,6 +18,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
 import lombok.Data;
+import java.util.Random;
 
 @Component
 @Data
@@ -29,6 +30,8 @@ public class RaftServerManager {
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
     private Channel channel;
+
+    private Random random = new Random();
 
     @Value("#{${raft.peers}}")
     private Map<Integer, String> peers;
@@ -61,7 +64,8 @@ public class RaftServerManager {
                  protected void initChannel(SocketChannel ch) {
                      ChannelPipeline p = ch.pipeline();
                      // 心跳检测：30秒无读写发送选举
-                     p.addLast(new IdleStateHandler(0, 0, 30, TimeUnit.SECONDS));
+                     p.addLast(new IdleStateHandler
+                        (20000 + random.nextInt(10000), 0, 0, TimeUnit.MILLISECONDS));
                      p.addLast(new LineBasedFrameDecoder(8192));
                      p.addLast(new StringDecoder(StandardCharsets.UTF_8));
                      p.addLast(new StringEncoder(StandardCharsets.UTF_8));
