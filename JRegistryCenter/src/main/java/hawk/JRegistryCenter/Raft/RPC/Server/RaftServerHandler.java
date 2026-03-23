@@ -31,6 +31,9 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
     @Autowired
     private RaftNode raftNode;
 
+    @Autowired
+    private Timer timer;
+
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, String msg) {
         try {
@@ -42,7 +45,7 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
                     ctx.writeAndFlush(JSON.toJSONString(reply) + "\n");
                     break;
                 case "heartbeat":
-                    reply =appendEntriesService.handleHeartbeatRequest(request);
+                    reply =appendEntriesService.serverHandleHeartbeatRequest(request);
                     ctx.writeAndFlush(JSON.toJSONString(reply) + "\n");
                     break;
                 case "requestVote":
@@ -66,7 +69,8 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) {
         if (evt instanceof IdleStateEvent) {
             //如果对方是Leader超时没有发送心跳，发起选举
-            if(raftNode.getLeaderId()==this.peerNodeId ){ // 如果对方是Leader, 发起选举
+            //如果集群刚启动没有leader, 发起选举
+            if(raftNode.getLeaderId()==this.peerNodeId || raftNode.getLeaderId() == -1 ){ // 如果对方是Leader, 发起选举
                 requestVoteService.startElection();
             }
     

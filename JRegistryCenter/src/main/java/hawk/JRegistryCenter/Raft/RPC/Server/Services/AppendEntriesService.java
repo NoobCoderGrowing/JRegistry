@@ -53,11 +53,10 @@ public class AppendEntriesService {
 
     }
 
-    //follower to leader (passive)
-    public RPCReply handleHeartbeatRequest(RPCRequest request) {
-        if(request.getTerm() > raftNode.getCurrentTerm()){
-            //收到更高term的心跳包，放弃投票
-            raftNode.getVoting().set(false);
+    public RPCReply serverHandleHeartbeatRequest(RPCRequest request) {
+        if(request.getTerm() >= raftNode.getCurrentTerm()){
+            //收到更高term的心跳包，承认对方leader，放弃选举，更新自己term
+            raftNode.getIsCandidate().compareAndSet(true, false);
             raftNode.setCurrentTerm(request.getTerm());
             raftNode.setLeaderId(request.getId());   
         }

@@ -74,7 +74,7 @@ public class RaftClientManager {
              protected void initChannel(SocketChannel ch) {
                  ChannelPipeline p = ch.pipeline();
                  // 30秒无读写则触发ideleStateEvent
-                 p.addLast(new IdleStateHandler(0, 0, 30, TimeUnit.SECONDS)); 
+                 p.addLast(new IdleStateHandler(0, 0, 15000, TimeUnit.MILLISECONDS)); 
                  p.addLast(new LineBasedFrameDecoder(8192)); //使用行分隔符解码器，每行一个消息
                  p.addLast(new StringDecoder(StandardCharsets.UTF_8)); //使用字符串解码器，将字符串解码为消息
                  p.addLast(new StringEncoder(StandardCharsets.UTF_8)); //使用字符串编码器，将消息编码为字符串
