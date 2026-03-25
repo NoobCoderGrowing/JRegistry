@@ -53,7 +53,7 @@ public class RequestVoteService {
         }else if(request.getTerm() > raftNode.getCurrentTerm()){// term比自己大，接受投票
             reply = acceptVote(request);
         }else{ // term和自己一样，比较日志
-            if(request.getLastLogTerm()<raftNode.getCurrentTerm()){// 日志的term比自己旧，拒绝投票
+            if(request.getLastLogTerm()<raftNode.getLastLogTerm()){// 日志的term比自己旧，拒绝投票
                 reply = rejectVote();
             }else{ // 日志的term和自己一样或比自己新
                 if(request.getLastLogTerm()>raftNode.getLastLogTerm()){// 日志的term比自己新，接受投票
