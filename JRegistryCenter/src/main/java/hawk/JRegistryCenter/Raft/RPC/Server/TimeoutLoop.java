@@ -23,7 +23,7 @@ public class TimeoutLoop {
     private RaftNode raftNode;
 
     @PostConstruct
-    public void start(){
+    public void start(){ // 程序逻辑入口
 
         timer.start();
 
