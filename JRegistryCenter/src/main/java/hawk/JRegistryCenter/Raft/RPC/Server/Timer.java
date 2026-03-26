@@ -42,9 +42,13 @@ public class Timer {
             cancelCurrentTimeout();
             long timeout = 20000L + random.nextInt(10000);
             timeoutFuture = scheduler.schedule(() -> {
+                try{
                     timerIsUP.set(true);
                     condition.signalAll();
-                }, timeout, TimeUnit.MILLISECONDS);
+                }catch(Exception e){
+                    e.printStackTrace();
+                }
+            }, timeout, TimeUnit.MILLISECONDS);
         }finally{
             lock.unlock();
         }
@@ -58,9 +62,13 @@ public class Timer {
             cancelCurrentTimeout();
             long timeout = 20000L + random.nextInt(Math.max(1, delay));
             timeoutFuture = scheduler.schedule(() -> {
+                try{
                     timerIsUP.set(true);
                     condition.signalAll();
-                }, timeout, TimeUnit.MILLISECONDS);
+                }catch(Exception e){
+                    e.printStackTrace();
+                }
+            }, timeout, TimeUnit.MILLISECONDS);
         }finally{
             lock.unlock();
         }

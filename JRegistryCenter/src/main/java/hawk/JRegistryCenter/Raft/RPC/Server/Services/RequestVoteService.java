@@ -39,7 +39,7 @@ public class RequestVoteService {
 
    
 // voting logic
-    public RPCReply serverHandleRequestVoteRequest(RPCRequest request) {
+    public RPCReply serverHandleRequestVoteRequest1(RPCRequest request) {
 
         if(!serverTimer.isTimerUp()){
             //如果计时器没有超时，拒绝投票
@@ -69,6 +69,43 @@ public class RequestVoteService {
         }
         return reply;
     }
+
+    // new voting logic(compare log term and index to determine whether to accept)
+    public RPCReply serverHandleRequestVoteRequest(RPCRequest request) {
+
+        if(!serverTimer.isTimerUp()){
+            //如果计时器没有超时，拒绝投票
+            return rejectVote();
+        }
+
+
+        RPCReply reply = null;
+        if(request.getTerm() <= raftNode.getCurrentTerm()){// term比自己小或相等，拒绝投票
+            reply = rejectVote();
+        }else{ // term比自己大，比较日志
+            if(request.getLastLogTerm() < raftNode.getLastLogTerm()){
+                // 日志的term比自己小，拒绝投票
+                reply = rejectVote();
+            }else{ // 日志的term和自己一样或比自己新
+                if(request.getLastLogTerm() > raftNode.getLastLogTerm()){
+                    // 日志的term比自己新，接受投票
+                    reply = acceptVote(request);
+                }else{ // 日志的term和自己一样，比较index
+                    if(request.getLastLogIndex() < raftNode.getLastLogIndex()){
+                        // 日志的index比自己旧，拒绝投票
+                        reply = rejectVote();
+                    }else{ // 日志的index比自己新或一样新，接受投票
+                        reply = acceptVote(request);
+                    }
+                }   
+            }
+        }
+        return reply;
+    }
+
+
+
+
 
     public RPCReply rejectVote() {
         RPCReply reply = new RPCReply();
