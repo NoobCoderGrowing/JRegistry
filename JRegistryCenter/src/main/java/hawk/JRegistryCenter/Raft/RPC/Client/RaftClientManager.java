@@ -56,10 +56,10 @@ public class RaftClientManager {
         }
 
         //如果正在重连，则不进行重连
-        if(reconnectLock.containsKey(nodeId) && 
-            !reconnectLock.get(nodeId).compareAndSet(false, true)){
+        if(!reconnectLock.get(nodeId).compareAndSet(false, true)){
             return; //正在重连，不进行重连
         }
+
         
         
         

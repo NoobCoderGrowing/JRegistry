@@ -10,12 +10,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import io.netty.channel.Channel;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import hawk.JRegistryCenter.Raft.RPC.Server.Timer;
 
 @Service
 public class AppendEntriesService {
 
     @Autowired
     private RaftNode raftNode;
+
+    @Autowired
+    private Timer serverTimer;
 
     //leader to follower (active)
     public void sendHeartBeat(Channel channel, int id){
@@ -38,8 +42,12 @@ public class AppendEntriesService {
         return null;
 
     }
-    //client to server (passive)  
+
+
     public RPCReply handleAppendEntriesRequest(RPCRequest request) {
+        if(request.getId() == raftNode.getLeaderId()){
+            serverTimer.resetTimer();
+        }
 
         return null;
 
@@ -53,14 +61,25 @@ public class AppendEntriesService {
 
     }
 
-    public RPCReply serverHandleHeartbeatRequest(RPCRequest request) {
-        if(request.getTerm() >= raftNode.getCurrentTerm()){
-            //收到更高term的心跳包，承认对方leader，放弃选举，更新自己term
-            raftNode.getIsCandidate().compareAndSet(true, false);
-            raftNode.setCurrentTerm(request.getTerm());
-            raftNode.setLeaderId(request.getId());   
-        }
 
+    public void acceptHeartbeat(RPCRequest request){
+        raftNode.getIsCandidate().compareAndSet(true, false);
+        raftNode.setCurrentTerm(request.getTerm());
+        raftNode.setLeaderId(request.getId());   
+    }
+
+    public RPCReply serverHandleHeartbeatRequest(RPCRequest request) {
+        if(request.getId() == raftNode.getLeaderId()){
+            serverTimer.resetTimer();
+            acceptHeartbeat(request);
+        }else{
+            if(serverTimer.isTimerUp() && 
+            request.getTerm() > raftNode.getCurrentTerm()){ 
+            //收到更高term的心跳包，承认对方leader，放弃选举，更新自己term
+                serverTimer.resetTimer();
+                acceptHeartbeat(request);
+            }
+        }
         return null;
     }
 

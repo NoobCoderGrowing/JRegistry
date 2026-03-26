@@ -30,9 +30,7 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
 
     @Autowired
     private RaftNode raftNode;
-
-    @Autowired
-    private Timer timer;
+;
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, String msg) {
@@ -70,9 +68,11 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
         if (evt instanceof IdleStateEvent) {
             //如果对方是Leader超时没有发送心跳，发起选举
             //如果集群刚启动没有leader, 发起选举
-            if(raftNode.getLeaderId()==this.peerNodeId || raftNode.getLeaderId() == -1 ){ // 如果对方是Leader, 发起选举
-                requestVoteService.startElection();
-            }
+            // if(raftNode.getLeaderId()==this.peerNodeId || raftNode.getLeaderId() == -1 ){ // 如果对方是Leader, 发起选举
+            //     requestVoteService.startElection();
+            // }
+
+            //交给TimeoutLoop处理投票发起
     
         }
     }
