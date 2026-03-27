@@ -23,7 +23,7 @@ public class CLIServer {
 
     @Value("${host}")
     private String host;
-    @Value("${netty.port}")
+    @Value("${CLS.port}")
     private int port;
 
     private EventLoopGroup boss;

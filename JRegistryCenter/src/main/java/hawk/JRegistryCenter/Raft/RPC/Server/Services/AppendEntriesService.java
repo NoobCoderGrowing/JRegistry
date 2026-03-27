@@ -9,9 +9,10 @@ import hawk.JRegistryCenter.Raft.RaftNode;
 import org.springframework.beans.factory.annotation.Autowired;
 import io.netty.channel.Channel;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 import hawk.JRegistryCenter.Raft.RPC.Server.Timer;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 public class AppendEntriesService {
 
@@ -28,9 +29,11 @@ public class AppendEntriesService {
         request.setId(id);
         request.setTerm(raftNode.getCurrentTerm());
         channel.writeAndFlush(JSON.toJSONString(request) + "\n");
+        log.info("leader node {} send heartbeat to node {}", raftNode.getId(), id);
     }
 
     public void sendHeartBeatToAll(Map<Integer, Channel> peerChannels){
+        log.info("leader node {} send heartbeat to all nodes", raftNode.getId());
         for (Map.Entry<Integer, Channel> entry : peerChannels.entrySet()) {
             sendHeartBeat(entry.getValue(), entry.getKey());
         }
@@ -45,6 +48,7 @@ public class AppendEntriesService {
 
 
     public RPCReply handleAppendEntriesRequest(RPCRequest request) {
+        log.info("server {} handle append entries request: {}", raftNode.getId(), JSON.toJSONString(request));
         if(request.getId() == raftNode.getLeaderId()){
             serverTimer.resetTimer();
         }
@@ -69,6 +73,7 @@ public class AppendEntriesService {
     }
 
     public RPCReply serverHandleHeartbeatRequest(RPCRequest request) {
+        log.info("server {} handle heartbeat request: {}", raftNode.getId(), JSON.toJSONString(request));
         if(request.getId() == raftNode.getLeaderId()){
             serverTimer.resetTimer();
             acceptHeartbeat(request);

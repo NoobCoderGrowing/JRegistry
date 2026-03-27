@@ -12,6 +12,7 @@ target/
 
 
 # VS Code / Cursor
+/.vscode/
 .vscode/
 .history/
 .settings.json

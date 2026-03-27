@@ -14,8 +14,9 @@ import hawk.JRegistryCenter.Raft.RaftNode;
 import hawk.JRegistryCenter.Raft.RPC.Server.RaftServerManager;
 import hawk.JRegistryCenter.Raft.RPC.Client.RaftClientManager;
 import hawk.JRegistryCenter.Raft.RPC.Server.Timer;
+import lombok.extern.slf4j.Slf4j;
 
-
+@Slf4j
 @Service
 public class RequestVoteService {
 
@@ -43,24 +44,24 @@ public class RequestVoteService {
 
         if(!serverTimer.isTimerUp()){
             //如果计时器没有超时，拒绝投票
-            return rejectVote();
+            return rejectVote(request);
         }
 
 
         RPCReply reply = null;
         if(request.getTerm() < raftNode.getCurrentTerm()){// term比自己小，拒绝投票
-            reply = rejectVote();
+            reply = rejectVote(request);
         }else if(request.getTerm() > raftNode.getCurrentTerm()){// term比自己大，接受投票
             reply = acceptVote(request);
         }else{ // term和自己一样，比较日志
             if(request.getLastLogTerm()<raftNode.getLastLogTerm()){// 日志的term比自己旧，拒绝投票
-                reply = rejectVote();
+                reply = rejectVote(request);
             }else{ // 日志的term和自己一样或比自己新
                 if(request.getLastLogTerm()>raftNode.getLastLogTerm()){// 日志的term比自己新，接受投票
                     reply = acceptVote(request);
                 }else{ //日志的term和自己一样，比较index
                     if(request.getLastLogIndex() < raftNode.getLastLogIndex()){//日志的index比自己旧，拒绝投票
-                        reply = rejectVote();
+                        reply = rejectVote(request);
                     }else{ // 日志的index比自己新或一样新，接受投票
                         reply = acceptVote(request);
                     }
@@ -75,17 +76,17 @@ public class RequestVoteService {
 
         if(!serverTimer.isTimerUp()){
             //如果计时器没有超时，拒绝投票
-            return rejectVote();
+            return rejectVote(request);
         }
 
 
         RPCReply reply = null;
         if(request.getTerm() <= raftNode.getCurrentTerm()){// term比自己小或相等，拒绝投票
-            reply = rejectVote();
+            reply = rejectVote(request);
         }else{ // term比自己大，比较日志
             if(request.getLastLogTerm() < raftNode.getLastLogTerm()){
                 // 日志的term比自己小，拒绝投票
-                reply = rejectVote();
+                reply = rejectVote(request);
             }else{ // 日志的term和自己一样或比自己新
                 if(request.getLastLogTerm() > raftNode.getLastLogTerm()){
                     // 日志的term比自己新，接受投票
@@ -93,7 +94,7 @@ public class RequestVoteService {
                 }else{ // 日志的term和自己一样，比较index
                     if(request.getLastLogIndex() < raftNode.getLastLogIndex()){
                         // 日志的index比自己旧，拒绝投票
-                        reply = rejectVote();
+                        reply = rejectVote(request);
                     }else{ // 日志的index比自己新或一样新，接受投票
                         reply = acceptVote(request);
                     }
@@ -107,7 +108,7 @@ public class RequestVoteService {
 
 
 
-    public RPCReply rejectVote() {
+    public RPCReply rejectVote(RPCRequest request) {
         RPCReply reply = new RPCReply();
         reply.setType("requestVote");
         reply.setId(raftNode.getId());
@@ -115,6 +116,7 @@ public class RequestVoteService {
         reply.setLastLogTerm(raftNode.getLastLogTerm());
         reply.setLastLogIndex(raftNode.getLastLogIndex());
         reply.setVoteGranted(false);    
+        log.info("server {} reject vote for node {}", raftNode.getId(), request.getId());
         return reply;
     }
 
@@ -136,7 +138,7 @@ public class RequestVoteService {
 
         try{
             if(checkTermVoted(request)){ // 当前term已经投过票了，拒绝投票
-                return rejectVote();
+                return rejectVote(request);
             }
 
             raftNode.setTermVoted(request.getTerm());
@@ -155,11 +157,13 @@ public class RequestVoteService {
         reply.setLastLogTerm(raftNode.getLastLogTerm());
         reply.setLastLogIndex(raftNode.getLastLogIndex());
         reply.setVoteGranted(true);
+        log.info("server {} granted vote for node {}", raftNode.getId(), request.getId());
         return reply;
     }
 
     //client to server
     public RPCReply clientHandleRequestVoteRequest(RPCRequest request) {
+        log.info("client node{} handle request vote request: {}", raftNode.getId(), JSON.toJSONString(request));
         if(request.getVoteTerm() == raftNode.getCurrentTerm() && 
         raftNode.getIsCandidate().get()){
             int voteReceived = raftNode.getVoteReceived().incrementAndGet();
@@ -168,6 +172,7 @@ public class RequestVoteService {
                 raftNode.getIsLeader().compareAndSet(false, true);
                 raftNode.getIsCandidate().compareAndSet(true, false);
                 raftNode.setLeaderId(raftNode.getId());
+                log.info("client node {} become leader", raftNode.getId());
                 //异步发送心跳包给所有节点（netty发送消息本身就是异步的）
                 appendEntriesService.sendHeartBeatToAll(raftClientManager.getPeerChannels());
             }
