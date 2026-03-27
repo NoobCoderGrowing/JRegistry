@@ -3,8 +3,8 @@ host: 127.0.0.1
 server:
   port: 6201
 
-netty:
-  port: 6202
+CLS:
+  port: 6203
 
 raft:
   node-id: 2
