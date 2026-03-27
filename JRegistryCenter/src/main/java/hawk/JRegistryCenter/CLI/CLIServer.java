@@ -17,7 +17,9 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.Channel;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Component
 public class CLIServer {
 
@@ -25,6 +27,8 @@ public class CLIServer {
     private String host;
     @Value("${CLS.port}")
     private int port;
+    @Value("${raft.node-id}")
+    private int id;
 
     private EventLoopGroup boss;
     private EventLoopGroup worker;
@@ -52,18 +56,18 @@ public class CLIServer {
 
             ChannelFuture f = b.bind(port).sync();
             channel = f.channel();
-            System.out.println("JRegistry TCP server started on port " + port);
+            log.info("CLI server {} started on port {}", id, port);
             
             // 注册 JVM 关闭钩子
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 shutdown();
             }));
             
-            f.channel().closeFuture().sync();
+            // f.channel().closeFuture().sync();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } finally {
-            shutdown();
+            // shutdown();
         }
     }
 
@@ -78,6 +82,6 @@ public class CLIServer {
         if (worker != null) {
             worker.shutdownGracefully();
         }
-        System.out.println("NettyServer shutdown gracefully");
+        log.info("CLI server {} shutdown gracefully", id);
     }
 }

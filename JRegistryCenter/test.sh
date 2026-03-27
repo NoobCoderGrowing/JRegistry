@@ -6,18 +6,23 @@ LOG_DIR="logs"
 
 mkdir -p "$LOG_DIR"
 
+./stop.sh  || true
+
+sleep 1
+
+rm -rf "$LOG_DIR"/*
 
 # 启动 3 个节点（使用不同配置）
 nohup java -jar "$APP_JAR" --spring.config.location=classpath:/application.yaml \
-  > "$LOG_DIR/node1.log" 2>&1 &
+  > /dev/null 2>&1 &
 echo $! > "$LOG_DIR/node1.pid"
 
 nohup java -jar "$APP_JAR" --spring.config.location=classpath:/application_node2.yaml \
-  > "$LOG_DIR/node2.log" 2>&1 &
+  > /dev/null 2>&1 &
 echo $! > "$LOG_DIR/node2.pid"
 
 nohup java -jar "$APP_JAR" --spring.config.location=classpath:/application_node3.yaml \
-  > "$LOG_DIR/node3.log" 2>&1 &
+  > /dev/null 2>&1 &
 echo $! > "$LOG_DIR/node3.pid"
 
 echo "Started nodes:"

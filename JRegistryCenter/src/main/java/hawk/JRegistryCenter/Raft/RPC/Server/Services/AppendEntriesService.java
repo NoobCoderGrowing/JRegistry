@@ -11,6 +11,8 @@ import io.netty.channel.Channel;
 import java.util.Map;
 import hawk.JRegistryCenter.Raft.RPC.Server.Timer;
 import lombok.extern.slf4j.Slf4j;
+import hawk.JRegistryCenter.Raft.RPC.Server.RaftServerHandler;
+
 
 @Slf4j
 @Service
@@ -22,25 +24,43 @@ public class AppendEntriesService {
     @Autowired
     private Timer serverTimer;
 
+
+    public void sendShakeHands(Channel channel, int peerNodeId){
+        RPCRequest request = new RPCRequest();
+        request.setType("shakeHand");
+        request.setId(raftNode.getId());
+        channel.writeAndFlush(JSON.toJSONString(request) + "\n");
+        log.info("node {} send shake hand request to node {}", raftNode.getId(), peerNodeId);
+        
+    }
+
+    public RPCReply handleShakeHandsRequest(RPCRequest request, RaftServerHandler raftServerHandler, Channel channel){
+        raftServerHandler.setPeerNodeId(request.getId());
+        raftServerHandler.getRaftServer().getPeerChannels().put(request.getId(), channel);
+        return null;
+    }
+
     //leader to follower (active)
-    public void sendHeartBeat(Channel channel, int id){
+    public void sendHeartBeat(Channel channel, int peerNodeId){
         RPCRequest request = new RPCRequest();
         request.setType("heartbeat");
-        request.setId(id);
+        request.setId(raftNode.getId());
         request.setTerm(raftNode.getCurrentTerm());
         channel.writeAndFlush(JSON.toJSONString(request) + "\n");
-        log.info("leader node {} send heartbeat to node {}", raftNode.getId(), id);
+        log.info("leader node {} send heartbeat to node {}", raftNode.getId(), peerNodeId);
     }
 
     public void sendHeartBeatToAll(Map<Integer, Channel> peerChannels){
         log.info("leader node {} send heartbeat to all nodes", raftNode.getId());
         for (Map.Entry<Integer, Channel> entry : peerChannels.entrySet()) {
-            sendHeartBeat(entry.getValue(), entry.getKey());
+            if(entry.getKey() != raftNode.getId()){ // 不发送心跳包给自己
+                sendHeartBeat(entry.getValue(), entry.getKey());
+            }
         }
     }
 
     //client to server（passive）
-    public RPCReply clientHandleAppendEntriesRequest(RPCRequest request) {
+    public RPCRequest clientHandleAppendEntriesRequest(RPCReply reply) {
 
         return null;
 
@@ -67,13 +87,15 @@ public class AppendEntriesService {
 
 
     public void acceptHeartbeat(RPCRequest request){
+        log.info("server {} accept heartbeat from leader node {}", raftNode.getId(), request.getId());
         raftNode.getIsCandidate().compareAndSet(true, false);
+        raftNode.getIsLeader().compareAndSet(true, false); // 放弃leader身份
         raftNode.setCurrentTerm(request.getTerm());
         raftNode.setLeaderId(request.getId());   
     }
 
     public RPCReply serverHandleHeartbeatRequest(RPCRequest request) {
-        log.info("server {} handle heartbeat request: {}", raftNode.getId(), JSON.toJSONString(request));
+        // log.info("server {} handle heartbeat request: {}", raftNode.getId(), JSON.toJSONString(request));
         if(request.getId() == raftNode.getLeaderId()){
             serverTimer.resetTimer();
             acceptHeartbeat(request);

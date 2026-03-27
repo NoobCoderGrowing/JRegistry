@@ -19,6 +19,7 @@ public class RPCReply {
      private boolean voteGranted;
      private long lastLogIndex;
      private long lastLogTerm;
+     private long voteTerm;
 
 
 
