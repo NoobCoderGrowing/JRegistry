@@ -12,7 +12,9 @@ import hawk.JRegistryCenter.Raft.RPC.Server.Services.AppendEntriesService;
 import hawk.JRegistryCenter.Raft.RPC.Server.Services.RequestVoteService;
 import hawk.JRegistryCenter.Raft.RaftNode;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Component
 @Data
 public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
@@ -37,27 +39,26 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
         try {
             RPCRequest request = JSON.parseObject(msg, RPCRequest.class);
             RPCReply reply = null;
+            log.info("server {} handle request: {}", raftNode.getId(), JSON.toJSONString(request));
             switch (request.getType()) {
                 case "appendEntries":
                     reply = appendEntriesService.handleAppendEntriesRequest(request);
-                    ctx.writeAndFlush(JSON.toJSONString(reply) + "\n");
                     break;
                 case "heartbeat":
                     reply =appendEntriesService.serverHandleHeartbeatRequest(request);
-                    ctx.writeAndFlush(JSON.toJSONString(reply) + "\n");
                     break;
                 case "requestVote":
                     reply = requestVoteService.serverHandleRequestVoteRequest(request);
-                    ctx.writeAndFlush(JSON.toJSONString(reply) + "\n");
                     break;
                 default:
                     break;
             }
             if(reply != null){
                 ctx.writeAndFlush(JSON.toJSONString(reply) + "\n");
+                log.info("server {} send reply: {}", raftNode.getId(), JSON.toJSONString(reply));
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("server {} handle request error: {}", raftNode.getId(), e.getMessage());
             // ctx.writeAndFlush("{\"error\":\"" + e.getMessage() + "\"}\n");
         }
         
@@ -79,18 +80,18 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
     
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
-        System.out.println("Raft peer connected: " + ctx.channel().remoteAddress());
         Integer peerNodeId = raftServer.getAddressToPeer().get(ctx.channel().remoteAddress().toString());
         this.peerNodeId = peerNodeId;
         if(peerNodeId != null){
             raftServer.getPeerChannels().put(peerNodeId, ctx.channel());
         }
+        log.info("server {} connected to peer {}", raftNode.getId(), peerNodeId);
     }
     
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
-        System.out.println("Raft peer disconnected: " + ctx.channel().remoteAddress());
         raftServer.getPeerChannels().remove(peerNodeId);
+        log.info("server {} disconnected from peer {}", raftNode.getId(), peerNodeId);
     }
     
     @Override

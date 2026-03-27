@@ -65,7 +65,7 @@ public class RaftServerManager {
                      ChannelPipeline p = ch.pipeline();
                      // 心跳检测：30秒无读写发送选举
                      p.addLast(new IdleStateHandler
-                        (20000 + random.nextInt(10000), 0, 0, TimeUnit.MILLISECONDS));
+                        (20000 , 0, 0, TimeUnit.MILLISECONDS));
                      p.addLast(new LineBasedFrameDecoder(8192));
                      p.addLast(new StringDecoder(StandardCharsets.UTF_8));
                      p.addLast(new StringEncoder(StandardCharsets.UTF_8));
