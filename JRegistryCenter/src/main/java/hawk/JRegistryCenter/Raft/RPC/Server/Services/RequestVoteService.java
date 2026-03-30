@@ -67,14 +67,14 @@ public class RequestVoteService {
     // new voting logic(compare log term and index to determine whether to accept)
     public RPCReply serverHandleRequestVoteRequest(RPCRequest request) {
 
-        if(!serverTimer.isTimerUp() && raftNode.getLeaderId() != -1){ 
-            //如果计时器没有超时，且有leader，拒绝投票
-            return rejectVote(request);
-        }
+        // if(!serverTimer.isTimerUp() && raftNode.getLeaderId() != -1){ 
+        //     //如果计时器没有超时，且有leader，拒绝投票
+        //     return rejectVote(request);
+        // }
 
 
         RPCReply reply = null;
-        if(request.getTerm() <= raftNode.getCurrentTerm()){// term比自己小或相等，拒绝投票
+        if(request.getTerm() < raftNode.getCurrentTerm()){// term比自己小，拒绝投票
             reply = rejectVote(request);
         }else{ // term比自己大，比较日志
             if(request.getLastLogTerm() < raftNode.getLastLogTerm()){
@@ -113,8 +113,8 @@ public class RequestVoteService {
         return reply;
     }
 
-    public boolean checkTermVoted(RPCRequest request){
-        if(raftNode.getTermVoted() >= request.getTerm()){//当前term已经投过票了
+    public boolean checkTermVoted(long requestTerm){
+        if(raftNode.getTermVoted() >= requestTerm){//当前term已经投过票了
             return true;
         }
         return false;
@@ -130,7 +130,7 @@ public class RequestVoteService {
         voteLock.lock(); // 加锁，防止并发投票
 
         try{
-            if(checkTermVoted(request)){ // 当前term已经投过票了，拒绝投票
+            if(checkTermVoted(request.getTerm())){ // 当前term已经投过票了，拒绝投票
                 return rejectVote(request);
             }
 
@@ -179,9 +179,18 @@ public class RequestVoteService {
     public void startElection(RaftClientManager raftClientManager){
         raftNode.getVoteReceived().set(0);
         raftNode.setCurrentTerm(raftNode.getCurrentTerm() + 1);
-        raftNode.setTermVoted(raftNode.getCurrentTerm());
-        raftNode.getIsCandidate().compareAndSet(false, true);
-        raftNode.getVoteReceived().incrementAndGet();//自己投给自己
+        voteLock.lock();
+        try{
+            if(checkTermVoted(raftNode.getCurrentTerm())){ // 当前term已经投过票了，拒绝投票
+                return;
+            }
+            raftNode.setTermVoted(raftNode.getCurrentTerm());
+            raftNode.getIsCandidate().compareAndSet(false, true);
+            raftNode.getVoteReceived().incrementAndGet();//自己投给自己
+        }finally{
+            voteLock.unlock(); // 解锁
+        }
+        log.info("node {} timeout, start election term {}", raftNode.getId(), raftNode.getCurrentTerm());
         sendRequestVote(raftClientManager);
     }
 

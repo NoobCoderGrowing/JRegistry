@@ -47,7 +47,6 @@ public class TimeoutLoop {
                 timer.awaitTimerUp();
                 // 到点后：重置计时并发起选举
                 if(!raftNode.getIsLeader().get()){
-                    log.info("node {} timeout, start election term {}", raftNode.getId(), raftNode.getCurrentTerm());
                     requestVoteService.startElection(raftClientManager);
                 }
                 timer.resetTimer();

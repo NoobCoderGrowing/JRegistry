@@ -87,7 +87,7 @@ public class RaftClientHandler extends SimpleChannelInboundHandler<String> {
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
-        log.info("node {} connection to peer {} lost", raftClientManager.getId(), peerNodeId);
+        log.info("node {} connection to peer {} lost, re-connect in 5 seconds" , raftClientManager.getId(), peerNodeId);
         raftClientManager.getPeerChannels().remove(peerNodeId);
         String[] address = raftClientManager.getPeerAddresses().get(peerNodeId).split(":");
         raftClientManager.scheduleReconnect(peerNodeId, address[0], Integer.parseInt(address[1]));

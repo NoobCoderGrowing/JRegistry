@@ -47,11 +47,11 @@ public class AppendEntriesService {
         request.setId(raftNode.getId());
         request.setTerm(raftNode.getCurrentTerm());
         channel.writeAndFlush(JSON.toJSONString(request) + "\n");
-        log.info("leader node {} send heartbeat to node {}", raftNode.getId(), peerNodeId);
+        log.info("term {}, leader node {} send heartbeat to node {}", raftNode.getCurrentTerm(), raftNode.getId(), peerNodeId);
     }
 
     public void sendHeartBeatToAll(Map<Integer, Channel> peerChannels){
-        log.info("leader node {} send heartbeat to all nodes", raftNode.getId());
+        log.info("term {}, leader node {} send heartbeat to all nodes", raftNode.getCurrentTerm(), raftNode.getId());
         for (Map.Entry<Integer, Channel> entry : peerChannels.entrySet()) {
             if(entry.getKey() != raftNode.getId()){ // 不发送心跳包给自己
                 sendHeartBeat(entry.getValue(), entry.getKey());
@@ -96,16 +96,21 @@ public class AppendEntriesService {
 
     public RPCReply serverHandleHeartbeatRequest(RPCRequest request) {
         // log.info("server {} handle heartbeat request: {}", raftNode.getId(), JSON.toJSONString(request));
-        if(request.getId() == raftNode.getLeaderId()){
+        // if(request.getId() == raftNode.getLeaderId()){
+        //     serverTimer.resetTimer();
+        //     acceptHeartbeat(request);
+        // }else{
+        //     if(request.getTerm() >= raftNode.getCurrentTerm()){ 
+        //     //收到更高term的心跳包，承认对方leader，放弃选举，更新自己term
+        //         serverTimer.resetTimer();
+        //         acceptHeartbeat(request);
+        //     }
+        // }
+
+        if(request.getTerm() >= raftNode.getCurrentTerm()){ 
+            //收到更高term或一样term的心跳包，承认对方leader，放弃选举，更新自己term
             serverTimer.resetTimer();
             acceptHeartbeat(request);
-        }else{
-            if(serverTimer.isTimerUp() && 
-            request.getTerm() > raftNode.getCurrentTerm()){ 
-            //收到更高term的心跳包，承认对方leader，放弃选举，更新自己term
-                serverTimer.resetTimer();
-                acceptHeartbeat(request);
-            }
         }
         return null;
     }

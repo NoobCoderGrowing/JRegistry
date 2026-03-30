@@ -49,7 +49,7 @@ public class RaftNode {
     public RaftNode(){
         this.isLeader = new AtomicBoolean(false);
         this.isCandidate = new AtomicBoolean(false);
-        this.currentTerm = 0;
+        this.currentTerm = -1;
         this.commitIndex = -1;
         this.lastApplied = -1;
         // this.nextIndex = new long[10];
