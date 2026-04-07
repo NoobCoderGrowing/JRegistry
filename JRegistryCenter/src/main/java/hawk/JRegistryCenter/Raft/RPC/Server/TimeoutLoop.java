@@ -29,6 +29,8 @@ public class TimeoutLoop {
 
     private final AtomicBoolean running = new AtomicBoolean(true);
 
+    private volatile Thread loopThread;
+
     @PostConstruct
     public void start(){ // 程序逻辑入口
 
@@ -42,19 +44,22 @@ public class TimeoutLoop {
             }
         }, "timeout-loop-shutdown-hook"));
 
-        while(running.get()){
-            try{
+        loopThread = new Thread(this::runLoop, "timeout-loop-" + raftNode.getId());
+        loopThread.setDaemon(true);
+        loopThread.start();
+    }
+
+
+    private void runLoop() {
+        while (running.get()) {
+            try {
                 timer.awaitTimerUp();
-                // 到点后：重置计时并发起选举
-                if(!raftNode.getIsLeader().get()){
+                if (!raftNode.getIsLeader().get()) {
                     requestVoteService.startElection(raftClientManager);
                 }
                 timer.resetTimer();
-                
-            }catch(InterruptedException e){
-                //保留中断标志
-                Thread.currentThread().interrupt();
-                //退出循环
+            } catch (InterruptedException e) {
+                log.error("timeout loop {} interrupted", raftNode.getId(), e);
                 break;
             }
         }
