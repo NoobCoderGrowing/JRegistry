@@ -19,7 +19,7 @@ public class RaftClientHandler extends SimpleChannelInboundHandler<String> {
     private int peerNodeId;
 
 
-    @Autowired
+   
     private AppendEntriesService appendEntriesService;
 
     
