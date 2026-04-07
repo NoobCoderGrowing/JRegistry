@@ -6,7 +6,6 @@ import hawk.JRegistryCenter.Raft.RPC.RPCRequest;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.timeout.IdleStateEvent;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import hawk.JRegistryCenter.Raft.RPC.Server.Services.AppendEntriesService;
 import hawk.JRegistryCenter.Raft.RPC.Server.Services.RequestVoteService;
@@ -21,25 +20,29 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
 
     private int peerNodeId;
 
-    @Autowired
+   
     private RaftServerManager raftServer;
 
-    @Autowired
+
     private AppendEntriesService appendEntriesService;
 
-    @Autowired
     private RequestVoteService requestVoteService;
 
-    @Autowired
     private RaftNode raftNode;
-;
+
+    public RaftServerHandler(RaftServerManager raftServer, AppendEntriesService appendEntriesService, RequestVoteService requestVoteService, RaftNode raftNode) {
+        this.raftServer = raftServer;
+        this.appendEntriesService = appendEntriesService;
+        this.requestVoteService = requestVoteService;
+        this.raftNode = raftNode;
+    }
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, String msg) {
         try {
             RPCRequest request = JSON.parseObject(msg, RPCRequest.class);
             RPCReply reply = null;
-            log.info("server {} handle request: {}", raftNode.getId(), JSON.toJSONString(request));
+            // log.info("server {} handle request: {}", raftNode.getId(), JSON.toJSONString(request));
             switch (request.getType()) {
                 case "appendEntries":
                     reply = appendEntriesService.handleAppendEntriesRequest(request);
@@ -50,12 +53,15 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
                 case "requestVote":
                     reply = requestVoteService.serverHandleRequestVoteRequest(request);
                     break;
+                case "shakeHand":
+                    reply = appendEntriesService.handleShakeHandsRequest(request, this, ctx.channel());
+                    break;
                 default:
                     break;
             }
             if(reply != null){
                 ctx.writeAndFlush(JSON.toJSONString(reply) + "\n");
-                log.info("server {} send reply: {}", raftNode.getId(), JSON.toJSONString(reply));
+                // log.info("server {} send reply: {}", raftNode.getId(), JSON.toJSONString(reply));
             }
         } catch (Exception e) {
             log.error("server {} handle request error: {}", raftNode.getId(), e.getMessage());
@@ -80,12 +86,6 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
     
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
-        Integer peerNodeId = raftServer.getAddressToPeer().get(ctx.channel().remoteAddress().toString());
-        this.peerNodeId = peerNodeId;
-        if(peerNodeId != null){
-            raftServer.getPeerChannels().put(peerNodeId, ctx.channel());
-        }
-        log.info("server {} connected to peer {}", raftNode.getId(), peerNodeId);
     }
     
     @Override

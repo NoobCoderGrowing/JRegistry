@@ -19,21 +19,40 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
 import lombok.Data;
 import java.util.Random;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import hawk.JRegistryCenter.Raft.RPC.Server.Services.AppendEntriesService;
+import hawk.JRegistryCenter.Raft.RPC.Server.Services.RequestVoteService;
+import hawk.JRegistryCenter.Raft.RaftNode;
 
 @Component
+@Slf4j
 @Data
 public class RaftServerManager {
     
     @Value("${raft.port}")
     private int raftPort;
-    
+
+    @Value("${raft.node-id}")
+    private int id;
+
+    @Autowired
+    private AppendEntriesService appendEntriesService;
+
+    @Autowired
+    private RequestVoteService requestVoteService;
+
+    @Autowired
+    private RaftNode raftNode;
+
+
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
     private Channel channel;
 
     private Random random = new Random();
 
-    @Value("#{${raft.peers}}")
+    @Value("#{${raft.peers:{}}}")
     private Map<Integer, String> peers;
     private final ConcurrentHashMap<Integer, Channel> peerChannels = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Integer> addressToPeer= new ConcurrentHashMap<>();
@@ -69,23 +88,24 @@ public class RaftServerManager {
                      p.addLast(new LineBasedFrameDecoder(8192));
                      p.addLast(new StringDecoder(StandardCharsets.UTF_8));
                      p.addLast(new StringEncoder(StandardCharsets.UTF_8));
-                     p.addLast(new RaftServerHandler());
+                     p.addLast(new RaftServerHandler(RaftServerManager.this, appendEntriesService, requestVoteService, raftNode));
                  }
              });
             
             ChannelFuture f = b.bind(raftPort).sync();
             channel = f.channel();
-            System.out.println("Raft Server started on port " + raftPort);
+
+            log.info("Raft Server {} started on port {}", id, raftPort);
             
             // 注册关闭钩子
             Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown));
             
             // 阻塞直到服务器关闭
-            f.channel().closeFuture().sync();
+            // f.channel().closeFuture().sync();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-        } finally {
-            shutdown();
+        }finally{
+            // shutdown();
         }
     }
     
@@ -100,7 +120,7 @@ public class RaftServerManager {
         if (workerGroup != null) {
             workerGroup.shutdownGracefully();
         }
-        System.out.println("Raft Server shutdown gracefully");
+        log.info("Raft server {} shutdown gracefully", id);
     }
 
     // 发送消息到指定节点

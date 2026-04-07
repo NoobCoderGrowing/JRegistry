@@ -20,7 +20,14 @@ import javax.annotation.PostConstruct;
 import lombok.Data;
 import java.util.concurrent.atomic.AtomicBoolean;
 import io.netty.util.AttributeKey;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import hawk.JRegistryCenter.Raft.RPC.Server.Services.AppendEntriesService;
+import hawk.JRegistryCenter.Raft.RPC.Server.Services.RequestVoteService;
+import hawk.JRegistryCenter.Raft.RaftNode;
+import javax.annotation.PreDestroy;
 
+@Slf4j
 @Component
 @Data
 public class RaftClientManager {
@@ -31,15 +38,31 @@ public class RaftClientManager {
     private EventLoopGroup group;
     private Bootstrap bootstrap;
 
-    @Value("#{${raft.peers}}")
+    @Value("#{${raft.peers:{}}}")
     private Map<Integer, String> peers;
 
+    @Value("${raft.node-id}")
+    private int id;
+
+    @Autowired
+    private AppendEntriesService appendEntriesService;
+
+    @Autowired
+    private RequestVoteService requestVoteService;
+
+    @Autowired
+    private RaftNode raftNode;
 
     @PostConstruct
     public void init(){
         nettyInit();
         initPeers(peers);
         connectAllPeers();
+        try{
+            Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown));
+        }catch(Exception e){
+            log.error("node {} add shutdown hook error", id);
+        }
    }
 
    public void nettyInit(){
@@ -91,7 +114,7 @@ public class RaftClientManager {
                 peerChannels.put(nodeId, future.channel());  //保存连接
                 System.out.println("Connected to Raft peer " + nodeId + " at " + host + ":" + port);
             } else {
-                System.err.println("Failed to connect to peer " + nodeId + ": " + future.cause());
+                log.info("node {} failed to connect to Raft peer {} at {}. Reconnect in 5 seconds", id, nodeId, host + ":" + port);
                 // 延迟重连     
                 scheduleReconnect(nodeId, host, port); //失败延迟重连
             }
@@ -130,5 +153,33 @@ public class RaftClientManager {
             String[] parts = addr.split(":");
             connectToPeer(nodeId, parts[0], Integer.parseInt(parts[1]));
         });
+    }
+
+    public int getActivePeers() {
+        int activePeers = 0;
+        for (Channel channel : peerChannels.values()) {
+            if(channel.isActive()) {
+                activePeers++;
+            }
+        }
+        return activePeers;
+    }
+
+    @PreDestroy
+    public void shutdown() {
+     // 关闭所有已建立连接
+        peerChannels.forEach((id, ch) -> {
+            if (ch != null && ch.isOpen()) {
+                ch.close();
+            }
+        });
+        peerChannels.clear();
+
+        // 关闭 Netty 线程组
+        if (group != null) {
+            group.shutdownGracefully();
+        }
+
+        log.info("RaftClientManager {} shutdown gracefully", id);
     }
 }

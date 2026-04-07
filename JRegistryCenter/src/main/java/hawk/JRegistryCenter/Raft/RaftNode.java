@@ -27,19 +27,19 @@ public class RaftNode {
 
 
     //State part in raft paper
-    private long currentTerm;
-    private long votedFor;
+    private volatile long currentTerm;
+
     private long commitIndex;
     private long lastApplied;
-    private long[] nextIndex;
-    private long[] matchIndex;
+    // private long[] nextIndex;
+    // private long[] matchIndex;
 
     //Append Entries part in raft paper
     private long leaderTerm;
-    private int leaderId;
+    private volatile int leaderId;
     private long prevLogIndex;
     private long prevLogTerm;
-    private String[] entries;
+    // private String[] entries;
     private long leaderCommit;
 
     //Request Vote part in raft paper
@@ -50,14 +50,17 @@ public class RaftNode {
         this.isLeader = new AtomicBoolean(false);
         this.isCandidate = new AtomicBoolean(false);
         this.currentTerm = -1;
-        this.votedFor = -1;
         this.commitIndex = -1;
         this.lastApplied = -1;
-        this.nextIndex = new long[10];
-        this.matchIndex = new long[10];
+        // this.nextIndex = new long[10];
+        // this.matchIndex = new long[10];
         this.leaderTerm = -1;
         this.termVoted = -1;
         this.voteReceived = new AtomicInteger(0);
+        this.lastLogIndex = -1;
+        this.lastLogTerm = -1;
+        this.leaderId = -1;
+        
        
     }
 }
