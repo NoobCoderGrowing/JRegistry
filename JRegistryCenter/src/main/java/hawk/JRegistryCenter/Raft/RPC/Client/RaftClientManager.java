@@ -19,6 +19,7 @@ import org.springframework.beans.factory.annotation.Value;
 import javax.annotation.PostConstruct;
 import lombok.Data;
 import java.util.concurrent.atomic.AtomicBoolean;
+import io.netty.util.AttributeKey;
 
 @Component
 @Data
@@ -28,6 +29,7 @@ public class RaftClientManager {
     private final ConcurrentHashMap<Integer, String> peerAddresses = new ConcurrentHashMap<>();
     private ConcurrentHashMap<Integer, AtomicBoolean> reconnectLock = new ConcurrentHashMap<>();
     private EventLoopGroup group;
+    private Bootstrap bootstrap;
 
     @Value("#{${raft.peers}}")
     private Map<Integer, String> peers;
@@ -35,9 +37,31 @@ public class RaftClientManager {
 
     @PostConstruct
     public void init(){
-        group = new NioEventLoopGroup();
+        nettyInit();
         initPeers(peers);
         connectAllPeers();
+   }
+
+   public void nettyInit(){
+        group = new NioEventLoopGroup();
+        Bootstrap b = new Bootstrap();
+        b.group(group)
+         .channel(NioSocketChannel.class) //使用NIO Socket通道
+         .option(ChannelOption.TCP_NODELAY, true)  // 禁用 Nagle 算法，降低延迟
+         .option(ChannelOption.SO_KEEPALIVE, true)  // 开启 TCP keepalive
+         .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 5000)
+         .handler(new ChannelInitializer<SocketChannel>() {
+             @Override
+             protected void initChannel(SocketChannel ch) {
+                 ChannelPipeline p = ch.pipeline();
+                 // 30秒无读写则触发ideleStateEvent
+                 p.addLast(new IdleStateHandler(0, 0, 15000, TimeUnit.MILLISECONDS)); 
+                 p.addLast(new LineBasedFrameDecoder(8192)); //使用行分隔符解码器，每行一个消息
+                 p.addLast(new StringDecoder(StandardCharsets.UTF_8)); //使用字符串解码器，将字符串解码为消息
+                 p.addLast(new StringEncoder(StandardCharsets.UTF_8)); //使用字符串编码器，将消息编码为字符串
+                 p.addLast(new RaftClientHandler()); //使用RaftClientHandler处理消息
+             }
+         });
    }
 
     // 初始化：配置所有 peer 节点的地址
@@ -59,32 +83,11 @@ public class RaftClientManager {
         if(!reconnectLock.get(nodeId).compareAndSet(false, true)){
             return; //正在重连，不进行重连
         }
-
-        
-        
-        
-        Bootstrap b = new Bootstrap();
-        b.group(group)
-         .channel(NioSocketChannel.class) //使用NIO Socket通道
-         .option(ChannelOption.TCP_NODELAY, true)  // 禁用 Nagle 算法，降低延迟
-         .option(ChannelOption.SO_KEEPALIVE, true)  // 开启 TCP keepalive
-         .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 5000)
-         .handler(new ChannelInitializer<SocketChannel>() {
-             @Override
-             protected void initChannel(SocketChannel ch) {
-                 ChannelPipeline p = ch.pipeline();
-                 // 30秒无读写则触发ideleStateEvent
-                 p.addLast(new IdleStateHandler(0, 0, 15000, TimeUnit.MILLISECONDS)); 
-                 p.addLast(new LineBasedFrameDecoder(8192)); //使用行分隔符解码器，每行一个消息
-                 p.addLast(new StringDecoder(StandardCharsets.UTF_8)); //使用字符串解码器，将字符串解码为消息
-                 p.addLast(new StringEncoder(StandardCharsets.UTF_8)); //使用字符串编码器，将消息编码为字符串
-                 p.addLast(new RaftClientHandler(nodeId)); //使用RaftClientHandler处理消息
-             }
-         });
-        
+ 
         //异步连接并处理结果
-        b.connect(host, port).addListener((ChannelFuture future) -> {
+        bootstrap.connect(host, port).addListener((ChannelFuture future) -> {
             if (future.isSuccess()) {
+                future.channel().attr(AttributeKey.valueOf("nodeId")).set(nodeId);
                 peerChannels.put(nodeId, future.channel());  //保存连接
                 System.out.println("Connected to Raft peer " + nodeId + " at " + host + ":" + port);
             } else {

@@ -4,7 +4,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.timeout.IdleStateEvent;
 import org.springframework.beans.factory.annotation.Autowired;
-
+import io.netty.util.AttributeKey;
 import hawk.JRegistryCenter.Raft.RPC.RPCRequest;
 import hawk.JRegistryCenter.Raft.RPC.RPCReply;
 import hawk.JRegistryCenter.Raft.RPC.Server.Services.AppendEntriesService;
@@ -12,8 +12,10 @@ import hawk.JRegistryCenter.Raft.RPC.Server.Services.RequestVoteService;
 import com.alibaba.fastjson.JSON;
 import hawk.JRegistryCenter.Raft.RaftNode;
 
+
+
 public class RaftClientHandler extends SimpleChannelInboundHandler<String> {
-    private final int peerNodeId;
+    private int peerNodeId;
 
 
     @Autowired
@@ -29,10 +31,6 @@ public class RaftClientHandler extends SimpleChannelInboundHandler<String> {
     private RaftClientManager raftClientManager;
 
 
-    public RaftClientHandler(int peerNodeId) {
-        this.peerNodeId = peerNodeId;
-    }
-    
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, String msg) {
         // 处理来自 peer 的 Raft RPC 响应
@@ -60,6 +58,13 @@ public class RaftClientHandler extends SimpleChannelInboundHandler<String> {
             // ctx.writeAndFlush("{\"error\":\"" + e.getMessage() + "\"}\n");
         }
     }
+
+    @Override
+    public void channelActive(ChannelHandlerContext ctx) {
+        this.peerNodeId = (int) ctx.channel().attr(AttributeKey.valueOf("nodeId")).get();
+    }
+
+    
     
     @Override
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) {
