@@ -2,8 +2,8 @@ package hawk.JRegistryCenter.Raft.RPC.Server.Services;
 
 
 import org.springframework.stereotype.Service;
-import hawk.JRegistryCenter.Raft.RPC.RPCReply;
-import hawk.JRegistryCenter.Raft.RPC.RPCRequest;
+import hawk.JRegistryCenter.Raft.RPC.RaftReply;
+import hawk.JRegistryCenter.Raft.RPC.RaftRequest;
 import com.alibaba.fastjson.JSON;
 import hawk.JRegistryCenter.Raft.RaftNode;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,7 +26,7 @@ public class AppendEntriesService {
 
 
     public void sendShakeHands(Channel channel, int peerNodeId){
-        RPCRequest request = new RPCRequest();
+        RaftRequest request = new RaftRequest();
         request.setType("shakeHand");
         request.setId(raftNode.getId());
         channel.writeAndFlush(JSON.toJSONString(request) + "\n");
@@ -34,7 +34,7 @@ public class AppendEntriesService {
         
     }
 
-    public RPCReply handleShakeHandsRequest(RPCRequest request, RaftServerHandler raftServerHandler, Channel channel){
+    public RaftReply handleShakeHandsRequest(RaftRequest request, RaftServerHandler raftServerHandler, Channel channel){
         raftServerHandler.setPeerNodeId(request.getId());
         raftServerHandler.getRaftServer().getPeerChannels().put(request.getId(), channel);
         return null;
@@ -42,7 +42,7 @@ public class AppendEntriesService {
 
     //leader to follower (active)
     public void sendHeartBeat(Channel channel, int peerNodeId){
-        RPCRequest request = new RPCRequest();
+        RaftRequest request = new RaftRequest();
         request.setType("heartbeat");
         request.setId(raftNode.getId());
         request.setTerm(raftNode.getCurrentTerm());
@@ -60,14 +60,14 @@ public class AppendEntriesService {
     }
 
     //client to server（passive）
-    public RPCRequest clientHandleAppendEntriesRequest(RPCReply reply) {
+    public RaftRequest clientHandleAppendEntriesRequest(RaftReply reply) {
 
         return null;
 
     }
 
 
-    public RPCReply handleAppendEntriesRequest(RPCRequest request) {
+    public RaftReply handleAppendEntriesRequest(RaftRequest request) {
         log.info("server {} handle append entries request: {}", raftNode.getId(), JSON.toJSONString(request));
         if(request.getId() == raftNode.getLeaderId()){
             serverTimer.resetTimer();
@@ -79,14 +79,14 @@ public class AppendEntriesService {
 
     //follower to leader (passive)
     // for now leader needn't respond to follower's heartbeat response
-    public RPCRequest handleHeartbeatReply(RPCReply reply) {
+    public RaftRequest handleHeartbeatReply(RaftReply reply) {
 
         return null;
 
     }
 
 
-    public void acceptHeartbeat(RPCRequest request){
+    public void acceptHeartbeat(RaftRequest request){
         log.info("server {} accept heartbeat from leader node {}", raftNode.getId(), request.getId());
         raftNode.getIsCandidate().compareAndSet(true, false);
         raftNode.getIsLeader().compareAndSet(true, false); // 放弃leader身份
@@ -94,7 +94,7 @@ public class AppendEntriesService {
         raftNode.setLeaderId(request.getId());   
     }
 
-    public RPCReply serverHandleHeartbeatRequest(RPCRequest request) {
+    public RaftReply serverHandleHeartbeatRequest(RaftRequest request) {
         // log.info("server {} handle heartbeat request: {}", raftNode.getId(), JSON.toJSONString(request));
         // if(request.getId() == raftNode.getLeaderId()){
         //     serverTimer.resetTimer();

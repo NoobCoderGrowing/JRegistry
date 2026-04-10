@@ -4,8 +4,8 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.timeout.IdleStateEvent;
 
-import hawk.JRegistryCenter.Raft.RPC.RPCRequest;
-import hawk.JRegistryCenter.Raft.RPC.RPCReply;
+import hawk.JRegistryCenter.Raft.RPC.RaftRequest;
+import hawk.JRegistryCenter.Raft.RPC.RaftReply;
 import hawk.JRegistryCenter.Raft.RPC.Server.Services.AppendEntriesService;
 import hawk.JRegistryCenter.Raft.RPC.Server.Services.RequestVoteService;
 import com.alibaba.fastjson.JSON;
@@ -45,8 +45,8 @@ public class RaftClientHandler extends SimpleChannelInboundHandler<String> {
         // 处理来自 peer 的 Raft RPC 响应
         // 解析并交给 RaftNode 处理
         try {
-        RPCReply reply = JSON.parseObject(msg, RPCReply.class);
-        RPCRequest request = null;
+        RaftReply reply = JSON.parseObject(msg, RaftReply.class);
+        RaftRequest request = null;
         switch (reply.getType()) {
             case "appendEntries":
                 request = appendEntriesService.clientHandleAppendEntriesRequest(reply);

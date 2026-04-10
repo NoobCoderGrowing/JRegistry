@@ -1,8 +1,8 @@
 package hawk.JRegistryCenter.Raft.RPC.Server;
 
 import com.alibaba.fastjson.JSON;
-import hawk.JRegistryCenter.Raft.RPC.RPCReply;
-import hawk.JRegistryCenter.Raft.RPC.RPCRequest;
+import hawk.JRegistryCenter.Raft.RPC.RaftReply;
+import hawk.JRegistryCenter.Raft.RPC.RaftRequest;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.timeout.IdleStateEvent;
@@ -40,8 +40,8 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, String msg) {
         try {
-            RPCRequest request = JSON.parseObject(msg, RPCRequest.class);
-            RPCReply reply = null;
+            RaftRequest request = JSON.parseObject(msg, RaftRequest.class);
+            RaftReply reply = null;
             // log.info("server {} handle request: {}", raftNode.getId(), JSON.toJSONString(request));
             switch (request.getType()) {
                 case "appendEntries":

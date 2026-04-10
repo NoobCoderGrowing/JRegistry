@@ -3,7 +3,7 @@ package hawk.JRegistryCenter.Raft.RPC;
 import lombok.Data;
 
 @Data
-public class RPCReply {
+public class RaftReply {
 
      //coomon part
      private String type;

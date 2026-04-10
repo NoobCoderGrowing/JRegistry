@@ -12,7 +12,9 @@ import org.springframework.stereotype.Component;
 import java.nio.charset.StandardCharsets;
 import javax.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Component
 public class NettyClient {
     @Value("${netty.host}")
@@ -21,12 +23,12 @@ public class NettyClient {
     private int port;
     private EventLoopGroup group;
     private Channel channel;
+    private Bootstrap b;
 
-    // 启动客户端并建立长连接
     @PostConstruct
-    public void connect() throws InterruptedException {
+    public void init() {
         group = new NioEventLoopGroup();
-        Bootstrap b = new Bootstrap();
+        b = new Bootstrap();
         b.group(group)
          .channel(NioSocketChannel.class)
          .option(ChannelOption.TCP_NODELAY, true)
@@ -40,10 +42,19 @@ public class NettyClient {
                  p.addLast(new ClientHandler());
              }
          });
+         try {
+            connect(host, port);
+         } catch (InterruptedException e) {
+            log.error("Failed to connect to JRegistry TCP server: " + host + ":" + port);
+         }
+    }
 
+
+    // 启动客户端并建立长连接
+    public void connect(String host, int port) throws InterruptedException {
         ChannelFuture f = b.connect(host, port).sync();
         channel = f.channel();
-        System.out.println("Connected to JRegistry TCP server: " + host + ":" + port);
+        log.info("Connected to JRegistry TCP server: " + host + ":" + port);
     }
 
     // 向 JRegistry 发送一行文本命令
