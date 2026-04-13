@@ -14,7 +14,7 @@ ssh:
   enabled: true
   host: 127.0.0.1
   port: 2222
-  host-key-path: /opt/.jregistryclient_hostkey.ser
+  host-key-path: /var/tmp/.jregistryclient_hostkey.ser
   auth:
     username: admin
     password: 123
