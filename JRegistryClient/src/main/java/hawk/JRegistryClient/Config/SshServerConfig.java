@@ -1,11 +1,16 @@
 package hawk.JRegistryClient.Config;
 
-import hawk.JRegistryClient.network.CLIClient;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.sshd.server.Environment;
 import org.apache.sshd.server.ExitCallback;
 import org.apache.sshd.server.channel.ChannelSession;
 import org.apache.sshd.server.command.Command;
+import org.jline.reader.EndOfFileException;
+import org.jline.reader.LineReader;
+import org.jline.reader.LineReaderBuilder;
+import org.jline.reader.UserInterruptException;
+import org.jline.terminal.Terminal;
+import org.jline.terminal.TerminalBuilder;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.beans.factory.annotation.Value;
 import org.apache.sshd.server.SshServer;
@@ -13,14 +18,9 @@ import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 
 import org.apache.sshd.server.keyprovider.SimpleGeneratorHostKeyProvider;
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.io.OutputStreamWriter;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import lombok.Data;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -88,23 +88,47 @@ public class SshServerConfig {
             public void start(ChannelSession channelSession, Environment env) {
                 running = true;
                 worker = new Thread(() -> {
-                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
-                         BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8))) {
-                        writer.write("JRegistryClient SSH connected. Type 'exit' to quit.\r\n> ");
-                        writer.flush();
-                        String line;
-                        while (running && (line = reader.readLine()) != null) {
-                            String cmd = line.trim();
-                            if ("exit".equalsIgnoreCase(cmd) || "bye".equalsIgnoreCase(cmd)) {
-                                writer.write("Bye.\r\n");
-                                writer.flush();
+                    try (Terminal terminal = TerminalBuilder.builder()
+                            .system(false)
+                            .streams(in, out)
+                            .build()) {
+                        LineReader lineReader = LineReaderBuilder.builder()
+                                .terminal(terminal)
+                                .appName("JRegistryClient")
+                                .build();
+                        terminal.writer().println("JRegistryClient SSH connected. Type 'exit' to quit.");
+                        terminal.flush();
+
+                        while (running) {
+                            String cmd;
+                            try {
+                                // JLine provides echo, backspace, arrow keys and history.
+                                cmd = lineReader.readLine("> ");
+                            } catch (UserInterruptException e) {
+                                // Ctrl+C: keep session alive and show a new prompt.
+                                terminal.writer().println();
+                                terminal.flush();
+                                continue;
+                            } catch (EndOfFileException e) {
+                                // Ctrl+D: close the session.
                                 break;
                             }
+
+                            if (cmd == null) {
+                                break;
+                            }
+                            cmd = cmd.trim();
+                            if ("exit".equalsIgnoreCase(cmd) || "bye".equalsIgnoreCase(cmd)) {
+                                terminal.writer().println("Bye.");
+                                terminal.flush();
+                                break;
+                            }
+
                             String result = CLIService.userInputCheck(cmd);
-                            writer.write(result + "\r\n");
-                            writer.flush();
-                            writer.write("> ");
-                            writer.flush();
+                            if (result != null && !result.isEmpty()) {
+                                terminal.writer().println(result);
+                                terminal.flush();
+                            }
                         }
                         exitCallback.onExit(0);
                     } catch (IOException e) {
