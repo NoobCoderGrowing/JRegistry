@@ -3,8 +3,6 @@ package hawk.JRegistryCenter.Raft.RPC.Server.Services;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import hawk.JRegistryCenter.Raft.RPC.RaftReply;
-import hawk.JRegistryCenter.Raft.RPC.RaftRequest;
 import com.alibaba.fastjson.JSON;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantLock;
@@ -12,6 +10,8 @@ import io.netty.channel.Channel;
 import hawk.JRegistryCenter.Raft.RaftNode;
 import hawk.JRegistryCenter.Raft.RPC.Client.RaftClientManager;
 import hawk.JRegistryCenter.Raft.RPC.Server.Timer;
+import hawk.JRegitstryCore.RPC.RaftReply;
+import hawk.JRegitstryCore.RPC.RaftRequest;
 import lombok.extern.slf4j.Slf4j;
 
 

@@ -1,4 +1,4 @@
-package hawk.JRegistryCenter.Raft.RPC;
+package hawk.JRegitstryCore.RPC;
 
 import lombok.Data;
 

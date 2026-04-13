@@ -7,13 +7,17 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.beans.factory.annotation.Autowired; 
+import hawk.JRegistryClient.Service.CLIService;
 
 @SpringBootApplication
 public class JRegistryClient {
 
     
     @Autowired
-    private CLIClient nettyClient;
+    private CLIClient CLIClient;
+
+    @Autowired
+    private CLIService CLIService;
 
     public static void main(String[] args) {
         SpringApplication.run(JRegistryClient.class, args);
@@ -37,11 +41,9 @@ public class JRegistryClient {
                 }
 
                 // 通过 NettyClient 把命令发给 JRegistry
-                nettyClient.send(line);
+                CLIClient.send(line);
             }
-
             scanner.close();
-            nettyClient.stop();
         };
     }
 

@@ -3,11 +3,11 @@ package hawk.JRegistryCenter.Raft.RPC.Client;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.timeout.IdleStateEvent;
-
-import hawk.JRegistryCenter.Raft.RPC.RaftRequest;
-import hawk.JRegistryCenter.Raft.RPC.RaftReply;
 import hawk.JRegistryCenter.Raft.RPC.Server.Services.AppendEntriesService;
 import hawk.JRegistryCenter.Raft.RPC.Server.Services.RequestVoteService;
+import hawk.JRegitstryCore.RPC.RaftReply;
+import hawk.JRegitstryCore.RPC.RaftRequest;
+
 import com.alibaba.fastjson.JSON;
 import hawk.JRegistryCenter.Raft.RaftNode;
 import lombok.extern.slf4j.Slf4j;

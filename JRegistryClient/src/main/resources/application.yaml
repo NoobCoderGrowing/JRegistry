@@ -1,3 +1,7 @@
+spring:
+  application:
+    name: JRegistryClient
+
 server:
   port: 6602
 

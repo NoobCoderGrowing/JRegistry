@@ -42,20 +42,23 @@ public class CLIClient {
                  p.addLast(new CLIClientHandler());
              }
          });
-         try {
-            connect(host, port);
-         } catch (InterruptedException e) {
-            log.error("Failed to connect to JRegistry TCP server: " + host + ":" + port);
-         }
+
+        connect(host, port);
     }
 
 
     // 启动客户端并建立长连接
-    public void connect(String host, int port) throws InterruptedException {
-        ChannelFuture f = b.connect(host, port).sync();
-        channel = f.channel();
-        log.info("Connected to JRegistry TCP server: " + host + ":" + port);
+    public void connect(String host, int port){
+        try {
+            ChannelFuture f = b.connect(host, port).sync();
+            channel = f.channel();
+            log.info("Connected to JRegistry TCP server: " + host + ":" + port);
+        } catch (Exception e) {
+            log.error("Failed to connect to JRegistry TCP server: " + host + ":" + port);
+            
+        }
     }
+        
 
     // 向 JRegistry 发送一行文本命令
     public void send(String msg) {

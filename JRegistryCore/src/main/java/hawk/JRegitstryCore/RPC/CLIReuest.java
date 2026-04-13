@@ -1,4 +1,4 @@
-package hawk.JRegistryClient.network.RPC;
+package hawk.JRegitstryCore.RPC;
 
 import java.util.UUID;
 
