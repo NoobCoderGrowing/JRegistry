@@ -16,7 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Component
-public class NettyClient {
+public class CLIClient {
     @Value("${netty.host}")
     private String host;
     @Value("${netty.port}")
@@ -39,7 +39,7 @@ public class NettyClient {
                  p.addLast(new LineBasedFrameDecoder(8192));
                  p.addLast(new StringDecoder(StandardCharsets.UTF_8));
                  p.addLast(new StringEncoder(StandardCharsets.UTF_8));
-                 p.addLast(new ClientHandler());
+                 p.addLast(new CLIClientHandler());
              }
          });
          try {

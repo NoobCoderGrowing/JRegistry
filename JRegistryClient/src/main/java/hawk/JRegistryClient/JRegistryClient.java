@@ -1,7 +1,7 @@
 package hawk.JRegistryClient;
 
 import java.util.Scanner;
-import hawk.JRegistryClient.network.NettyClient;
+import hawk.JRegistryClient.network.CLIClient;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -13,7 +13,7 @@ public class JRegistryClient {
 
     
     @Autowired
-    private NettyClient nettyClient;
+    private CLIClient nettyClient;
 
     public static void main(String[] args) {
         SpringApplication.run(JRegistryClient.class, args);
