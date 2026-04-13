@@ -9,10 +9,15 @@ import io.netty.handler.codec.LineBasedFrameDecoder;
 import io.netty.handler.codec.string.StringDecoder;
 import io.netty.handler.codec.string.StringEncoder;
 import org.springframework.stereotype.Component;
+
+import hawk.JRegitstryCore.RPC.CLIRequest;
+
 import java.nio.charset.StandardCharsets;
 import javax.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import lombok.extern.slf4j.Slf4j;
+import com.alibaba.fastjson.JSON;
+
 
 @Slf4j
 @Component
@@ -67,6 +72,18 @@ public class CLIClient {
         } else {
             System.out.println("Channel is not active.");
         }
+    }
+
+
+    // 向 JRegistry 发送一行文本命令
+    public String sendRequest(CLIRequest cliRequest) {
+        if (channel != null && channel.isActive()) {
+            channel.writeAndFlush(JSON.toJSONString(cliRequest) + "\n");
+        } else {
+            log.info("Channel is not active.");
+            return "Connection to server is not active.";
+        }
+        return "";
     }
 
     // 关闭连接

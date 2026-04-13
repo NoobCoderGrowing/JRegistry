@@ -6,15 +6,16 @@ import com.github.f4b6a3.uuid.UuidCreator;
 import lombok.Data;
 
 @Data
-public class CLIReuest {
+public class CLIRequest {
 
     private String type;
-    private String command;
-    private String kye;
+    private String key;
     private byte[] data;
     private UUID uuid;
+    private String leaderHost;
+    private int leaderPort;
 
-    public CLIReuest(){
+    public CLIRequest(){
         this.uuid = UuidCreator.getTimeOrderedEpoch();
     }
 
