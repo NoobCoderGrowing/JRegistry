@@ -62,9 +62,14 @@ public class CLIClient {
 
     public void connect(String host, int port) {
         try {
-            ChannelFuture f = b.connect(host, port).sync();
-            channel = f.channel();
-            log.info("Connected to JRegistry TCP server: {}:{}", host, port);
+            b.connect(host, port).addListener((ChannelFutureListener) future -> {
+                if (future.isSuccess()) {
+                    channel = future.channel();
+                    log.info("Connected to JRegistry TCP server: {}:{}", host, port);
+                } else {
+                    log.error("Failed to connect to JRegistry TCP server: {}:{}", host, port, future.cause());
+                }
+            });
         } catch (Exception e) {
             log.error("Failed to connect to JRegistry TCP server: {}:{}", host, port, e);
         }
@@ -118,6 +123,18 @@ public class CLIClient {
                 return;
             }
             CompletableFuture<String> pending = pendingResponses.remove(requestId);
+
+            // redirect and close old channel
+            if (response.isRedirect()) {
+                String newHost = response.getLeaderHost();
+                int newPort = response.getLeaderPort();
+                reconnectTo(newHost, newPort);
+                if (pending != null && !pending.isDone()) {
+                    pending.complete(response.getMessage());
+                }
+                return;
+            }
+            // send server message to terminal
             if (pending != null && !pending.isDone()) {
                 pending.complete(response.getMessage());
             } else {
@@ -126,6 +143,23 @@ public class CLIClient {
         } catch (Exception e) {
             log.error("Failed to parse server response: {}", msg, e);
         }
+    }
+
+    private synchronized void reconnectTo(String newHost, int newPort) {
+        Channel oldChannel = this.channel;
+        this.host = newHost;
+        this.port = newPort;
+       
+
+        if (oldChannel != null && oldChannel.isActive()) {
+            oldChannel.close().addListener((ChannelFutureListener) closeFuture -> {
+                if (!closeFuture.isSuccess()) {
+                    log.warn("Failed to close old channel， ", closeFuture.cause());
+                }
+            });
+        }
+        connect(newHost, newPort);
+        
     }
 
     public void stop() {

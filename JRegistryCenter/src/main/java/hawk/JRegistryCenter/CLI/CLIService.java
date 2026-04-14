@@ -22,6 +22,7 @@ public class CLIService {
         CLIRequest response = new CLIRequest();
         response.setUuid(request.getUuid());
         response.setMessage(message);
+        response.setRedirect(false);
         channel.writeAndFlush(JSON.toJSONString(response) + "\n");
     }
 
@@ -59,7 +60,7 @@ public class CLIService {
         }
         CLIRequest response = new CLIRequest();
         response.setUuid(cliRequest.getUuid());
-        response.setType("redirect");
+        response.setRedirect(true);
         response.setLeaderHost(raftNode.getLeaderHost());
         response.setLeaderPort(raftNode.getLeaderPort());
         message = cmd + " redirect to leader " + raftNode.getLeaderHost() + ":" + raftNode.getLeaderPort();
