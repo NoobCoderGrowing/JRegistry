@@ -13,7 +13,7 @@ public class CLIClientHandler extends SimpleChannelInboundHandler<String> {
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, String msg) {
-        // 不再只打印，转交给 CLIClient 完成 future
+        // 不再只打印，而是交给 CLIClient 处理
         cliClient.completeResponse(msg);
     }
 

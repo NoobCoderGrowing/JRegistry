@@ -13,6 +13,7 @@ import hawk.JRegitstryCore.RPC.RaftReply;
 import hawk.JRegitstryCore.RPC.RaftRequest;
 import lombok.extern.slf4j.Slf4j;
 import hawk.JRegistryCenter.Raft.RPC.Server.RaftServerHandler;
+import org.springframework.beans.factory.annotation.Value;
 
 
 @Slf4j
@@ -24,6 +25,11 @@ public class AppendEntriesService {
 
     @Autowired
     private Timer serverTimer;
+
+    @Value("${host}")
+    private String CLIServerHost;
+    @Value("${CLS.port}")
+    private int CLIServerPort;
 
 
     public void sendShakeHands(Channel channel, int peerNodeId){
@@ -47,6 +53,8 @@ public class AppendEntriesService {
         request.setType("heartbeat");
         request.setId(raftNode.getId());
         request.setTerm(raftNode.getCurrentTerm());
+        request.setLeaderHost(CLIServerHost);
+        request.setLeaderPort(CLIServerPort);
         channel.writeAndFlush(JSON.toJSONString(request) + "\n");
         log.info("term {}, leader node {} send heartbeat to node {}", raftNode.getCurrentTerm(), raftNode.getId(), peerNodeId);
     }
@@ -93,6 +101,8 @@ public class AppendEntriesService {
         raftNode.getIsLeader().compareAndSet(true, false); // 放弃leader身份
         raftNode.setCurrentTerm(request.getTerm());
         raftNode.setLeaderId(request.getId());   
+        raftNode.setLeaderHost(request.getLeaderHost());
+        raftNode.setLeaderPort(request.getLeaderPort());
     }
 
     public RaftReply serverHandleHeartbeatRequest(RaftRequest request) {

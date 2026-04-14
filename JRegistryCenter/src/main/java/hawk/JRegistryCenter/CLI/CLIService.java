@@ -43,13 +43,35 @@ public class CLIService {
         }
     }
 
+    public void handleWriteRequest(Channel channel, CLIRequest cliRequest){
+        String cmd = cliRequest.getType();
+        String message = cmd + " completed";
+        writeResponse(channel, cliRequest, message);
+    }
+
+    public void redirectToLeader(Channel channel, CLIRequest cliRequest){
+        String message;
+        String cmd = cliRequest.getType();
+        if(raftNode.getLeaderHost()==null|| raftNode.getLeaderHost().isEmpty()){
+            message = cmd + " failed, no leader found";
+            writeResponse(channel, cliRequest, message);
+            return;
+        }
+        CLIRequest response = new CLIRequest();
+        response.setUuid(cliRequest.getUuid());
+        response.setType("redirect");
+        response.setLeaderHost(raftNode.getLeaderHost());
+        response.setLeaderPort(raftNode.getLeaderPort());
+        message = cmd + " redirect to leader " + raftNode.getLeaderHost() + ":" + raftNode.getLeaderPort();
+        response.setMessage(message);
+        channel.writeAndFlush(JSON.toJSONString(response) + "\n");
+    }
+
     public void chekcIsLeader(Channel channel, CLIRequest cliRequest){
         if(raftNode.getIsLeader().get()){
-            CLIRequest request = new CLIRequest();
-            request.setType("redirect");
-            writeResponse(channel, cliRequest, "leader accepted");
+            handleWriteRequest(channel, cliRequest);
         }else{
-            writeResponse(channel, cliRequest, "You are not the leader");
+            redirectToLeader(channel, cliRequest);
         }
 
     }

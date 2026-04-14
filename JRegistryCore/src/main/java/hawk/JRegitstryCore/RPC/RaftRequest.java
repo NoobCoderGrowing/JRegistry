@@ -20,4 +20,6 @@ public class RaftRequest {
     private long lastLogTerm; 
     private int voteTerm;
 
+    private String leaderHost;
+    private int leaderPort;
 }

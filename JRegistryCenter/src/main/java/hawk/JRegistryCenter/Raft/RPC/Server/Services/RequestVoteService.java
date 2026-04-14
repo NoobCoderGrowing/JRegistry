@@ -13,6 +13,7 @@ import hawk.JRegistryCenter.Raft.RPC.Server.Timer;
 import hawk.JRegitstryCore.RPC.RaftReply;
 import hawk.JRegitstryCore.RPC.RaftRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 
 
 @Slf4j
@@ -29,6 +30,12 @@ public class RequestVoteService {
 
     @Autowired
     private Timer serverTimer;
+
+
+    @Value("${host}")
+    private String CLIServerHost;
+    @Value("${CLS.port}")
+    private int CLIServerPort;
 
 
    
@@ -168,6 +175,8 @@ public class RequestVoteService {
                 raftNode.getIsLeader().compareAndSet(false, true);
                 raftNode.getIsCandidate().compareAndSet(true, false);
                 raftNode.setLeaderId(raftNode.getId());
+                raftNode.setLeaderHost(CLIServerHost);
+                raftNode.setLeaderPort(CLIServerPort);
                 log.info("term {} ,client node {} become leader, {} votes received, active nodes: {}", raftNode.getCurrentTerm(), raftNode.getId(), voteReceived, activeNodes);
                 //异步发送心跳包给所有节点（netty发送消息本身就是异步的）
                 appendEntriesService.sendHeartBeatToAll(raftClientManager.getPeerChannels());
