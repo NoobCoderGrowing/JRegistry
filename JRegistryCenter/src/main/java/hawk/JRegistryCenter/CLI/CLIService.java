@@ -18,10 +18,9 @@ public class CLIService {
     @Autowired
     private RaftNode raftNode;
 
-    private void writeResponse(Channel channel, CLIRequest request, boolean success, String message) {
+    private void writeResponse(Channel channel, CLIRequest request, String message) {
         CLIRequest response = new CLIRequest();
         response.setUuid(request.getUuid());
-        response.setSuccess(success);
         response.setMessage(message);
         channel.writeAndFlush(JSON.toJSONString(response) + "\n");
     }
@@ -30,7 +29,7 @@ public class CLIService {
     public void handleCLIRequest(Channel channel, CLIRequest cliRequest){
         switch (cliRequest.getType()) {
             case "get":
-                writeResponse(channel, cliRequest, true, "ACK: " + cliRequest.getKey());
+                writeResponse(channel, cliRequest, "ACK: " + cliRequest.getKey());
                 break;
             case "set":
                 chekcIsLeader(channel, cliRequest);
@@ -39,7 +38,7 @@ public class CLIService {
                 chekcIsLeader(channel, cliRequest);
                 break;
             default:
-                writeResponse(channel, cliRequest, false, "invalid cmd");
+                writeResponse(channel, cliRequest, "invalid cmd");
                 break;
         }
     }
@@ -48,9 +47,9 @@ public class CLIService {
         if(raftNode.getIsLeader().get()){
             CLIRequest request = new CLIRequest();
             request.setType("redirect");
-            writeResponse(channel, cliRequest, true, "leader accepted");
+            writeResponse(channel, cliRequest, "leader accepted");
         }else{
-            writeResponse(channel, cliRequest, false, "You are not the leader");
+            writeResponse(channel, cliRequest, "You are not the leader");
         }
 
     }

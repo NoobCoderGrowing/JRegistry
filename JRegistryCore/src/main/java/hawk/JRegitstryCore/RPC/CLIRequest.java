@@ -11,7 +11,6 @@ public class CLIRequest {
     private String type;
     private String key;
     private byte[] data;
-    private boolean success;
     private String message;
     private UUID uuid;
     private String leaderHost;
