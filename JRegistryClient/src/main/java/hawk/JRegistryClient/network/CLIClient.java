@@ -18,6 +18,11 @@ import org.springframework.beans.factory.annotation.Value;
 import lombok.extern.slf4j.Slf4j;
 import com.alibaba.fastjson.JSON;
 
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 @Slf4j
 @Component
@@ -26,9 +31,13 @@ public class CLIClient {
     private String host;
     @Value("${netty.port}")
     private int port;
+
     private EventLoopGroup group;
     private Channel channel;
     private Bootstrap b;
+
+    // 支持并发请求：requestId -> pending response
+    private final ConcurrentHashMap<UUID, CompletableFuture<String>> pendingResponses = new ConcurrentHashMap<>();
 
     @PostConstruct
     public void init() {
@@ -44,49 +53,81 @@ public class CLIClient {
                  p.addLast(new LineBasedFrameDecoder(8192));
                  p.addLast(new StringDecoder(StandardCharsets.UTF_8));
                  p.addLast(new StringEncoder(StandardCharsets.UTF_8));
-                 p.addLast(new CLIClientHandler());
+                 p.addLast(new CLIClientHandler(CLIClient.this)); // 关键：把 client 传给 handler
              }
          });
 
         connect(host, port);
     }
 
-
-    // 启动客户端并建立长连接
-    public void connect(String host, int port){
+    public void connect(String host, int port) {
         try {
             ChannelFuture f = b.connect(host, port).sync();
             channel = f.channel();
-            log.info("Connected to JRegistry TCP server: " + host + ":" + port);
+            log.info("Connected to JRegistry TCP server: {}:{}", host, port);
         } catch (Exception e) {
-            log.error("Failed to connect to JRegistry TCP server: " + host + ":" + port);
-            
-        }
-    }
-        
-
-    // 向 JRegistry 发送一行文本命令
-    public void send(String msg) {
-        if (channel != null && channel.isActive()) {
-            channel.writeAndFlush(msg + "\n");
-        } else {
-            System.out.println("Channel is not active.");
+            log.error("Failed to connect to JRegistry TCP server: {}:{}", host, port, e);
         }
     }
 
-
-    // 向 JRegistry 发送一行文本命令
     public String sendRequest(CLIRequest cliRequest) {
-        if (channel != null && channel.isActive()) {
-            channel.writeAndFlush(JSON.toJSONString(cliRequest) + "\n");
-        } else {
+        if (channel == null || !channel.isActive()) {
             log.info("Channel is not active.");
             return "Connection to server is not active.";
         }
-        return "";
+
+        UUID requestId = cliRequest.getUuid();
+        if (requestId == null) {
+            return "request id is missing";
+        }
+
+        CompletableFuture<String> responseFuture = new CompletableFuture<>();
+        CompletableFuture<String> existingFuture = pendingResponses.putIfAbsent(requestId, responseFuture);
+        if (existingFuture != null) {
+            return "duplicate request id: " + requestId;
+        }
+
+        channel.writeAndFlush(JSON.toJSONString(cliRequest) + "\n").addListener((ChannelFutureListener) future -> {
+            if (!future.isSuccess()) {
+                CompletableFuture<String> pending = pendingResponses.remove(requestId);
+                if (pending != null) {
+                    pending.completeExceptionally(future.cause());
+                }
+            }
+        });
+
+        try {
+            return responseFuture.get(10, TimeUnit.SECONDS);
+        } catch (TimeoutException e) {
+            pendingResponses.remove(requestId);
+            return "timeout";
+        } catch (Exception e) {
+            pendingResponses.remove(requestId);
+            log.error("sendRequest failed", e);
+            return "request failed: " + e.getMessage();
+        }
     }
 
-    // 关闭连接
+    // 由 handler 在收到服务端消息时调用，根据 requestId 匹配对应 future
+    public void completeResponse(String msg) {
+        try {
+            CLIRequest response = JSON.parseObject(msg, CLIRequest.class);
+            UUID requestId = response.getUuid();
+            if (requestId == null) {
+                log.warn("Received response without requestId: {}", msg);
+                return;
+            }
+            CompletableFuture<String> pending = pendingResponses.remove(requestId);
+            if (pending != null && !pending.isDone()) {
+                pending.complete(response.getMessage());
+            } else {
+                log.warn("No pending request for requestId {}. Raw response: {}", requestId, msg);
+            }
+        } catch (Exception e) {
+            log.error("Failed to parse server response: {}", msg, e);
+        }
+    }
+
     public void stop() {
         try {
             if (channel != null) {
@@ -99,7 +140,4 @@ public class CLIClient {
         }
         System.out.println("Client connection closed.");
     }
-
-    // 处理服务端返回
-    
 }

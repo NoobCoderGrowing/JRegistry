@@ -1,4 +1,4 @@
-package hawk.JRegistryClient.Config.UserInputHandler;
+package hawk.JRegistryClient.SSH.UserInputHandler;
 
 public interface UserInputHandler {
     

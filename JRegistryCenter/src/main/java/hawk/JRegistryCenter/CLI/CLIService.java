@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import hawk.JRegistryCenter.Raft.RaftNode;
 import org.springframework.beans.factory.annotation.Autowired;
+import com.alibaba.fastjson.JSON;
 
 
 @Service
@@ -17,11 +18,19 @@ public class CLIService {
     @Autowired
     private RaftNode raftNode;
 
+    private void writeResponse(Channel channel, CLIRequest request, boolean success, String message) {
+        CLIRequest response = new CLIRequest();
+        response.setUuid(request.getUuid());
+        response.setSuccess(success);
+        response.setMessage(message);
+        channel.writeAndFlush(JSON.toJSONString(response) + "\n");
+    }
+
 
     public void handleCLIRequest(Channel channel, CLIRequest cliRequest){
         switch (cliRequest.getType()) {
             case "get":
-                channel.writeAndFlush("ACK: " + cliRequest.getKey() + "\n");
+                writeResponse(channel, cliRequest, true, "ACK: " + cliRequest.getKey());
                 break;
             case "set":
                 chekcIsLeader(channel, cliRequest);
@@ -30,7 +39,7 @@ public class CLIService {
                 chekcIsLeader(channel, cliRequest);
                 break;
             default:
-                channel.writeAndFlush("invalid cmd\n");
+                writeResponse(channel, cliRequest, false, "invalid cmd");
                 break;
         }
     }
@@ -39,8 +48,9 @@ public class CLIService {
         if(raftNode.getIsLeader().get()){
             CLIRequest request = new CLIRequest();
             request.setType("redirect");
+            writeResponse(channel, cliRequest, true, "leader accepted");
         }else{
-            channel.writeAndFlush("You are not the leader\n");
+            writeResponse(channel, cliRequest, false, "You are not the leader");
         }
 
     }

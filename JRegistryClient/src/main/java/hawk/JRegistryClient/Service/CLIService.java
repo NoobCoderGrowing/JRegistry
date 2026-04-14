@@ -1,13 +1,14 @@
 package hawk.JRegistryClient.Service;
 
 import org.springframework.stereotype.Service;
-import hawk.JRegistryClient.Config.UserInputHandler.UserInputHandler;
+
 import java.util.List;
 import java.util.ArrayList;
 
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import hawk.JRegitstryCore.RPC.CLIRequest;
+import hawk.JRegistryClient.SSH.UserInputHandler.UserInputHandler;
 import hawk.JRegistryClient.network.CLIClient;
 
 
