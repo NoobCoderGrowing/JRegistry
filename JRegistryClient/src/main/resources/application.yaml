@@ -3,16 +3,16 @@ spring:
     name: JRegistryClient
 
 server:
-  port: 6602
+  port: 6604
 
 
 netty:
-  host: 127.0.0.1
-  port: 6604
+  host: 127.0.0.3
+  port: 6303
 
 ssh:
   enabled: true
-  host: 127.0.0.1
+  host: 127.0.0.4
   port: 2222
   host-key-path: /var/tmp/.jregistryclient_hostkey.ser
   auth:
