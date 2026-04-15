@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 set -e
 
-APP_JAR="target/JRegistryCenter-1.0-SNAPSHOT.jar"
-LOG_DIR="logs"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APP_JAR="$SCRIPT_DIR/target/JRegistryCenter-1.0-SNAPSHOT.jar"
+LOG_DIR="$SCRIPT_DIR/logs"
 
 mkdir -p "$LOG_DIR"
 
-./stop.sh  || true
+"$SCRIPT_DIR/stop.sh" || true
 
 sleep 1
 
