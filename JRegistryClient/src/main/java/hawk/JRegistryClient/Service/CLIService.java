@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import hawk.JRegitstryCore.RPC.CLIRequest;
 import hawk.JRegistryClient.SSH.UserInputHandler.UserInputHandler;
 import hawk.JRegistryClient.network.CLIClient;
+import org.springframework.beans.factory.annotation.Autowired;
 
 
 @Service
@@ -18,7 +19,8 @@ import hawk.JRegistryClient.network.CLIClient;
 public class CLIService {
 
     private List<UserInputHandler> userInputHandlers = new ArrayList<>();
-
+    
+    @Autowired
     private CLIClient cliClient;
 
 
@@ -47,8 +49,9 @@ public class CLIService {
         cliRequest.setType(cmd[0]);
         cliRequest.setKey(cmd[1]);
         cliRequest.setData(cmd[2].getBytes());
-
+        log.info("userInputCheck before sendRequest: requestId={}", cliRequest.getUuid());
         String response = cliClient.sendRequest(cliRequest);
+        log.info("userInputCheck after sendRequest: requestId={}, response={}", cliRequest.getUuid(), response);
 
         return response;
     }

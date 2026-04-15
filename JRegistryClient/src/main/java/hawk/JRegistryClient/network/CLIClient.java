@@ -95,6 +95,8 @@ public class CLIClient {
     }
 
     public String sendRequest(CLIRequest cliRequest) {
+        log.info("sendRequest start: requestId={}, type={}, key={}, channelActive={}",
+                cliRequest.getUuid(), cliRequest.getType(), cliRequest.getKey(), channel != null && channel.isActive());
         if (channel == null || !channel.isActive()) {
             log.info("Channel is not active.");
             return "Connection to server is not active.";
@@ -118,13 +120,20 @@ public class CLIClient {
                 if (pending != null) {
                     pending.getFuture().completeExceptionally(future.cause());
                 }
+                log.error("sendRequest write failed: requestId={}", requestId, future.cause());
+            } else {
+                log.info("sendRequest write success: requestId={}", requestId);
             }
         });
 
         try {
-            return responseFuture.get(5, TimeUnit.SECONDS);
+            log.info("sendRequest waiting response: requestId={}, pendingSize={}", requestId, pendingResponses.size());
+            String response = responseFuture.get(5, TimeUnit.SECONDS);
+            log.info("sendRequest completed: requestId={}, response={}", requestId, response);
+            return response;
         } catch (TimeoutException e) {
             pendingResponses.remove(requestId);
+            log.warn("sendRequest timeout: requestId={}, pendingSizeAfterRemove={}", requestId, pendingResponses.size());
             return "timeout";
         } catch (Exception e) {
             pendingResponses.remove(requestId);
@@ -136,8 +145,11 @@ public class CLIClient {
     // 由 handler 在收到服务端消息时调用，根据 requestId 匹配对应 future
     public void completeResponse(String msg) {
         try {
+            log.info("completeResponse raw: {}", msg);
             CLIRequest response = JSON.parseObject(msg, CLIRequest.class);
             UUID requestId = response.getUuid();
+            log.info("completeResponse parsed: requestId={}, redirect={}, message={}",
+                    requestId, response.isRedirect(), response.getMessage());
 
             PendingRequest pending = pendingResponses.get(requestId);
             if (pending == null) {

@@ -1,5 +1,6 @@
 package hawk.JRegistryCenter.CLI;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -29,6 +30,8 @@ public class CLIServer {
     private int port;
     @Value("${raft.node-id}")
     private int id;
+    @Autowired
+    private CLIService cliService;
 
     private EventLoopGroup boss;
     private EventLoopGroup worker;
@@ -50,7 +53,7 @@ public class CLIServer {
                      p.addLast(new LineBasedFrameDecoder(8192));
                      p.addLast(new StringDecoder(StandardCharsets.UTF_8));
                      p.addLast(new StringEncoder(StandardCharsets.UTF_8));
-                     p.addLast(new CLIServerHandler());
+                     p.addLast(new CLIServerHandler(cliService));
                  }
              });
 
