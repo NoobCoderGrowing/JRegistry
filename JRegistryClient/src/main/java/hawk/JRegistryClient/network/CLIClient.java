@@ -59,38 +59,54 @@ public class CLIClient {
              }
          });
 
-        connect(host, port);
+        connectOnStartup(host, port);
     }
 
-    public synchronized void connect(String host, int port) {
-        int maxAttempts = 2;
-        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-            try {
-                ChannelFuture future = b.connect(host, port).sync();
-                if (future.isSuccess()) {
-                    channel = future.channel();
-                    log.info("Connected to JRegistry TCP server: {}:{}", host, port);
-                    return;
-                }
-                log.error("Failed to connect to JRegistry TCP server: {}:{} (attempt {}/{})", host, port, attempt, maxAttempts);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                log.error("Connect interrupted to JRegistry TCP server: {}:{}", host, port, e);
-                return;
-            } catch (Exception e) {
-                log.error("Failed to connect to JRegistry TCP server: {}:{} (attempt {}/{})", host, port, attempt, maxAttempts, e);
+    public void connectOnStartup(String host, int port) {
+        b.connect(host, port).addListener((ChannelFuture future) -> {
+            if (!future.isSuccess()) {
+                scheduleReconnect(host, port); //失败延迟重连
+            }else{
+                this.channel = future.channel();
+                log.info("Connected to JRegistry TCP server: {}:{}", host, port);
             }
+        });
+    }
 
-            if (attempt < maxAttempts) {
-                log.warn("Retrying to connect in 5 seconds: {}:{}", host, port);
-                try {
-                    TimeUnit.SECONDS.sleep(5);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    log.error("Retry sleep interrupted for {}:{}", host, port, e);
-                    return;
-                }
+
+
+    public void scheduleReconnect(String host, int port) {
+        group.schedule(() -> {
+            connectOnStartup(host, port);
+        }, 5, TimeUnit.SECONDS);
+    }
+    
+
+    public synchronized void reconnect(String host, int port) {
+        //close old channel
+        Channel oldChannel = this.channel;
+        try {
+            if (oldChannel != null && oldChannel.isActive()) {
+                oldChannel.close().syncUninterruptibly();
             }
+        } catch (Exception e) {
+            log.warn("Failed to close old channel before connect", e);
+        }
+
+        //connect new channel
+        try {
+            ChannelFuture future = b.connect(host, port).sync();
+            if (future.isSuccess()) {
+                channel = future.channel();
+                log.info("Redirected to JRegistry TCP server: {}:{}", host, port);
+                return;
+            }
+            log.error("Failed to connect to JRegistry TCP server: {}:{}", host, port);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.error("Reconnect interrupted to JRegistry TCP server: {}:{}", host, port, e);
+        } catch (Exception e) {
+            log.error("Failed to reconnect to JRegistry TCP server: {}:{}", host, port, e);
         }
     }
 
@@ -129,11 +145,9 @@ public class CLIClient {
         try {
             log.info("sendRequest waiting response: requestId={}, pendingSize={}", requestId, pendingResponses.size());
             String response = responseFuture.get(5, TimeUnit.SECONDS);
-            log.info("sendRequest completed: requestId={}, response={}", requestId, response);
             return response;
         } catch (TimeoutException e) {
             pendingResponses.remove(requestId);
-            log.warn("sendRequest timeout: requestId={}, pendingSizeAfterRemove={}", requestId, pendingResponses.size());
             return "timeout";
         } catch (Exception e) {
             pendingResponses.remove(requestId);
@@ -184,7 +198,9 @@ public class CLIClient {
 
         pending.incrementRedirectRetries();
         CompletableFuture.runAsync(() -> {
-            reconnectTo(newHost, newPort);
+            this.host = newHost;
+            this.port = newPort;
+            reconnect(newHost, newPort);
             resendPendingRequest(requestId, pending, redirectMessage);
         });
     }
@@ -209,22 +225,6 @@ public class CLIClient {
                 log.info("Resent request {} after redirect: {}", requestId, redirectMessage);
             }
         });
-    }
-
-    private synchronized void reconnectTo(String newHost, int newPort) {
-        Channel oldChannel = this.channel;
-        this.host = newHost;
-        this.port = newPort;
-
-        try {
-            if (oldChannel != null && oldChannel.isActive()) {
-                oldChannel.close().syncUninterruptibly();
-            }
-        } catch (Exception e) {
-            log.warn("Failed to close old channel before reconnect", e);
-        }
-
-        connect(newHost, newPort);
     }
 
     public void stop() {
