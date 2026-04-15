@@ -18,6 +18,9 @@ public class RaftNode {
     private AtomicBoolean isLeader;
     private AtomicBoolean isCandidate;
 
+    private String leaderHost;
+    private int leaderPort;
+
     //peer nodes
     private Map<Integer, Channel> peerChannels;
 

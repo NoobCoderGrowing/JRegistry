@@ -1,14 +1,15 @@
 package hawk.JRegistryCenter.Raft.RPC.Server;
 
 import com.alibaba.fastjson.JSON;
-import hawk.JRegistryCenter.Raft.RPC.RPCReply;
-import hawk.JRegistryCenter.Raft.RPC.RPCRequest;
+
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.timeout.IdleStateEvent;
 import org.springframework.stereotype.Component;
 import hawk.JRegistryCenter.Raft.RPC.Server.Services.AppendEntriesService;
 import hawk.JRegistryCenter.Raft.RPC.Server.Services.RequestVoteService;
+import hawk.JRegitstryCore.RPC.RaftReply;
+import hawk.JRegitstryCore.RPC.RaftRequest;
 import hawk.JRegistryCenter.Raft.RaftNode;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -40,8 +41,8 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, String msg) {
         try {
-            RPCRequest request = JSON.parseObject(msg, RPCRequest.class);
-            RPCReply reply = null;
+            RaftRequest request = JSON.parseObject(msg, RaftRequest.class);
+            RaftReply reply = null;
             // log.info("server {} handle request: {}", raftNode.getId(), JSON.toJSONString(request));
             switch (request.getType()) {
                 case "appendEntries":

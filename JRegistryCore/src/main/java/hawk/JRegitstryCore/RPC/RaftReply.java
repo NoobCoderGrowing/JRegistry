@@ -1,9 +1,9 @@
-package hawk.JRegistryCenter.Raft.RPC;
+package hawk.JRegitstryCore.RPC;
 
 import lombok.Data;
 
 @Data
-public class RPCReply {
+public class RaftReply {
 
      //coomon part
      private String type;

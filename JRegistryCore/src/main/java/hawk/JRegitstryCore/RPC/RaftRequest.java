@@ -1,9 +1,9 @@
-package hawk.JRegistryCenter.Raft.RPC;
+package hawk.JRegitstryCore.RPC;
 
 import lombok.Data;
 
 @Data
-public class RPCRequest {
+public class RaftRequest {
 
     //coomon part
     private String type;
@@ -20,4 +20,6 @@ public class RPCRequest {
     private long lastLogTerm; 
     private int voteTerm;
 
+    private String leaderHost;
+    private int leaderPort;
 }

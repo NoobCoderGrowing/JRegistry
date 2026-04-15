@@ -3,12 +3,18 @@ package hawk.JRegistryClient.network;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 
+public class CLIClientHandler extends SimpleChannelInboundHandler<String> {
 
+    private final CLIClient cliClient;
 
-public class ClientHandler extends SimpleChannelInboundHandler<String> {
+    public CLIClientHandler(CLIClient cliClient) {
+        this.cliClient = cliClient;
+    }
+
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, String msg) {
-        System.out.println("[SERVER] " + msg);
+        // 不再只打印，而是交给 CLIClient 处理
+        cliClient.completeResponse(msg);
     }
 
     @Override

@@ -24,4 +24,4 @@ build/
 !gradle/wrapper/gradle-wrapper.jar
 
 # 日志文件
-*.log
+**/logs/

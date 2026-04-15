@@ -1,4 +1,4 @@
-package hawk.JRegitstry;
+package hawk.JRegitstryCore;
 
 
 import java.util.Map;

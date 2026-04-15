@@ -84,9 +84,6 @@ public class RaftClientManager {
             return; //正在重连，不进行重连
         }
 
-        
-        
-        
         Bootstrap b = new Bootstrap();
         b.group(group)
          .channel(NioSocketChannel.class) //使用NIO Socket通道
