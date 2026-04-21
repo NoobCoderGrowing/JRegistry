@@ -63,7 +63,5 @@ public class RaftNode {
         this.lastLogIndex = -1;
         this.lastLogTerm = -1;
         this.leaderId = -1;
-        
-       
     }
 }
