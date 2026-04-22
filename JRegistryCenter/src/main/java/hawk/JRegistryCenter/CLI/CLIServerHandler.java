@@ -18,10 +18,7 @@ public class CLIServerHandler extends SimpleChannelInboundHandler<String> {
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, String msg) {
-        log.info("CLIServerHandler received raw message: {}", msg);
         CLIRequest cliRequest = JSON.parseObject(msg, CLIRequest.class);
-        log.info("CLIServerHandler parsed request: requestId={}, type={}, key={}",
-                cliRequest.getUuid(), cliRequest.getType(), cliRequest.getKey());
         cliService.handleCLIRequest(ctx.channel(), cliRequest);
     }
 

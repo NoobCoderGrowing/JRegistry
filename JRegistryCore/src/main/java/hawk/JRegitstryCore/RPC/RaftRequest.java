@@ -22,4 +22,10 @@ public class RaftRequest {
 
     private String leaderHost;
     private int leaderPort;
+
+
+    private String cmd;
+    private String key;
+    private byte[] data;
+    private String dataType;
 }
