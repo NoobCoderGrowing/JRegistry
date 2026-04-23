@@ -16,6 +16,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+
 import javax.annotation.PostConstruct;
 import lombok.Data;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -26,6 +28,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import hawk.JRegistryCenter.Raft.RPC.Server.Services.AppendEntriesService;
 import hawk.JRegistryCenter.Raft.RPC.Server.Services.RequestVoteService;
 import hawk.JRegistryCenter.Raft.RaftNode;
+import hawk.JRegistryCenter.Raft.Log.LogService;
 
 @Slf4j
 @Component
@@ -52,6 +55,8 @@ public class RaftClientManager {
     @Autowired
     private RaftNode raftNode;
 
+    private LogService logService;
+
     @PostConstruct
     public void init(){
         group = new NioEventLoopGroup();
@@ -64,6 +69,12 @@ public class RaftClientManager {
         }
    }
 
+   @Bean
+   public LogService initLogService(){
+        LogService logService = new LogService(this);
+        this.logService = logService;
+        return logService;
+   }
     // 初始化：配置所有 peer 节点的地址
     public void initPeers(Map<Integer, String> peers) {
         peerAddresses.putAll(peers);
@@ -137,6 +148,12 @@ public class RaftClientManager {
                 String[] parts = addr.split(":");
                 scheduleReconnect(nodeId, parts[0], Integer.parseInt(parts[1]));
             }
+        }
+    }
+
+    public void sendToAllPeers(String message) {
+        for(int nodeId : peerChannels.keySet()) {
+            sendToPeer(nodeId, message);
         }
     }
     

@@ -13,6 +13,8 @@ import hawk.JRegitstryCore.RPC.RaftRequest;
 import lombok.extern.slf4j.Slf4j;
 import hawk.JRegistryCenter.Raft.RPC.Server.RaftServerHandler;
 import org.springframework.beans.factory.annotation.Value;
+import hawk.JRegitstryCore.Log.LogEntry;
+import hawk.JRegistryCenter.Raft.Log.LogService;
 
 
 @Slf4j
@@ -24,6 +26,9 @@ public class AppendEntriesService {
 
     @Autowired
     private Timer serverTimer;
+
+    @Autowired
+    private LogService logService;
 
     @Value("${host}")
     private String CLIServerHost;
@@ -76,12 +81,26 @@ public class AppendEntriesService {
 
 
     public RaftRequest handleAppendEntriesRequest(RaftRequest request) {
+        RaftRequest reply = new RaftRequest();
+        reply.setType("AppendEntries");
+        reply.setId(raftNode.getId());
+        reply.setTerm(raftNode.getCurrentTerm());
         log.info("server {} handle append entries request: {}", raftNode.getId(), JSON.toJSONString(request));
-        if(request.getId() == raftNode.getLeaderId()){
+        if(request.getTerm() < raftNode.getCurrentTerm()){
+            reply.setSuccess(false);
+            return reply;
+        }else{
             serverTimer.resetTimer();
+            acceptLeader(request);
+            if(logService.containLog(request.getPrevLogIndex(), request.getPrevLogTerm())){
+                //prevLogIndex and prevLogTerm are correct, append log
+                reply.setSuccess(true);
+                logService.appendLog(request.getLog());
+            }else{
+                reply.setSuccess(false);
+            }
         }
-
-        return null;
+        return reply;
 
     }
 
@@ -96,6 +115,16 @@ public class AppendEntriesService {
 
     public void acceptHeartbeat(RaftRequest request){
         log.info("server {} accept heartbeat from leader node {}", raftNode.getId(), request.getId());
+        raftNode.getIsCandidate().compareAndSet(true, false);
+        raftNode.getIsLeader().compareAndSet(true, false); // 放弃leader身份
+        raftNode.setCurrentTerm(request.getTerm());
+        raftNode.setLeaderId(request.getId());   
+        raftNode.setLeaderHost(request.getLeaderHost());
+        raftNode.setLeaderPort(request.getLeaderPort());
+    }
+
+    public void acceptLeader(RaftRequest request){
+        log.info("server {} accept leader from leader node {}", raftNode.getId(), request.getId());
         raftNode.getIsCandidate().compareAndSet(true, false);
         raftNode.getIsLeader().compareAndSet(true, false); // 放弃leader身份
         raftNode.setCurrentTerm(request.getTerm());

@@ -8,7 +8,6 @@ import lombok.extern.slf4j.Slf4j;
 import hawk.JRegistryCenter.Raft.RaftNode;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.alibaba.fastjson.JSON;
-import hawk.JRegistryCenter.Raft.RPC.Client.RaftClientManager;
 import hawk.JRegistryCenter.Raft.Log.LogService;
 
 
@@ -19,9 +18,6 @@ public class CLIService {
 
     @Autowired
     private RaftNode raftNode;
-
-    @Autowired
-    private RaftClientManager raftClientManager;
 
     @Autowired
     private LogService logService;
@@ -58,7 +54,7 @@ public class CLIService {
         String cmd = cliRequest.getType();
         String message = cmd + " received";
         writeResponse(channel, cliRequest, message);
-        logService.appendLog(cliRequest);
+        logService.generateLogEntry(cliRequest);
     }
 
     public void redirectToLeader(Channel channel, CLIRequest cliRequest){

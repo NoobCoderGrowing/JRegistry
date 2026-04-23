@@ -1,6 +1,7 @@
 package hawk.JRegitstryCore.RPC;
 
 import lombok.Data;
+import hawk.JRegitstryCore.Log.LogEntry;
 
 @Data
 public class RaftRequest {
@@ -28,8 +29,10 @@ public class RaftRequest {
     private int leaderPort;
 
 
-    private String cmd;
-    private String key;
-    private byte[] data;
-    private String dataType;
+    // private String cmd;
+    // private String key;
+    // private byte[] data;
+    // private String dataType;
+    private LogEntry log;
+    private LogEntry[] logs;
 }

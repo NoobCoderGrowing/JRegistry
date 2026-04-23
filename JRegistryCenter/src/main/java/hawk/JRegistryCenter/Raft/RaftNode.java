@@ -40,8 +40,6 @@ public class RaftNode {
     //Append Entries part in raft paper
     private long leaderTerm;
     private volatile int leaderId;
-    private long prevLogIndex;
-    private long prevLogTerm;
     // private String[] entries;
     private long leaderCommit;
 
