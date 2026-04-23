@@ -8,7 +8,6 @@ import io.netty.handler.timeout.IdleStateEvent;
 import org.springframework.stereotype.Component;
 import hawk.JRegistryCenter.Raft.RPC.Server.Services.AppendEntriesService;
 import hawk.JRegistryCenter.Raft.RPC.Server.Services.RequestVoteService;
-import hawk.JRegitstryCore.RPC.RaftReply;
 import hawk.JRegitstryCore.RPC.RaftRequest;
 import hawk.JRegistryCenter.Raft.RaftNode;
 import lombok.Data;
@@ -42,7 +41,7 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
     protected void channelRead0(ChannelHandlerContext ctx, String msg) {
         try {
             RaftRequest request = JSON.parseObject(msg, RaftRequest.class);
-            RaftReply reply = null;
+            RaftRequest reply = null;
             // log.info("server {} handle request: {}", raftNode.getId(), JSON.toJSONString(request));
             switch (request.getType()) {
                 case "appendEntries":

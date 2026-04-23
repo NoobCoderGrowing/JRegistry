@@ -9,7 +9,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import io.netty.channel.Channel;
 import java.util.Map;
 import hawk.JRegistryCenter.Raft.RPC.Server.Timer;
-import hawk.JRegitstryCore.RPC.RaftReply;
 import hawk.JRegitstryCore.RPC.RaftRequest;
 import lombok.extern.slf4j.Slf4j;
 import hawk.JRegistryCenter.Raft.RPC.Server.RaftServerHandler;
@@ -41,7 +40,7 @@ public class AppendEntriesService {
         
     }
 
-    public RaftReply handleShakeHandsRequest(RaftRequest request, RaftServerHandler raftServerHandler, Channel channel){
+    public RaftRequest handleShakeHandsRequest(RaftRequest request, RaftServerHandler raftServerHandler, Channel channel){
         raftServerHandler.setPeerNodeId(request.getId());
         raftServerHandler.getRaftServer().getPeerChannels().put(request.getId(), channel);
         return null;
@@ -69,14 +68,14 @@ public class AppendEntriesService {
     }
 
     //client to server（passive）
-    public RaftRequest clientHandleAppendEntriesRequest(RaftReply reply) {
+    public RaftRequest clientHandleAppendEntriesRequest(RaftRequest reply) {
 
         return null;
 
     }
 
 
-    public RaftReply handleAppendEntriesRequest(RaftRequest request) {
+    public RaftRequest handleAppendEntriesRequest(RaftRequest request) {
         log.info("server {} handle append entries request: {}", raftNode.getId(), JSON.toJSONString(request));
         if(request.getId() == raftNode.getLeaderId()){
             serverTimer.resetTimer();
@@ -88,7 +87,7 @@ public class AppendEntriesService {
 
     //follower to leader (passive)
     // for now leader needn't respond to follower's heartbeat response
-    public RaftRequest handleHeartbeatReply(RaftReply reply) {
+    public RaftRequest handleHeartbeatReply(RaftRequest reply) {
 
         return null;
 
@@ -105,7 +104,7 @@ public class AppendEntriesService {
         raftNode.setLeaderPort(request.getLeaderPort());
     }
 
-    public RaftReply serverHandleHeartbeatRequest(RaftRequest request) {
+    public RaftRequest serverHandleHeartbeatRequest(RaftRequest request) {
         // log.info("server {} handle heartbeat request: {}", raftNode.getId(), JSON.toJSONString(request));
         // if(request.getId() == raftNode.getLeaderId()){
         //     serverTimer.resetTimer();

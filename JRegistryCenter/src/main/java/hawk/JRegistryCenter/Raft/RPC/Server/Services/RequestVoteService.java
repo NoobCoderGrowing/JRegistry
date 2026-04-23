@@ -10,7 +10,6 @@ import io.netty.channel.Channel;
 import hawk.JRegistryCenter.Raft.RaftNode;
 import hawk.JRegistryCenter.Raft.RPC.Client.RaftClientManager;
 import hawk.JRegistryCenter.Raft.RPC.Server.Timer;
-import hawk.JRegitstryCore.RPC.RaftReply;
 import hawk.JRegitstryCore.RPC.RaftRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -40,7 +39,7 @@ public class RequestVoteService {
 
    
 // voting logic
-    public RaftReply serverHandleRequestVoteRequest1(RaftRequest request) {
+    public RaftRequest serverHandleRequestVoteRequest1(RaftRequest request) {
 
         if(!serverTimer.isTimerUp()){
             //如果计时器没有超时，拒绝投票
@@ -48,7 +47,7 @@ public class RequestVoteService {
         }
 
 
-        RaftReply reply = null;
+        RaftRequest reply = null;
         if(request.getTerm() < raftNode.getCurrentTerm()){// term比自己小，拒绝投票
             reply = rejectVote(request);
         }else if(request.getTerm() > raftNode.getCurrentTerm()){// term比自己大，接受投票
@@ -72,7 +71,7 @@ public class RequestVoteService {
     }
 
     // new voting logic(compare log term and index to determine whether to accept)
-    public RaftReply serverHandleRequestVoteRequest(RaftRequest request) {
+    public RaftRequest serverHandleRequestVoteRequest(RaftRequest request) {
 
         // if(!serverTimer.isTimerUp() && raftNode.getLeaderId() != -1){ 
         //     //如果计时器没有超时，且有leader，拒绝投票
@@ -80,7 +79,7 @@ public class RequestVoteService {
         // }
 
 
-        RaftReply reply = null;
+        RaftRequest reply = null;
         if(request.getTerm() < raftNode.getCurrentTerm()){// term比自己小，拒绝投票
             reply = rejectVote(request);
         }else{ // term比自己大，比较日志
@@ -108,8 +107,8 @@ public class RequestVoteService {
 
 
 
-    public RaftReply rejectVote(RaftRequest request) {
-        RaftReply reply = new RaftReply();
+    public RaftRequest rejectVote(RaftRequest request) {
+        RaftRequest reply = new RaftRequest();
         reply.setType("requestVote");
         reply.setId(raftNode.getId());
         reply.setTerm(raftNode.getCurrentTerm());
@@ -129,7 +128,7 @@ public class RequestVoteService {
 
     
     
-    public RaftReply acceptVote(RaftRequest request){
+    public RaftRequest acceptVote(RaftRequest request){
         
         // return to candidate
         raftNode.getIsCandidate().compareAndSet(true, false);
@@ -149,7 +148,7 @@ public class RequestVoteService {
         raftNode.setCurrentTerm(request.getTerm());
         
 
-        RaftReply reply = new RaftReply();
+        RaftRequest reply = new RaftRequest();
         reply.setType("requestVote");
         reply.setId(raftNode.getId());
         reply.setVoteTerm(request.getTerm());
@@ -162,7 +161,7 @@ public class RequestVoteService {
     }
 
     //client to server
-    public RaftRequest clientHandleRequestVoteRequest(RaftReply reply, RaftClientManager raftClientManager) {
+    public RaftRequest clientHandleRequestVoteRequest(RaftRequest reply, RaftClientManager raftClientManager) {
         // log.info("client node{} handle request vote request: {}", raftNode.getId(), JSON.toJSONString(request));
         if(reply.getVoteTerm() == raftNode.getCurrentTerm() && 
         raftNode.getIsCandidate().get()){
