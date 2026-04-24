@@ -73,7 +73,23 @@ public class AppendEntriesService {
     }
 
     //client to server（passive）
-    public RaftRequest clientHandleAppendEntriesRequest(RaftRequest reply) {
+    public RaftRequest clientHandleAppendEntriesRequest(RaftRequest reply, Channel channel, int peerNodeId) {
+        if(!reply.isSuccess()){
+            if(reply.getTerm() > raftNode.getCurrentTerm()){
+                raftNode.setCurrentTerm(reply.getTerm()+1);
+            }
+        }else{
+            // handle commitable log
+        }
+
+        if(reply.getLastLogIndex() < raftNode.getLastLogIndex()){
+            LogEntry nextLog = null;
+            if(( nextLog = logService.containAndGetNextLog(reply.getLastLogTerm(), reply.getLastLogIndex())) != null){
+                logService.replicateLog(reply, channel, nextLog);
+            }else{
+                logService.sendSnapshot(reply, channel);
+            }
+        }
 
         return null;
 
@@ -88,7 +104,6 @@ public class AppendEntriesService {
         log.info("server {} handle append entries request: {}", raftNode.getId(), JSON.toJSONString(request));
         if(request.getTerm() < raftNode.getCurrentTerm()){
             reply.setSuccess(false);
-            return reply;
         }else{
             serverTimer.resetTimer();
             acceptLeader(request);
@@ -96,10 +111,12 @@ public class AppendEntriesService {
                 //prevLogIndex and prevLogTerm are correct, append log
                 reply.setSuccess(true);
                 logService.appendLog(request.getLog());
-            }else{
+            }else{// does not contain prevlog, reject append entries request
                 reply.setSuccess(false);
             }
         }
+        reply.setLastLogIndex(raftNode.getLastLogIndex());
+        reply.setLastLogTerm(raftNode.getLastLogTerm());
         return reply;
 
     }

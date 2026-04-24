@@ -7,7 +7,6 @@ import hawk.JRegitstryCore.RPC.CLIRequest;
 import hawk.JRegitstryCore.Log.LogEntry;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -15,6 +14,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import hawk.JRegitstryCore.RPC.RaftRequest;
 import com.alibaba.fastjson.JSON;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import io.netty.channel.Channel;
 
 public class LogService {
 
@@ -53,10 +53,10 @@ public class LogService {
         raftNode.setLastLogIndex(logEntry.getIndex());
         raftNode.setLastLogTerm(logEntry.getTerm());
         logLock.writeLock().unlock();
-        replicateLog(logEntry, prevLogIndex, prevLogTerm);
+        replicateLog2All(logEntry, prevLogIndex, prevLogTerm);
     }
 
-    public void replicateLog(LogEntry logEntry, long prevLogIndex, long prevLogTerm){
+    public void replicateLog2All(LogEntry logEntry, long prevLogIndex, long prevLogTerm){
         RaftRequest raftRequest = new RaftRequest();
         raftRequest.setType("AppendEntries");
         raftRequest.setId(raftNode.getId());
@@ -67,6 +67,18 @@ public class LogService {
         raftRequest.setPrevLogTerm(prevLogTerm);
         raftRequest.setLog(logEntry);
         raftClientManager.sendToAllPeers(JSON.toJSONString(raftRequest));
+    }
+
+    public void replicateLog(RaftRequest request, Channel channel, LogEntry nextLog){
+        RaftRequest raftRequest = new RaftRequest();
+        raftRequest.setType("AppendEntries");
+        raftRequest.setId(raftNode.getId());
+        raftRequest.setTerm(raftNode.getCurrentTerm());
+        raftRequest.setLeaderCommit(raftNode.getLeaderCommit());
+        raftRequest.setPrevLogIndex(request.getLastLogIndex());
+        raftRequest.setPrevLogTerm(request.getLastLogTerm());
+        raftRequest.setLog(nextLog);
+        channel.writeAndFlush(JSON.toJSONString(raftRequest) + "\n");
     }
 
     public void appendLog(LogEntry logEntry){
@@ -82,7 +94,7 @@ public class LogService {
         logLock.writeLock().unlock();
     }
 
-    public boolean containLog(long logIndex, long logTerm){
+    public boolean containLog(long logTerm,long logIndex){
         logLock.readLock().lock();
         if(logger.size() == 0){
             return false;
@@ -95,6 +107,31 @@ public class LogService {
         }
         logLock.readLock().unlock();
         return false;
+    }
+
+    public LogEntry containAndGetNextLog(long logTerm,long logIndex){
+        logLock.readLock().lock();
+        try{
+            if(logger.size() <= 1){
+                return null;
+            }
+            long index = logIndex - logger.get(0).getIndex();
+            if(index < 0){
+                return null;
+            }
+            LogEntry logEntry = logger.get((int) index);
+            if(logEntry.getTerm() == logTerm && logEntry.getIndex() == logIndex){
+                logEntry = logger.get((int) index + 1);
+                return logEntry;
+            }
+            return null;
+        }finally{
+            logLock.readLock().unlock();
+        }
+    }
+
+    public void sendSnapshot(RaftRequest request, Channel channel){
+        //wait for implementation 
     }
 
     public static void main(String[] args) {
