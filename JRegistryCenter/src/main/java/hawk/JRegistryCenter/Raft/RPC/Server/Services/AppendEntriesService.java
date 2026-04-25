@@ -9,11 +9,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import io.netty.channel.Channel;
 import java.util.Map;
 import hawk.JRegistryCenter.Raft.RPC.Server.Timer;
-import hawk.JRegitstryCore.RPC.RaftReply;
 import hawk.JRegitstryCore.RPC.RaftRequest;
 import lombok.extern.slf4j.Slf4j;
 import hawk.JRegistryCenter.Raft.RPC.Server.RaftServerHandler;
 import org.springframework.beans.factory.annotation.Value;
+import hawk.JRegitstryCore.Log.LogEntry;
+import hawk.JRegistryCenter.Raft.Log.LogService;
 
 
 @Slf4j
@@ -25,6 +26,9 @@ public class AppendEntriesService {
 
     @Autowired
     private Timer serverTimer;
+
+    @Autowired
+    private LogService logService;
 
     @Value("${host}")
     private String CLIServerHost;
@@ -41,9 +45,23 @@ public class AppendEntriesService {
         
     }
 
-    public RaftReply handleShakeHandsRequest(RaftRequest request, RaftServerHandler raftServerHandler, Channel channel){
+    public RaftRequest handleShakeHandsRequest(RaftRequest request, RaftServerHandler raftServerHandler, Channel channel){
+        //client tell server its id
         raftServerHandler.setPeerNodeId(request.getId());
         raftServerHandler.getRaftServer().getPeerChannels().put(request.getId(), channel);
+        return null;
+    }
+
+    public RaftRequest handleInstallSnapshotRequest(RaftRequest request){
+        if(request.getTerm() >= raftNode.getCurrentTerm()){
+            serverTimer.resetTimer();
+            acceptLeader(request);
+            raftNode.setLsmTree(request.getSnapshot());
+            raftNode.setLastLogIndex(request.getLastLogIndex());
+            raftNode.setLastLogTerm(request.getLastLogTerm());
+            raftNode.setCommitIndex(request.getLeaderCommit());
+            logService.cleanLogger();
+        }
         return null;
     }
 
@@ -69,26 +87,57 @@ public class AppendEntriesService {
     }
 
     //client to server（passive）
-    public RaftRequest clientHandleAppendEntriesRequest(RaftReply reply) {
+    public RaftRequest clientHandleAppendEntriesRequest(RaftRequest reply, Channel channel, int peerNodeId) {
+        if(!reply.isSuccess()){
+            if(reply.getTerm() > raftNode.getCurrentTerm()){
+                raftNode.setCurrentTerm(reply.getTerm()+1);
+            }
+        }else{
+            // handle commitable log
+        }
 
-        return null;
-
-    }
-
-
-    public RaftReply handleAppendEntriesRequest(RaftRequest request) {
-        log.info("server {} handle append entries request: {}", raftNode.getId(), JSON.toJSONString(request));
-        if(request.getId() == raftNode.getLeaderId()){
-            serverTimer.resetTimer();
+        if(reply.getLastLogIndex() < raftNode.getLastLogIndex()){
+            LogEntry nextLog = null;
+            if(( nextLog = logService.containAndGetNextLog(reply.getLastLogTerm(), reply.getLastLogIndex())) != null){
+                logService.replicateLog(reply, channel, nextLog);
+            }else{
+                logService.sendSnapshot(reply, channel);
+            }
         }
 
         return null;
 
     }
 
+
+    public RaftRequest handleAppendEntriesRequest(RaftRequest request) {
+        RaftRequest reply = new RaftRequest();
+        reply.setType("AppendEntries");
+        reply.setId(raftNode.getId());
+        reply.setTerm(raftNode.getCurrentTerm());
+        log.info("server {} handle append entries request: {}", raftNode.getId(), JSON.toJSONString(request));
+        if(request.getTerm() < raftNode.getCurrentTerm()){
+            reply.setSuccess(false);
+        }else{
+            serverTimer.resetTimer();
+            acceptLeader(request);
+            if(logService.containLog(request.getPrevLogIndex(), request.getPrevLogTerm())){
+                //prevLogIndex and prevLogTerm are correct, append log
+                reply.setSuccess(true);
+                logService.appendLog(request.getLog());
+            }else{// does not contain prevlog, reject append entries request
+                reply.setSuccess(false);
+            }
+        }
+        reply.setLastLogIndex(raftNode.getLastLogIndex());
+        reply.setLastLogTerm(raftNode.getLastLogTerm());
+        return reply;
+
+    }
+
     //follower to leader (passive)
     // for now leader needn't respond to follower's heartbeat response
-    public RaftRequest handleHeartbeatReply(RaftReply reply) {
+    public RaftRequest handleHeartbeatReply(RaftRequest reply) {
 
         return null;
 
@@ -105,7 +154,17 @@ public class AppendEntriesService {
         raftNode.setLeaderPort(request.getLeaderPort());
     }
 
-    public RaftReply serverHandleHeartbeatRequest(RaftRequest request) {
+    public void acceptLeader(RaftRequest request){
+        log.info("server {} accept leader from leader node {}", raftNode.getId(), request.getId());
+        raftNode.getIsCandidate().compareAndSet(true, false);
+        raftNode.getIsLeader().compareAndSet(true, false); // 放弃leader身份
+        raftNode.setCurrentTerm(request.getTerm());
+        raftNode.setLeaderId(request.getId());   
+        raftNode.setLeaderHost(request.getLeaderHost());
+        raftNode.setLeaderPort(request.getLeaderPort());
+    }
+
+    public RaftRequest serverHandleHeartbeatRequest(RaftRequest request) {
         // log.info("server {} handle heartbeat request: {}", raftNode.getId(), JSON.toJSONString(request));
         // if(request.getId() == raftNode.getLeaderId()){
         //     serverTimer.resetTimer();

@@ -2,7 +2,6 @@ package hawk.JRegitstryCore;
 import lombok.Data;
 
 import java.util.HashMap;
-import java.util.Map;
 import java.util.Set;
 
 @Data
@@ -14,19 +13,21 @@ public class BPlusNode {
 
     private HashMap<String, BPlusNode> children;
 
-    private Map<String, Object> values;
+    private byte[] value;
+
+    private String type;
 
     public BPlusNode(String key, String path) {
         this.key = key;
         this.path = path;
         this.children = new HashMap<>();
-        this.values = new HashMap<>();
     }
 
-    public BPlusNode(String key, Map<String, Object> values) {
+    public BPlusNode(String key, byte[] value, String type) {
         this.key = key;
         this.children = new HashMap<>();
-        this.values = values;
+        this.value = value;
+        this.type = type;
     }
 
 

@@ -9,6 +9,7 @@ public class LogEntry {
     private long index;
     private String command;
     private String key;
-    private byte[] value;
+    private byte[] data;
+    private String dataType;
     
 }
