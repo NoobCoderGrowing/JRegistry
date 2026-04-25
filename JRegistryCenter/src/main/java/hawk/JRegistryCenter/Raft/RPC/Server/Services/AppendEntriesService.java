@@ -46,8 +46,22 @@ public class AppendEntriesService {
     }
 
     public RaftRequest handleShakeHandsRequest(RaftRequest request, RaftServerHandler raftServerHandler, Channel channel){
+        //client tell server its id
         raftServerHandler.setPeerNodeId(request.getId());
         raftServerHandler.getRaftServer().getPeerChannels().put(request.getId(), channel);
+        return null;
+    }
+
+    public RaftRequest handleInstallSnapshotRequest(RaftRequest request){
+        if(request.getTerm() >= raftNode.getCurrentTerm()){
+            serverTimer.resetTimer();
+            acceptLeader(request);
+            raftNode.setLsmTree(request.getSnapshot());
+            raftNode.setLastLogIndex(request.getLastLogIndex());
+            raftNode.setLastLogTerm(request.getLastLogTerm());
+            raftNode.setCommitIndex(request.getLeaderCommit());
+            logService.cleanLogger();
+        }
         return null;
     }
 

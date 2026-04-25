@@ -56,6 +56,9 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
                 case "shakeHand":
                     reply = appendEntriesService.handleShakeHandsRequest(request, this, ctx.channel());
                     break;
+                case "installSnapshot":
+                    reply = appendEntriesService.handleInstallSnapshotRequest(request);
+                    break;
                 default:
                     break;
             }

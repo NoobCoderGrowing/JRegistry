@@ -1,6 +1,6 @@
 package hawk.JRegitstryCore;
 
-interface LSMTree {
+public interface LSMTree {
 
     public boolean put(String key, byte[] value, String type);
     public String get(String key);

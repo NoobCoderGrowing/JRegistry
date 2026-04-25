@@ -48,7 +48,7 @@ public class RaftClientHandler extends SimpleChannelInboundHandler<String> {
         RaftRequest request = null;
         switch (reply.getType()) {
             case "appendEntries":
-                request = appendEntriesService.clientHandleAppendEntriesRequest(reply);
+                appendEntriesService.clientHandleAppendEntriesRequest(reply, ctx.channel(), peerNodeId);
                 break;
             case "heartbeat":
                 //do nothing, because leader needn't respond to follower's heartbeat response

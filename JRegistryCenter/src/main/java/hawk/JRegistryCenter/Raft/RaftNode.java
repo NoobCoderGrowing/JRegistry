@@ -6,8 +6,10 @@ import lombok.Data;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-
+import hawk.JRegitstryCore.LSMTree;
+import hawk.JRegitstryCore.BPlusTree;
 import io.netty.channel.Channel;
+
 
 @Component
 @Data
@@ -47,6 +49,8 @@ public class RaftNode {
     private long lastLogIndex;
     private long lastLogTerm;
 
+    private LSMTree lsmTree;
+
     public RaftNode(){
         this.isLeader = new AtomicBoolean(false);
         this.isCandidate = new AtomicBoolean(false);
@@ -61,5 +65,6 @@ public class RaftNode {
         this.lastLogIndex = -1;
         this.lastLogTerm = -1;
         this.leaderId = -1;
+        this.lsmTree = new BPlusTree();
     }
 }

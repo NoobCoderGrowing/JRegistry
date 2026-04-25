@@ -2,6 +2,7 @@ package hawk.JRegitstryCore.RPC;
 
 import lombok.Data;
 import hawk.JRegitstryCore.Log.LogEntry;
+import hawk.JRegitstryCore.LSMTree;
 
 @Data
 public class RaftRequest {
@@ -35,4 +36,5 @@ public class RaftRequest {
     // private String dataType;
     private LogEntry log;
     private LogEntry[] logs;
+    private LSMTree snapshot;
 }

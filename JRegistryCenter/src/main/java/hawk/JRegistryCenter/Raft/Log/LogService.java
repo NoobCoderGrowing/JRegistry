@@ -7,10 +7,6 @@ import hawk.JRegitstryCore.RPC.CLIRequest;
 import hawk.JRegitstryCore.Log.LogEntry;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.LinkedBlockingQueue;
 import hawk.JRegitstryCore.RPC.RaftRequest;
 import com.alibaba.fastjson.JSON;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -26,8 +22,7 @@ public class LogService {
 
     private ArrayList<LogEntry> logger = new ArrayList<>();
     private AtomicInteger currentIndex = new AtomicInteger(-1);
-    private ReentrantReadWriteLock logLock = new ReentrantReadWriteLock();
-    private  ExecutorService workerPool = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());    
+    private ReentrantReadWriteLock logLock = new ReentrantReadWriteLock(); 
 
    public LogService(RaftClientManager raftClientManager){
         this.raftClientManager = raftClientManager;
@@ -131,7 +126,27 @@ public class LogService {
     }
 
     public void sendSnapshot(RaftRequest request, Channel channel){
-        //wait for implementation 
+        RaftRequest raftRequest = new RaftRequest();
+        raftRequest.setType("installSnapshot");
+        raftRequest.setId(raftNode.getId());
+        raftRequest.setTerm(raftNode.getCurrentTerm());
+        raftRequest.setLeaderCommit(raftNode.getCommitIndex());
+        raftRequest.setLastLogIndex(raftNode.getLastLogIndex());
+        raftRequest.setLastLogTerm(raftNode.getLastLogTerm());
+        raftRequest.setLeaderHost(raftNode.getLeaderHost());
+        raftRequest.setLeaderPort(raftNode.getLeaderPort());
+        raftRequest.setSnapshot(raftNode.getLsmTree());
+        channel.writeAndFlush(JSON.toJSONString(raftRequest) + "\n");
+    }
+
+    public void cleanLogger(){
+        logLock.writeLock().lock();
+        try{
+            logger.clear();
+            currentIndex.set(-1);
+        }finally{
+            logLock.writeLock().unlock();
+        }
     }
 
     public static void main(String[] args) {

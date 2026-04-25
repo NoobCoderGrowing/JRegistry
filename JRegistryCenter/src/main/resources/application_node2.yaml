@@ -5,6 +5,7 @@ server:
 
 CLS:
   port: 6302
+  host: 127.0.0.2
 
 raft:
   node-id: 2
