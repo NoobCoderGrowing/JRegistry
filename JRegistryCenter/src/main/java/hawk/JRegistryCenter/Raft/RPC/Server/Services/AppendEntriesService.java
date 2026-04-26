@@ -15,6 +15,7 @@ import hawk.JRegistryCenter.Raft.RPC.Server.RaftServerHandler;
 import org.springframework.beans.factory.annotation.Value;
 import hawk.JRegitstryCore.Log.LogEntry;
 import hawk.JRegistryCenter.Raft.Log.LogService;
+import hawk.JRegistryCenter.Raft.Log.LogCommitService;
 
 
 @Slf4j
@@ -29,6 +30,9 @@ public class AppendEntriesService {
 
     @Autowired
     private LogService logService;
+
+    @Autowired
+    private LogCommitService commitService;
 
     @Value("${host}")
     private String CLIServerHost;
@@ -60,7 +64,7 @@ public class AppendEntriesService {
             raftNode.setLastLogIndex(request.getLastLogIndex());
             raftNode.setLastLogTerm(request.getLastLogTerm());
             raftNode.setCommitIndex(request.getLeaderCommit());
-            logService.cleanLogger();
+            logService.installLogger(request);
         }
         return null;
     }
@@ -94,6 +98,7 @@ public class AppendEntriesService {
             }
         }else{
             // handle commitable log
+            commitService.updateCommitMap(reply);
         }
 
         if(reply.getLastLogIndex() < raftNode.getLastLogIndex()){
@@ -124,6 +129,7 @@ public class AppendEntriesService {
             if(logService.containLog(request.getPrevLogIndex(), request.getPrevLogTerm())){
                 //prevLogIndex and prevLogTerm are correct, append log
                 reply.setSuccess(true);
+                reply.setLog(request.getLog());
                 logService.appendLog(request.getLog());
             }else{// does not contain prevlog, reject append entries request
                 reply.setSuccess(false);

@@ -38,6 +38,8 @@ public class RaftClientManager {
     private final ConcurrentHashMap<Integer, Channel> peerChannels = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, String> peerAddresses = new ConcurrentHashMap<>();
     private ConcurrentHashMap<Integer, AtomicBoolean> reconnectLock = new ConcurrentHashMap<>();
+
+
     private EventLoopGroup group;
 
     @Value("#{${raft.peers:{}}}")

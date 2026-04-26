@@ -3,6 +3,7 @@ package hawk.JRegitstryCore;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.Arrays;
+import hawk.JRegitstryCore.Log.LogEntry;
 
 public class BPlusTree implements LSMTree {
 
@@ -53,5 +54,14 @@ public class BPlusTree implements LSMTree {
 
     public boolean persist(){
         return false;
+    }
+
+    public void applyLog(LogEntry logEntry){
+        rdLock.writeLock().lock();
+        try{
+        }finally{
+            rdLock.writeLock().unlock();
+        }
+        return;
     }
 }

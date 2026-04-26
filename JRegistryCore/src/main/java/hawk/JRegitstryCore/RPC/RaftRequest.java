@@ -3,6 +3,7 @@ package hawk.JRegitstryCore.RPC;
 import lombok.Data;
 import hawk.JRegitstryCore.Log.LogEntry;
 import hawk.JRegitstryCore.LSMTree;
+import java.util.ArrayList;
 
 @Data
 public class RaftRequest {
@@ -28,13 +29,8 @@ public class RaftRequest {
 
     private String leaderHost;
     private int leaderPort;
-
-
-    // private String cmd;
-    // private String key;
-    // private byte[] data;
-    // private String dataType;
+    
     private LogEntry log;
-    private LogEntry[] logs;
+    private ArrayList<LogEntry> logs;
     private LSMTree snapshot;
 }

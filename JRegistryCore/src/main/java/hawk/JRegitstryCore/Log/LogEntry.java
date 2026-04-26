@@ -3,7 +3,7 @@ package hawk.JRegitstryCore.Log;
 import lombok.Data;
 
 @Data
-public class LogEntry {
+public class LogEntry implements Comparable<LogEntry>{
     
     private long term;
     private long index;
@@ -11,5 +11,11 @@ public class LogEntry {
     private String key;
     private byte[] data;
     private String dataType;
+    private boolean committed;
+
+    @Override
+    public int compareTo(LogEntry other) {
+        return Long.compare(this.index, other.index);
+    }
     
 }
