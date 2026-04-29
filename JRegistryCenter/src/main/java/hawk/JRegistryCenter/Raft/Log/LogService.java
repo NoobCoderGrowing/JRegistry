@@ -52,6 +52,19 @@ public class LogService {
         replicateLog2All(logEntry, prevLogIndex, prevLogTerm);
     }
 
+    public void deleteLogs(long startIndex){
+        logLock.writeLock().lock();
+        try{
+            int i = logger.size() - 1;
+            while(i >= 0 && logger.get(i).getIndex() > startIndex){
+                i--;
+            }
+            logger.subList(i + 1, logger.size()).clear();
+        }finally{
+            logLock.writeLock().unlock();
+        }
+    }
+
     public void replicateLog2All(LogEntry logEntry, long prevLogIndex, long prevLogTerm){
         RaftRequest raftRequest = new RaftRequest();
         raftRequest.setType("AppendEntries");
@@ -80,29 +93,43 @@ public class LogService {
     public void appendLog(LogEntry logEntry){
         // insertion sort
         logLock.writeLock().lock();
-        int i = logger.size() - 1;
-        while(i >= 0 && logger.get(i).getIndex() > logEntry.getIndex()){
-            i--;
+        try{
+            int i = logger.size() - 1;
+            while(i >= 0 && logger.get(i).getIndex() > logEntry.getIndex()){
+                i--;
+            }
+            logger.add(i + 1, logEntry);
+            raftNode.setLastLogIndex(logger.get(logger.size() - 1).getIndex());
+            raftNode.setLastLogTerm(logger.get(logger.size() - 1).getTerm());
+        }finally{
+            logLock.writeLock().unlock();
         }
-        logger.add(i + 1, logEntry);
-        raftNode.setLastLogIndex(logger.get(logger.size() - 1).getIndex());
-        raftNode.setLastLogTerm(logger.get(logger.size() - 1).getTerm());
-        logLock.writeLock().unlock();
     }
 
     public boolean containLog(long logTerm, long logIndex){
-        logLock.readLock().lock();
+        if(logIndex == -1){
+            return true;
+        }
         if(logger.size() == 0){
             return false;
         }
-        long index = logIndex - logger.get(0).getIndex();
-        LogEntry logEntry = logger.get((int) index);
-        if(logEntry.getTerm() == logTerm && logEntry.getIndex() == logIndex){
+        logLock.readLock().lock();
+        try {
+            
+            long index = logIndex - logger.get(0).getIndex();
+            if(logger.size() < index + 1){
+                return false;
+            }
+    
+            LogEntry logEntry = logger.get((int) index);
+            if(logEntry.getTerm() == logTerm && logEntry.getIndex() == logIndex){
+                logLock.readLock().unlock();
+                return true;
+            }
+            return false;
+        } finally{
             logLock.readLock().unlock();
-            return true;
         }
-        logLock.readLock().unlock();
-        return false;
     }
 
     public LogEntry containAndGetNextLog(long logTerm,long logIndex){
@@ -188,7 +215,7 @@ public class LogService {
 
     public static void main(String[] args) {
         ArrayList<LogEntry> log = new ArrayList<>();
-        System.out.println(log.size());
+        System.out.println(log.get(0).getIndex());
     }
 
 

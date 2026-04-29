@@ -93,8 +93,9 @@ public class AppendEntriesService {
     //client to server（passive）
     public RaftRequest clientHandleAppendEntriesRequest(RaftRequest reply, Channel channel, int peerNodeId) {
         if(!reply.isSuccess()){
-            if(reply.getTerm() > raftNode.getCurrentTerm()){
-                raftNode.setCurrentTerm(reply.getTerm()+1);
+            if(reply.getTerm() > raftNode.getCurrentTerm()){ // 收到更高term的回复，放弃leader身份，成为candidate
+                turn2Candidate(reply);
+                return null;
             }
         }else{
             // handle commitable log
@@ -128,6 +129,7 @@ public class AppendEntriesService {
             acceptLeader(request);
             if(logService.containLog(request.getPrevLogIndex(), request.getPrevLogTerm())){
                 //prevLogIndex and prevLogTerm are correct, append log
+                logService.deleteLogs(request.getPrevLogIndex());
                 reply.setSuccess(true);
                 reply.setLog(request.getLog());
                 logService.appendLog(request.getLog());
@@ -135,8 +137,6 @@ public class AppendEntriesService {
                 reply.setSuccess(false);
             }
         }
-        reply.setLastLogIndex(raftNode.getLastLogIndex());
-        reply.setLastLogTerm(raftNode.getLastLogTerm());
         return reply;
 
     }
@@ -168,6 +168,16 @@ public class AppendEntriesService {
         raftNode.setLeaderId(request.getId());   
         raftNode.setLeaderHost(request.getLeaderHost());
         raftNode.setLeaderPort(request.getLeaderPort());
+    }
+
+    public void turn2Candidate(RaftRequest request){
+        log.info("server {} turn to candidate from higher term {} node {}", raftNode.getId(), request.getTerm(), request.getId());
+        raftNode.getIsCandidate().compareAndSet(false, true);
+        raftNode.getIsLeader().compareAndSet(true, false); // 放弃leader身份
+        raftNode.setCurrentTerm(request.getTerm());
+        raftNode.setLeaderId(-1);   
+        raftNode.setLeaderHost(null);
+        raftNode.setLeaderPort(-1);
     }
 
     public RaftRequest serverHandleHeartbeatRequest(RaftRequest request) {
