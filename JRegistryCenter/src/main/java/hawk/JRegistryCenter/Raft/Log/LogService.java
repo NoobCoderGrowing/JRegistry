@@ -15,6 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.beans.factory.annotation.Value;
 import javax.annotation.PostConstruct;
+import java.util.concurrent.locks.ReentrantLock;
 
 
 public class LogService {
@@ -29,6 +30,7 @@ public class LogService {
     private ReentrantReadWriteLock logLock = new ReentrantReadWriteLock();
     public ConcurrentHashMap<Integer, Long> matchIndexMap = new ConcurrentHashMap<>();
     private CommitWatcher commitWatcher;
+    private ReentrantLock commitLock = new ReentrantLock();
 
     @Value("${raft.count}")
     private int nodeCount;
@@ -252,61 +254,61 @@ public class LogService {
         commitWatcher.update();
     }
 
-    public void commitLog(long term, long index){
-        if(!containLog(term, index)){
-            return;
-        }
-        LogEntry logEntry;
-        boolean isCommitted = false;
-        logLock.writeLock().lock();
+    public RaftRequest followerCommitLogs(RaftRequest request){
+        commitLock.lock();
         try{
-            index = index - currentIndex.get() - 1;
-            logEntry = logger.get((int) index);
-            isCommitted = logEntry.isCommitted();
-            logEntry.setCommitted(true);
-            if(index > raftNode.getCommitIndex()){
-                raftNode.setCommitIndex(index);
+            long commitableIndex = request.getLeaderCommit();
+            long currentCommitIndex = raftNode.getCommitIndex();
+            int startIndex = 0;
+            if(logger.size() > 0){
+                startIndex = (int) (currentCommitIndex - logger.get(0).getIndex()) + 1;
             }
+            while (currentCommitIndex < commitableIndex) {
+                if((startIndex < logger.size()) && startIndex >= 0){
+                    LogEntry logEntry = logger.get(startIndex);
+                    raftNode.getLsmTree().applyLog(logEntry);
+                    raftNode.setCommitIndex(logEntry.getIndex());
+                    startIndex++;
+                    currentCommitIndex++;
+                }
+            }
+            return null;
         }finally{
-            logLock.writeLock().unlock();
-        }
-        
-        if(!isCommitted){
-            raftNode.getLsmTree().applyLog(logEntry);
-            if(raftNode.getIsLeader().get()){ // leader notice all followers to commit log
-                RaftRequest raftRequest = new RaftRequest();
-                raftRequest.setType("commitLog");
-                raftRequest.setId(raftNode.getId());
-                raftRequest.setTerm(raftNode.getCurrentTerm());
-                raftRequest.setLeaderCommit(index);
-                raftClientManager.sendToAllPeers(JSON.toJSONString(raftRequest));
-            } 
-            
+            commitLock.unlock();
         }
     }
 
-    public synchronized void leaderCommitLogs(long commitableIndex){
-        long currentCommitIndex = raftNode.getCommitIndex();
-        int startIndex = 0;
-        if(logger.size() > 0){
-            startIndex = (int) (currentCommitIndex - logger.get(0).getIndex()) + 1;
-        }
-        while (currentCommitIndex < commitableIndex) {
-            LogEntry logEntry = logger.get(startIndex);
-            if(!logEntry.isCommitted()){
-                logEntry.setCommitted(true);
-                raftNode.getLsmTree().applyLog(logEntry);
+    public void leaderCommitLogs(long commitableIndex){
+        commitLock.lock();
+        try{
+            long commitableTerm = getLogTerm(commitableIndex);
+            if(commitableTerm != raftNode.getCurrentTerm()){
+                return; // leader only commit logs of current term
             }
-            startIndex++;
-            currentCommitIndex++;
+
+            long currentCommitIndex = raftNode.getCommitIndex();
+            int startIndex = 0;
+            if(logger.size() > 0){
+                startIndex = (int) (currentCommitIndex - logger.get(0).getIndex()) + 1;
+            }
+            while (currentCommitIndex < commitableIndex) {
+                LogEntry logEntry = logger.get(startIndex);
+                raftNode.getLsmTree().applyLog(logEntry);
+                raftNode.setCommitIndex(logEntry.getIndex());
+                startIndex++;
+                currentCommitIndex++;
+            }
+            
+            RaftRequest raftRequest = new RaftRequest();
+            raftRequest.setType("commitLogs");
+            raftRequest.setId(raftNode.getId());
+            raftRequest.setTerm(raftNode.getCurrentTerm());
+            raftRequest.setLeaderCommit(raftNode.getCommitIndex());
+            raftClientManager.sendToAllPeers(JSON.toJSONString(raftRequest));
+        }finally{
+            commitLock.unlock();
         }
-        raftNode.setCommitIndex(commitableIndex);
-        RaftRequest raftRequest = new RaftRequest();
-        raftRequest.setType("commitLogs");
-        raftRequest.setId(raftNode.getId());
-        raftRequest.setTerm(raftNode.getCurrentTerm());
-        raftRequest.setLeaderCommit(commitableIndex);
-        raftClientManager.sendToAllPeers(JSON.toJSONString(raftRequest));
+        
     }
 
     public static void main(String[] args) {

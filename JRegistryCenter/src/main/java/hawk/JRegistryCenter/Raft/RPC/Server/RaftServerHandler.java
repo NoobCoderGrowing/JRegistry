@@ -12,6 +12,7 @@ import hawk.JRegitstryCore.RPC.RaftRequest;
 import hawk.JRegistryCenter.Raft.RaftNode;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import hawk.JRegistryCenter.Raft.Log.LogService;
 
 @Slf4j
 @Component
@@ -30,11 +31,14 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
 
     private RaftNode raftNode;
 
-    public RaftServerHandler(RaftServerManager raftServer, AppendEntriesService appendEntriesService, RequestVoteService requestVoteService, RaftNode raftNode) {
+    private LogService logService;
+
+    public RaftServerHandler(RaftServerManager raftServer, AppendEntriesService appendEntriesService, RequestVoteService requestVoteService, RaftNode raftNode, LogService logService) {
         this.raftServer = raftServer;
         this.appendEntriesService = appendEntriesService;
         this.requestVoteService = requestVoteService;
         this.raftNode = raftNode;
+        this.logService = logService;
     }
 
     @Override
@@ -58,6 +62,9 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
                     break;
                 case "installSnapshot":
                     reply = appendEntriesService.handleInstallSnapshotRequest(request);
+                    break;
+                case "commitLogs":
+                    reply = logService.followerCommitLogs(request);
                     break;
                 default:
                     break;

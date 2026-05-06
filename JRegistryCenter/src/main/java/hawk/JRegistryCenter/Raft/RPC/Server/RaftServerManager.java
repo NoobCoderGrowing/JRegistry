@@ -24,7 +24,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import hawk.JRegistryCenter.Raft.RPC.Server.Services.AppendEntriesService;
 import hawk.JRegistryCenter.Raft.RPC.Server.Services.RequestVoteService;
 import hawk.JRegistryCenter.Raft.RaftNode;
-
+import hawk.JRegistryCenter.Raft.Log.LogService;
 @Component
 @Slf4j
 @Data
@@ -44,6 +44,9 @@ public class RaftServerManager {
 
     @Autowired
     private RaftNode raftNode;
+
+    @Autowired
+    private LogService logService;
 
 
     private EventLoopGroup bossGroup;
@@ -88,7 +91,7 @@ public class RaftServerManager {
                      p.addLast(new LineBasedFrameDecoder(8192));
                      p.addLast(new StringDecoder(StandardCharsets.UTF_8));
                      p.addLast(new StringEncoder(StandardCharsets.UTF_8));
-                     p.addLast(new RaftServerHandler(RaftServerManager.this, appendEntriesService, requestVoteService, raftNode));
+                     p.addLast(new RaftServerHandler(RaftServerManager.this, appendEntriesService, requestVoteService, raftNode, logService));
                  }
              });
             

@@ -11,7 +11,6 @@ public class LogEntry implements Comparable<LogEntry>{
     private String key;
     private byte[] data;
     private String dataType;
-    private boolean committed;
 
     @Override
     public int compareTo(LogEntry other) {
