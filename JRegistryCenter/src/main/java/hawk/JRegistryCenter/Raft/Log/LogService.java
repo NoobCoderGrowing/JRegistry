@@ -10,11 +10,14 @@ import hawk.JRegitstryCore.RPC.RaftRequest;
 import com.alibaba.fastjson.JSON;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import io.netty.channel.Channel;
+
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import org.springframework.beans.factory.annotation.Value;
+import javax.annotation.PostConstruct;
 
 
 public class LogService {
-
 
     @Autowired
     private RaftNode raftNode;
@@ -24,9 +27,20 @@ public class LogService {
     private ArrayList<LogEntry> logger = new ArrayList<>();
     private AtomicLong currentIndex = new AtomicLong(-1);
     private ReentrantReadWriteLock logLock = new ReentrantReadWriteLock();
+    public ConcurrentHashMap<Integer, Long> matchIndexMap = new ConcurrentHashMap<>();
+    private CommitWatcher commitWatcher;
+
+    @Value("${raft.count}")
+    private int nodeCount;
 
    public LogService(RaftClientManager raftClientManager){
         this.raftClientManager = raftClientManager;
+        registerCommitWatcher();
+   }
+
+   @PostConstruct
+   public void registerCommitWatcher(){
+        this.commitWatcher = new CommitWatcher(this, raftNode, nodeCount);
    }
 
     public void generateLogEntry(CLIRequest cliRequest){
@@ -50,6 +64,33 @@ public class LogService {
         raftNode.setLastLogTerm(logEntry.getTerm());
         logLock.writeLock().unlock();
         replicateLog2All(logEntry, prevLogIndex, prevLogTerm);
+    }
+
+    public LogEntry getLog(long logIndex){
+        logLock.readLock().lock();
+        try{
+            long startIndex = logIndex - logger.get(0).getIndex();
+            if(startIndex < 0){
+                logLock.readLock().unlock();
+                return null;
+            }
+            return logger.get((int) startIndex);
+        }finally{
+            logLock.readLock().unlock();
+        }
+    }
+
+    public long getLogTerm(long logIndex){
+        logLock.readLock().lock();
+        try{
+            long startIndex = logIndex - logger.get(0).getIndex();
+            if(startIndex < 0){
+                return -1;
+            }
+            return logger.get((int) startIndex).getTerm();
+        }finally{
+            logLock.readLock().unlock();
+        }
     }
 
     public void deleteLogs(long startIndex){
@@ -78,27 +119,40 @@ public class LogService {
         raftClientManager.sendToAllPeers(JSON.toJSONString(raftRequest));
     }
 
-    public void replicateLog(RaftRequest request, Channel channel, LogEntry nextLog){
+    public void replicateLog(long prevLogIndex, long prevLogTerm, Channel channel, LogEntry currentLog){
         RaftRequest raftRequest = new RaftRequest();
         raftRequest.setType("AppendEntries");
         raftRequest.setId(raftNode.getId());
         raftRequest.setTerm(raftNode.getCurrentTerm());
         raftRequest.setLeaderCommit(raftNode.getLeaderCommit());
-        raftRequest.setPrevLogIndex(request.getLastLogIndex());
-        raftRequest.setPrevLogTerm(request.getLastLogTerm());
-        raftRequest.setLog(nextLog);
+        raftRequest.setPrevLogIndex(prevLogIndex);
+        raftRequest.setPrevLogTerm(prevLogTerm);
+        raftRequest.setLog(currentLog);
         channel.writeAndFlush(JSON.toJSONString(raftRequest) + "\n");
     }
+
+    // insertion sort version
+    // public void appendLog(LogEntry logEntry){
+    //     // insertion sort
+    //     logLock.writeLock().lock();
+    //     try{
+    //         int i = logger.size() - 1;
+    //         while(i >= 0 && logger.get(i).getIndex() > logEntry.getIndex()){
+    //             i--;
+    //         }
+    //         logger.add(i + 1, logEntry);
+    //         raftNode.setLastLogIndex(logger.get(logger.size() - 1).getIndex());
+    //         raftNode.setLastLogTerm(logger.get(logger.size() - 1).getTerm());
+    //     }finally{
+    //         logLock.writeLock().unlock();
+    //     }
+    // }
 
     public void appendLog(LogEntry logEntry){
         // insertion sort
         logLock.writeLock().lock();
         try{
-            int i = logger.size() - 1;
-            while(i >= 0 && logger.get(i).getIndex() > logEntry.getIndex()){
-                i--;
-            }
-            logger.add(i + 1, logEntry);
+            logger.add(logEntry);
             raftNode.setLastLogIndex(logger.get(logger.size() - 1).getIndex());
             raftNode.setLastLogTerm(logger.get(logger.size() - 1).getTerm());
         }finally{
@@ -132,7 +186,7 @@ public class LogService {
         }
     }
 
-    public LogEntry containAndGetNextLog(long logTerm,long logIndex){
+    public LogEntry containAndGetNextLog(long logIndex, long logTerm){
         logLock.readLock().lock();
         try{
             if(logger.size() <= 1){
@@ -154,17 +208,22 @@ public class LogService {
     }
 
     public void sendSnapshot(RaftRequest request, Channel channel){
-        RaftRequest raftRequest = new RaftRequest();
-        raftRequest.setType("installSnapshot");
-        raftRequest.setId(raftNode.getId());
-        raftRequest.setTerm(raftNode.getCurrentTerm());
-        raftRequest.setLeaderCommit(raftNode.getCommitIndex());
-        raftRequest.setLastLogIndex(raftNode.getLastLogIndex());
-        raftRequest.setLastLogTerm(raftNode.getLastLogTerm());
-        raftRequest.setLeaderHost(raftNode.getLeaderHost());
-        raftRequest.setLeaderPort(raftNode.getLeaderPort());
-        raftRequest.setSnapshot(raftNode.getLsmTree());
-        channel.writeAndFlush(JSON.toJSONString(raftRequest) + "\n");
+        logLock.readLock().lock();
+        try{
+            RaftRequest raftRequest = new RaftRequest();
+            raftRequest.setType("installSnapshot");
+            raftRequest.setId(raftNode.getId());
+            raftRequest.setTerm(raftNode.getCurrentTerm());
+            raftRequest.setLeaderCommit(raftNode.getCommitIndex());
+            raftRequest.setLastLogIndex(raftNode.getLastLogIndex());
+            raftRequest.setLastLogTerm(raftNode.getLastLogTerm());
+            raftRequest.setLeaderHost(raftNode.getLeaderHost());
+            raftRequest.setLeaderPort(raftNode.getLeaderPort());
+            raftRequest.setSnapshot(raftNode.getLsmTree());
+            channel.writeAndFlush(JSON.toJSONString(raftRequest) + "\n");
+        }finally{
+            logLock.readLock().unlock();
+        }
     }
 
     public void installLogger(RaftRequest request){
@@ -176,6 +235,21 @@ public class LogService {
         }finally{
             logLock.writeLock().unlock();
         }
+    }
+
+    public void updateMatchIndex(RaftRequest reply){
+        int id = reply.getId();
+        long matchIndex = reply.getLastLogIndex();
+        matchIndexMap.compute(id, (k,v)->{
+            if(v == null){
+                return matchIndex;
+            }
+            if(matchIndex > v){
+                return matchIndex;
+            }
+            return v;
+        });
+        commitWatcher.update();
     }
 
     public void commitLog(long term, long index){
@@ -206,11 +280,33 @@ public class LogService {
                 raftRequest.setTerm(raftNode.getCurrentTerm());
                 raftRequest.setLeaderCommit(index);
                 raftClientManager.sendToAllPeers(JSON.toJSONString(raftRequest));
-            }
+            } 
             
         }
-        
-        
+    }
+
+    public synchronized void leaderCommitLogs(long commitableIndex){
+        long currentCommitIndex = raftNode.getCommitIndex();
+        int startIndex = 0;
+        if(logger.size() > 0){
+            startIndex = (int) (currentCommitIndex - logger.get(0).getIndex()) + 1;
+        }
+        while (currentCommitIndex < commitableIndex) {
+            LogEntry logEntry = logger.get(startIndex);
+            if(!logEntry.isCommitted()){
+                logEntry.setCommitted(true);
+                raftNode.getLsmTree().applyLog(logEntry);
+            }
+            startIndex++;
+            currentCommitIndex++;
+        }
+        raftNode.setCommitIndex(commitableIndex);
+        RaftRequest raftRequest = new RaftRequest();
+        raftRequest.setType("commitLogs");
+        raftRequest.setId(raftNode.getId());
+        raftRequest.setTerm(raftNode.getCurrentTerm());
+        raftRequest.setLeaderCommit(commitableIndex);
+        raftClientManager.sendToAllPeers(JSON.toJSONString(raftRequest));
     }
 
     public static void main(String[] args) {

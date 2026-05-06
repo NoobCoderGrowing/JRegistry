@@ -15,7 +15,6 @@ import hawk.JRegistryCenter.Raft.RPC.Server.RaftServerHandler;
 import org.springframework.beans.factory.annotation.Value;
 import hawk.JRegitstryCore.Log.LogEntry;
 import hawk.JRegistryCenter.Raft.Log.LogService;
-import hawk.JRegistryCenter.Raft.Log.LogCommitService;
 
 
 @Slf4j
@@ -31,8 +30,6 @@ public class AppendEntriesService {
     @Autowired
     private LogService logService;
 
-    @Autowired
-    private LogCommitService commitService;
 
     @Value("${host}")
     private String CLIServerHost;
@@ -90,27 +87,35 @@ public class AppendEntriesService {
         }
     }
 
-    //client to server（passive）
     public RaftRequest clientHandleAppendEntriesRequest(RaftRequest reply, Channel channel, int peerNodeId) {
         if(!reply.isSuccess()){
             if(reply.getTerm() > raftNode.getCurrentTerm()){ // 收到更高term的回复，放弃leader身份，成为candidate
                 turn2Candidate(reply);
                 return null;
+            }else{ //log miss match
+                long prevlogIndex = reply.getPrevLogIndex();
+                long prevlogTerm = logService.getLogTerm(prevlogIndex);
+                if(prevlogTerm == -1){ // log do not exist, send snapshot
+                    logService.sendSnapshot(reply, channel);
+                }else{ // log exist, replicate log
+                    LogEntry currentLog = logService.getLog(prevlogIndex + 1);
+                    logService.replicateLog(prevlogIndex, prevlogTerm, channel, currentLog);
+                }
             }
-        }else{
+        }else{ // if success
             // handle commitable log
-            commitService.updateCommitMap(reply);
-        }
-
-        if(reply.getLastLogIndex() < raftNode.getLastLogIndex()){
-            LogEntry nextLog = null;
-            if(( nextLog = logService.containAndGetNextLog(reply.getLastLogTerm(), reply.getLastLogIndex())) != null){
-                logService.replicateLog(reply, channel, nextLog);
-            }else{
-                logService.sendSnapshot(reply, channel);
+            logService.updateMatchIndex(reply);
+            if(reply.getLastLogIndex() < raftNode.getLastLogIndex()){ // if last log not match
+                LogEntry nextLog = null;
+                if(( nextLog = logService.containAndGetNextLog(reply.getLastLogIndex(), reply.getLastLogTerm())) != null){
+                    // if contain next log, replicate next log
+                    logService.replicateLog(reply.getLastLogIndex(), reply.getLastLogTerm(), channel, nextLog);
+                }else{
+                    // if not contain next log, send snapshot
+                    logService.sendSnapshot(reply, channel);
+                }
             }
         }
-
         return null;
 
     }
@@ -130,10 +135,12 @@ public class AppendEntriesService {
             if(logService.containLog(request.getPrevLogIndex(), request.getPrevLogTerm())){
                 //prevLogIndex and prevLogTerm are correct, append log
                 logService.deleteLogs(request.getPrevLogIndex());
-                reply.setSuccess(true);
-                reply.setLog(request.getLog());
                 logService.appendLog(request.getLog());
+                reply.setLastLogIndex(request.getLog().getIndex());
+                reply.setLastLogTerm(request.getLog().getTerm());
+                reply.setSuccess(true);
             }else{// does not contain prevlog, reject append entries request
+                reply.setPrevLogIndex(request.getPrevLogIndex() - 1);
                 reply.setSuccess(false);
             }
         }
