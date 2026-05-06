@@ -73,7 +73,7 @@ public class RaftClientManager {
 
    @Bean
    public LogService initLogService(){
-        LogService logService = new LogService(this, raftNode);
+        LogService logService = new LogService(this);
         this.logService = logService;
         return logService;
    }
