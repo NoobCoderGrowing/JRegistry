@@ -48,8 +48,9 @@ public class RaftServerManager {
     @Autowired
     private LogService logService;
 
-
+    @Autowired
     private EventLoopGroup singleGroup;
+
     private Channel channel;
 
     private Random random = new Random();
@@ -70,7 +71,7 @@ public class RaftServerManager {
     public void start() throws InterruptedException {
         initPeers(peers);
 
-        singleGroup = new NioEventLoopGroup(1);
+        // singleGroup = new NioEventLoopGroup(1);
         
         try {
             ServerBootstrap b = new ServerBootstrap();

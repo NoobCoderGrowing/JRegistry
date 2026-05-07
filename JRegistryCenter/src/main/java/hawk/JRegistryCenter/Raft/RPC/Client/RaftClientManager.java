@@ -2,7 +2,6 @@ package hawk.JRegistryCenter.Raft.RPC.Client;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.*;
-import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.LineBasedFrameDecoder;
@@ -39,7 +38,7 @@ public class RaftClientManager {
     private final ConcurrentHashMap<Integer, String> peerAddresses = new ConcurrentHashMap<>();
     private ConcurrentHashMap<Integer, AtomicBoolean> reconnectLock = new ConcurrentHashMap<>();
 
-
+    @Autowired
     private EventLoopGroup singleGroup;
 
     @Value("#{${raft.peers:{}}}")
@@ -61,7 +60,7 @@ public class RaftClientManager {
 
     @PostConstruct
     public void init(){
-        singleGroup = new NioEventLoopGroup(1);
+        // singleGroup = new NioEventLoopGroup(1);
         initPeers(peers);
         connectAllPeers();
         try{
@@ -176,6 +175,8 @@ public class RaftClientManager {
             connectToPeer(nodeId, parts[0], Integer.parseInt(parts[1]));
         });
     }
+
+
 
     public int getActivePeers() {
         int activePeers = 0;
