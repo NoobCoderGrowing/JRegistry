@@ -5,11 +5,9 @@ import org.springframework.stereotype.Service;
 
 import com.alibaba.fastjson.JSON;
 import java.util.Map;
-import java.util.concurrent.locks.ReentrantLock;
 import io.netty.channel.Channel;
 import hawk.JRegistryCenter.Raft.RaftNode;
 import hawk.JRegistryCenter.Raft.RPC.Client.RaftClientManager;
-import hawk.JRegistryCenter.Raft.RPC.Server.Timer;
 import hawk.JRegitstryCore.RPC.RaftRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,11 +23,7 @@ public class RequestVoteService {
     @Autowired
     private RaftNode raftNode;
 
-    private ReentrantLock voteLock = new ReentrantLock();
-
-    @Autowired
-    private Timer serverTimer;
-
+   
 
     @Value("${host}")
     private String CLIServerHost;
@@ -40,12 +34,6 @@ public class RequestVoteService {
    
 // voting logic
     public RaftRequest serverHandleRequestVoteRequest1(RaftRequest request) {
-
-        if(!serverTimer.isTimerUp()){
-            //如果计时器没有超时，拒绝投票
-            return rejectVote(request);
-        }
-
 
         RaftRequest reply = null;
         if(request.getTerm() < raftNode.getCurrentTerm()){// term比自己小，拒绝投票
@@ -132,19 +120,10 @@ public class RequestVoteService {
         
         // return to candidate
         raftNode.getIsCandidate().compareAndSet(true, false);
-
-        voteLock.lock(); // 加锁，防止并发投票
-
-        try{
-            if(checkTermVoted(request.getTerm())){ // 当前term已经投过票了，拒绝投票
-                return rejectVote(request);
-            }
-
-            raftNode.setTermVoted(request.getTerm());
-        }finally{
-            voteLock.unlock(); // 解锁
+        if(checkTermVoted(request.getTerm())){ // 当前term已经投过票了，拒绝投票
+            return rejectVote(request);
         }
-
+        raftNode.setTermVoted(request.getTerm());
         raftNode.setCurrentTerm(request.getTerm());
         
 
@@ -187,17 +166,14 @@ public class RequestVoteService {
     public void startElection(RaftClientManager raftClientManager){
         raftNode.getVoteReceived().set(0);
         raftNode.setCurrentTerm(raftNode.getCurrentTerm() + 1);
-        voteLock.lock();
-        try{
-            if(checkTermVoted(raftNode.getCurrentTerm())){ // 当前term已经投过票了，拒绝投票
-                return;
-            }
-            raftNode.setTermVoted(raftNode.getCurrentTerm());
-            raftNode.getIsCandidate().compareAndSet(false, true);
-            raftNode.getVoteReceived().incrementAndGet();//自己投给自己
-        }finally{
-            voteLock.unlock(); // 解锁
+    
+        if(checkTermVoted(raftNode.getCurrentTerm())){ // 当前term已经投过票了，拒绝投票
+            return;
         }
+        raftNode.setTermVoted(raftNode.getCurrentTerm());
+        raftNode.getIsCandidate().compareAndSet(false, true);
+        raftNode.getVoteReceived().incrementAndGet();//自己投给自己
+       
         log.info("node {} timeout, start election term {}", raftNode.getId(), raftNode.getCurrentTerm());
         sendRequestVote(raftClientManager);
     }

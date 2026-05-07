@@ -1,19 +1,35 @@
 package hawk.JRegistryCenter.Raft.RPC.Server;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
+
+import org.springframework.context.annotation.Configuration;
+import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
+import io.netty.channel.EventLoopGroup;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import org.springframework.beans.factory.annotation.Autowired;
+import hawk.JRegistryCenter.Raft.RaftNode;
+import hawk.JRegistryCenter.Raft.RPC.Client.RaftClientManager;
 import hawk.JRegistryCenter.Raft.RPC.Server.Services.RequestVoteService;
 
-import org.springframework.stereotype.Component;
-import hawk.JRegistryCenter.Raft.RaftNode;
-import lombok.extern.slf4j.Slf4j;
-import java.util.concurrent.atomic.AtomicBoolean;
-import javax.annotation.PreDestroy;
-import hawk.JRegistryCenter.Raft.RPC.Client.RaftClientManager;
-
+@Configuration
+@Data
 @Slf4j
-@Component
 public class TimeoutLoop {
+
+    private static final long ELECTION_TIMEOUT_MIN_MS = 20_000L;
+    private static final long ELECTION_TIMEOUT_MAX_MS = 30_000L;
+
+    @Autowired
+    private EventLoopGroup singleGroup;
+
+    @Autowired
+    private RaftNode raftNode;
 
     @Autowired
     private RaftClientManager raftClientManager;
@@ -21,54 +37,57 @@ public class TimeoutLoop {
     @Autowired
     private RequestVoteService requestVoteService;
 
-    @Autowired
-    private Timer timer;
-
-    @Autowired
-    private RaftNode raftNode;
-
     private final AtomicBoolean running = new AtomicBoolean(true);
-
-    private volatile Thread loopThread;
+    private final AtomicLong timeoutVersion = new AtomicLong(0);
+    private volatile ScheduledFuture<?> timeoutFuture;
 
     @PostConstruct
-    public void start(){ // 程序逻辑入口
-
-        timer.start();
-
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            try {
-                shutdown();
-            } catch (Exception e) {
-                log.error("timeout loop {} shutdown hook error", raftNode.getId(), e);
-            }
-        }, "timeout-loop-shutdown-hook"));
-
-        loopThread = new Thread(this::runLoop, "timeout-loop-" + raftNode.getId());
-        loopThread.setDaemon(true);
-        loopThread.start();
+    public void timeout(){
+        scheduleNextTimeout();
     }
 
+    public void resetTimeout() {
+        singleGroup.execute(this::scheduleNextTimeout);
+    }
 
-    private void runLoop() {
-        while (running.get()) {
+    private void scheduleNextTimeout() {
+        if (!running.get()) {
+            return;
+        }
+
+        long currentVersion = timeoutVersion.incrementAndGet();
+        cancelTimeoutFuture();
+
+        long delayMs = ThreadLocalRandom.current().nextLong(ELECTION_TIMEOUT_MIN_MS, ELECTION_TIMEOUT_MAX_MS + 1);
+        timeoutFuture = singleGroup.schedule(() -> {
+            if (!running.get() || currentVersion != timeoutVersion.get()) {
+                return;
+            }
             try {
-                timer.awaitTimerUp();
                 if (!raftNode.getIsLeader().get()) {
                     requestVoteService.startElection(raftClientManager);
                 }
-                timer.resetTimer();
-            } catch (InterruptedException e) {
-                log.error("timeout loop {} interrupted", raftNode.getId(), e);
-                break;
+            } catch (Exception e) {
+                log.error("node {} election timeout handler error", raftNode.getId(), e);
+            } finally {
+                scheduleNextTimeout();
             }
+        }, delayMs, TimeUnit.MILLISECONDS);
+    }
+
+    private void cancelTimeoutFuture() {
+        ScheduledFuture<?> future = timeoutFuture;
+        if (future != null && !future.isDone()) {
+            future.cancel(false);
         }
+        timeoutFuture = null;
     }
 
     @PreDestroy
     public void shutdown() {
         running.set(false);
-        timer.stop();
+        timeoutVersion.incrementAndGet();
+        cancelTimeoutFuture();
         log.info("TimeoutLoop {} shutdown gracefully", raftNode.getId());
     }
 }
