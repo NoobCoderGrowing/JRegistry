@@ -49,8 +49,7 @@ public class RaftServerManager {
     private LogService logService;
 
 
-    private EventLoopGroup bossGroup;
-    private EventLoopGroup workerGroup;
+    private EventLoopGroup singleGroup;
     private Channel channel;
 
     private Random random = new Random();
@@ -71,12 +70,11 @@ public class RaftServerManager {
     public void start() throws InterruptedException {
         initPeers(peers);
 
-        bossGroup = new NioEventLoopGroup(1);
-        workerGroup = new NioEventLoopGroup();
+        singleGroup = new NioEventLoopGroup(1);
         
         try {
             ServerBootstrap b = new ServerBootstrap();
-            b.group(bossGroup, workerGroup)
+            b.group(singleGroup)
              .channel(NioServerSocketChannel.class)
              .option(ChannelOption.SO_BACKLOG, 128)
              .childOption(ChannelOption.SO_KEEPALIVE, true)
@@ -117,11 +115,8 @@ public class RaftServerManager {
         if (channel != null) {
             channel.close();
         }
-        if (bossGroup != null) {
-            bossGroup.shutdownGracefully();
-        }
-        if (workerGroup != null) {
-            workerGroup.shutdownGracefully();
+        if (singleGroup != null) {
+            singleGroup.shutdownGracefully();
         }
         log.info("Raft server {} shutdown gracefully", id);
     }

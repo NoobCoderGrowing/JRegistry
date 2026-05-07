@@ -40,7 +40,7 @@ public class RaftClientManager {
     private ConcurrentHashMap<Integer, AtomicBoolean> reconnectLock = new ConcurrentHashMap<>();
 
 
-    private EventLoopGroup group;
+    private EventLoopGroup singleGroup;
 
     @Value("#{${raft.peers:{}}}")
     private Map<Integer, String> peers;
@@ -61,7 +61,7 @@ public class RaftClientManager {
 
     @PostConstruct
     public void init(){
-        group = new NioEventLoopGroup();
+        singleGroup = new NioEventLoopGroup(1);
         initPeers(peers);
         connectAllPeers();
         try{
@@ -98,7 +98,7 @@ public class RaftClientManager {
         }
 
         Bootstrap b = new Bootstrap();
-        b.group(group)
+        b.group(singleGroup)
          .channel(NioSocketChannel.class) //使用NIO Socket通道
          .option(ChannelOption.TCP_NODELAY, true)  // 禁用 Nagle 算法，降低延迟
          .option(ChannelOption.SO_KEEPALIVE, true)  // 开启 TCP keepalive
@@ -161,7 +161,7 @@ public class RaftClientManager {
     
     // 延迟重连
     public void scheduleReconnect(int nodeId, String host, int port) {
-        group.schedule(() -> {
+        singleGroup.schedule(() -> {
             if (!peerChannels.containsKey(nodeId) || 
                 !peerChannels.get(nodeId).isActive()) {
                 connectToPeer(nodeId, host, port);
@@ -198,8 +198,8 @@ public class RaftClientManager {
         peerChannels.clear();
 
         // 关闭 Netty 线程组
-        if (group != null) {
-            group.shutdownGracefully();
+        if (singleGroup != null) {
+            singleGroup.shutdownGracefully();
         }
 
         log.info("RaftClientManager {} shutdown gracefully", id);
