@@ -231,36 +231,31 @@ public class LogService {
     }
 
     public void leaderCommitLogs(long commitableIndex){
-        commitLock.lock();
-        try{
-            long commitableTerm = getLogTerm(commitableIndex);
-            if(commitableTerm != raftNode.getCurrentTerm()){
-                return; // leader only commit logs of current term
-            }
+        long commitableTerm = getLogTerm(commitableIndex);
+        if(commitableTerm != raftNode.getCurrentTerm()){
+            return; // leader only commit logs of current term
+        }
 
-            long currentCommitIndex = raftNode.getCommitIndex();
-            int startIndex = 0;
-            if(logger.size() > 0){
-                startIndex = (int) (currentCommitIndex - logger.get(0).getIndex()) + 1;
-            }
-            while (currentCommitIndex < commitableIndex) {
-                LogEntry logEntry = logger.get(startIndex);
-                raftNode.getLsmTree().applyLog(logEntry);
-                raftNode.setCommitIndex(logEntry.getIndex());
-                startIndex++;
-                currentCommitIndex++;
-            }
-            
-            RaftRequest raftRequest = new RaftRequest();
-            raftRequest.setType("commitLogs");
-            raftRequest.setId(raftNode.getId());
-            raftRequest.setTerm(raftNode.getCurrentTerm());
-            raftRequest.setLeaderCommit(raftNode.getCommitIndex());
-            raftClientManager.sendToAllPeers(JSON.toJSONString(raftRequest));
-        }finally{
-            commitLock.unlock();
+        long currentCommitIndex = raftNode.getCommitIndex();
+        int startIndex = 0;
+        if(logger.size() > 0){
+            startIndex = (int) (currentCommitIndex - logger.get(0).getIndex()) + 1;
+        }
+        while (currentCommitIndex < commitableIndex) {
+            LogEntry logEntry = logger.get(startIndex);
+            raftNode.getLsmTree().applyLog(logEntry);
+            raftNode.setCommitIndex(logEntry.getIndex());
+            startIndex++;
+            currentCommitIndex++;
         }
         
+        RaftRequest raftRequest = new RaftRequest();
+        raftRequest.setType("commitLogs");
+        raftRequest.setId(raftNode.getId());
+        raftRequest.setTerm(raftNode.getCurrentTerm());
+        raftRequest.setLeaderCommit(raftNode.getCommitIndex());
+        raftClientManager.sendToAllPeers(JSON.toJSONString(raftRequest));
+
     }
 
     public static void main(String[] args) {

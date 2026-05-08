@@ -14,7 +14,8 @@ import hawk.JRegistryCenter.Raft.RPC.Server.RaftServerHandler;
 import org.springframework.beans.factory.annotation.Value;
 import hawk.JRegitstryCore.Log.LogEntry;
 import hawk.JRegistryCenter.Raft.Log.LogService;
-import hawk.JRegistryCenter.Raft.RPC.Server.TimeoutLoop;
+import hawk.JRegistryCenter.Raft.RPC.Server.Services.TimeoutService;
+
 
 
 @Slf4j
@@ -25,7 +26,7 @@ public class AppendEntriesService {
     private RaftNode raftNode;
 
     @Autowired
-    private TimeoutLoop timeoutLoop;
+    private TimeoutService timeoutService;
 
     @Autowired
     private LogService logService;
@@ -55,7 +56,7 @@ public class AppendEntriesService {
 
     public RaftRequest handleInstallSnapshotRequest(RaftRequest request){
         if(request.getTerm() >= raftNode.getCurrentTerm()){
-            timeoutLoop.resetTimeout();
+            timeoutService.resetTimeout();
             acceptLeader(request);
             raftNode.setLsmTree(request.getSnapshot());
             raftNode.setLastLogIndex(request.getLastLogIndex());
@@ -130,7 +131,7 @@ public class AppendEntriesService {
         if(request.getTerm() < raftNode.getCurrentTerm()){
             reply.setSuccess(false);
         }else{
-            timeoutLoop.resetTimeout();
+            timeoutService.resetTimeout();
             acceptLeader(request);
             if(logService.containLog(request.getPrevLogIndex(), request.getPrevLogTerm())){
                 //prevLogIndex and prevLogTerm are correct, append log
@@ -192,7 +193,7 @@ public class AppendEntriesService {
 
         if(request.getTerm() >= raftNode.getCurrentTerm()){ 
             //收到更高term或一样term的心跳包，承认对方leader，放弃选举，更新自己term
-            timeoutLoop.resetTimeout();
+            timeoutService.resetTimeout();
             acceptHeartbeat(request);
         }
         return null;
