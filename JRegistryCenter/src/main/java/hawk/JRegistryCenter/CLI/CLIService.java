@@ -9,6 +9,7 @@ import hawk.JRegistryCenter.Raft.RaftNode;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.alibaba.fastjson.JSON;
 import hawk.JRegistryCenter.Raft.Log.LogService;
+import java.util.concurrent.ThreadPoolExecutor;
 
 
 @Service
@@ -22,13 +23,21 @@ public class CLIService {
     @Autowired
     private LogService logService;
 
+    @Autowired
+    private ThreadPoolExecutor writePool;
+
+    
+
     private void writeResponse(Channel channel, CLIRequest request, String message) {
         CLIRequest response = new CLIRequest();
         response.setUuid(request.getUuid());
         response.setMessage(message);
         response.setRedirect(false);
         log.info("writeResponse: requestId={}, redirect=false, message={}", request.getUuid(), message);
-        channel.writeAndFlush(JSON.toJSONString(response) + "\n");
+        
+        writePool.execute(() -> {
+            channel.writeAndFlush(JSON.toJSONString(response) + "\n");
+        });
     }
 
 
@@ -65,6 +74,8 @@ public class CLIService {
             writeResponse(channel, cliRequest, message);
             return;
         }
+
+        // write redirect response to client
         CLIRequest response = new CLIRequest();
         response.setUuid(cliRequest.getUuid());
         response.setRedirect(true);
@@ -74,7 +85,9 @@ public class CLIService {
         response.setMessage(message);
         log.info("redirectToLeader: requestId={}, leader={}:{}, message={}",
                 cliRequest.getUuid(), raftNode.getLeaderHost(), raftNode.getLeaderPort(), message);
-        channel.writeAndFlush(JSON.toJSONString(response) + "\n");
+        writePool.execute(() -> {
+            channel.writeAndFlush(JSON.toJSONString(response) + "\n");
+        });
     }
 
     public void chekcIsLeader(Channel channel, CLIRequest cliRequest){

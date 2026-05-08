@@ -10,6 +10,7 @@ import hawk.JRegitstryCore.RPC.RaftRequest;
 import com.alibaba.fastjson.JSON;
 import hawk.JRegistryCenter.Raft.RaftNode;
 import lombok.extern.slf4j.Slf4j;
+import java.util.concurrent.ThreadPoolExecutor;
 
 @Slf4j
 public class RaftClientHandler extends SimpleChannelInboundHandler<String> {
@@ -30,13 +31,16 @@ public class RaftClientHandler extends SimpleChannelInboundHandler<String> {
     
     private RaftClientManager raftClientManager;
 
+    private ThreadPoolExecutor writePool;
 
-    public RaftClientHandler(int peerNodeId, AppendEntriesService appendEntriesService, RequestVoteService requestVoteService, RaftNode raftNode, RaftClientManager raftClientManager) {
+    public RaftClientHandler(int peerNodeId, AppendEntriesService appendEntriesService, 
+        RequestVoteService requestVoteService, RaftNode raftNode, RaftClientManager raftClientManager, ThreadPoolExecutor writePool) {
         this.peerNodeId = peerNodeId;
         this.appendEntriesService = appendEntriesService;
         this.requestVoteService = requestVoteService;
         this.raftNode = raftNode;
         this.raftClientManager = raftClientManager;
+        this.writePool = writePool;
     }
     
     @Override
@@ -61,7 +65,10 @@ public class RaftClientHandler extends SimpleChannelInboundHandler<String> {
                     break;
             }
             if(request != null){
-                ctx.writeAndFlush(JSON.toJSONString(request) + "\n");
+                RaftRequest finalRequest = request;
+                writePool.execute(() -> {
+                    ctx.writeAndFlush(JSON.toJSONString(finalRequest) + "\n");
+                });
             }
         } catch (Exception e) {
             e.printStackTrace();

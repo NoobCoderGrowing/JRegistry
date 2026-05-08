@@ -14,6 +14,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.beans.factory.annotation.Value;
 import javax.annotation.PostConstruct;
+import java.util.concurrent.ThreadPoolExecutor;
+
 
 
 public class LogService {
@@ -27,6 +29,9 @@ public class LogService {
     private AtomicLong currentIndex = new AtomicLong(-1);
     public ConcurrentHashMap<Integer, Long> matchIndexMap = new ConcurrentHashMap<>();
     private CommitWatcher commitWatcher;
+
+    @Autowired
+    private ThreadPoolExecutor writePool;
 
     @Value("${raft.count}")
     private int nodeCount;
@@ -111,7 +116,9 @@ public class LogService {
         raftRequest.setPrevLogIndex(prevLogIndex);
         raftRequest.setPrevLogTerm(prevLogTerm);
         raftRequest.setLog(currentLog);
-        channel.writeAndFlush(JSON.toJSONString(raftRequest) + "\n");
+        writePool.execute(() -> {
+            channel.writeAndFlush(JSON.toJSONString(raftRequest) + "\n");
+        });
     }
 
     // insertion sort version
@@ -187,7 +194,9 @@ public class LogService {
         raftRequest.setLeaderHost(raftNode.getLeaderHost());
         raftRequest.setLeaderPort(raftNode.getLeaderPort());
         raftRequest.setSnapshot(raftNode.getLsmTree());
-        channel.writeAndFlush(JSON.toJSONString(raftRequest) + "\n");
+        writePool.execute(() -> {
+            channel.writeAndFlush(JSON.toJSONString(raftRequest) + "\n");
+        });
     }
 
     public void installLogger(RaftRequest request){

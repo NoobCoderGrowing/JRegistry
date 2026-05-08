@@ -13,6 +13,7 @@ import hawk.JRegistryCenter.Raft.RaftNode;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import hawk.JRegistryCenter.Raft.Log.LogService;
+import java.util.concurrent.ThreadPoolExecutor;
 
 @Slf4j
 @Component
@@ -33,12 +34,16 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
 
     private LogService logService;
 
-    public RaftServerHandler(RaftServerManager raftServer, AppendEntriesService appendEntriesService, RequestVoteService requestVoteService, RaftNode raftNode, LogService logService) {
+    private ThreadPoolExecutor writePool;
+
+    public RaftServerHandler(RaftServerManager raftServer, AppendEntriesService appendEntriesService, 
+        RequestVoteService requestVoteService, RaftNode raftNode, LogService logService, ThreadPoolExecutor writePool) {
         this.raftServer = raftServer;
         this.appendEntriesService = appendEntriesService;
         this.requestVoteService = requestVoteService;
         this.raftNode = raftNode;
         this.logService = logService;
+        this.writePool = writePool;
     }
 
     @Override
@@ -70,12 +75,14 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
                     break;
             }
             if(reply != null){
-                ctx.writeAndFlush(JSON.toJSONString(reply) + "\n");
+                final RaftRequest finalReply = reply;
+                writePool.execute(() -> {
+                    ctx.writeAndFlush(JSON.toJSONString(finalReply) + "\n");
+                });
                 // log.info("server {} send reply: {}", raftNode.getId(), JSON.toJSONString(reply));
             }
         } catch (Exception e) {
             log.error("server {} handle request error: {}", raftNode.getId(), e.getMessage());
-            // ctx.writeAndFlush("{\"error\":\"" + e.getMessage() + "\"}\n");
         }
         
     }

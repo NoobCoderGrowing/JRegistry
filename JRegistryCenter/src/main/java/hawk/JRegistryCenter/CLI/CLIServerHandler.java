@@ -5,15 +5,18 @@ import io.netty.channel.SimpleChannelInboundHandler;
 import com.alibaba.fastjson.JSON;
 import hawk.JRegitstryCore.RPC.CLIRequest;
 import lombok.extern.slf4j.Slf4j;
-
+import java.util.concurrent.ThreadPoolExecutor;
 
 @Slf4j
 public class CLIServerHandler extends SimpleChannelInboundHandler<String> {
 
     private final CLIService cliService;
 
-    public CLIServerHandler(CLIService cliService) {
+    private ThreadPoolExecutor writePool;
+
+    public CLIServerHandler(CLIService cliService, ThreadPoolExecutor writePool) {
         this.cliService = cliService;
+        this.writePool = writePool;
     }
 
     @Override

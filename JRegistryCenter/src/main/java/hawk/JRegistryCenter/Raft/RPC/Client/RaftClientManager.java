@@ -28,6 +28,7 @@ import hawk.JRegistryCenter.Raft.RPC.Server.Services.AppendEntriesService;
 import hawk.JRegistryCenter.Raft.RPC.Server.Services.RequestVoteService;
 import hawk.JRegistryCenter.Raft.RaftNode;
 import hawk.JRegistryCenter.Raft.Log.LogService;
+import java.util.concurrent.ThreadPoolExecutor;
 
 @Slf4j
 @Component
@@ -57,6 +58,9 @@ public class RaftClientManager {
     private RaftNode raftNode;
 
     private LogService logService;
+
+    @Autowired
+    private ThreadPoolExecutor writePool;
 
     @PostConstruct
     public void init(){
@@ -111,7 +115,7 @@ public class RaftClientManager {
                  p.addLast(new LineBasedFrameDecoder(8192)); //使用行分隔符解码器，每行一个消息
                  p.addLast(new StringDecoder(StandardCharsets.UTF_8)); //使用字符串解码器，将字符串解码为消息
                  p.addLast(new StringEncoder(StandardCharsets.UTF_8)); //使用字符串编码器，将消息编码为字符串
-                 p.addLast(new RaftClientHandler(nodeId, appendEntriesService, requestVoteService, raftNode, RaftClientManager.this)); //使用RaftClientHandler处理消息
+                 p.addLast(new RaftClientHandler(nodeId, appendEntriesService, requestVoteService, raftNode, RaftClientManager.this, writePool)); //使用RaftClientHandler处理消息
              }
          });
         
@@ -141,7 +145,9 @@ public class RaftClientManager {
     public void sendToPeer(int nodeId, String message) {
         Channel channel = peerChannels.get(nodeId);
         if (channel != null && channel.isActive()) {
-            channel.writeAndFlush(message + "\n");
+            writePool.execute(() -> {
+                channel.writeAndFlush(message + "\n");
+            });
         } else {
             // 连接断开，触发重连
             String addr = peerAddresses.get(nodeId);

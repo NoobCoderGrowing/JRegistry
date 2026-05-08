@@ -2,7 +2,6 @@ package hawk.JRegistryCenter.Raft.RPC.Server;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.*;
-import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.LineBasedFrameDecoder;
@@ -25,6 +24,8 @@ import hawk.JRegistryCenter.Raft.RPC.Server.Services.AppendEntriesService;
 import hawk.JRegistryCenter.Raft.RPC.Server.Services.RequestVoteService;
 import hawk.JRegistryCenter.Raft.RaftNode;
 import hawk.JRegistryCenter.Raft.Log.LogService;
+import java.util.concurrent.ThreadPoolExecutor;
+
 @Component
 @Slf4j
 @Data
@@ -50,6 +51,9 @@ public class RaftServerManager {
 
     @Autowired
     private EventLoopGroup singleGroup;
+
+    @Autowired
+    private ThreadPoolExecutor writePool;
 
     private Channel channel;
 
@@ -90,7 +94,7 @@ public class RaftServerManager {
                      p.addLast(new LineBasedFrameDecoder(8192));
                      p.addLast(new StringDecoder(StandardCharsets.UTF_8));
                      p.addLast(new StringEncoder(StandardCharsets.UTF_8));
-                     p.addLast(new RaftServerHandler(RaftServerManager.this, appendEntriesService, requestVoteService, raftNode, logService));
+                     p.addLast(new RaftServerHandler(RaftServerManager.this, appendEntriesService, requestVoteService, raftNode, logService, writePool));
                  }
              });
             
@@ -106,8 +110,6 @@ public class RaftServerManager {
             // f.channel().closeFuture().sync();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-        }finally{
-            // shutdown();
         }
     }
     
@@ -126,7 +128,9 @@ public class RaftServerManager {
     public void sendToPeer(int nodeId, String message) {
         Channel channel = peerChannels.get(nodeId);
         if (channel != null && channel.isActive()) {
-            channel.writeAndFlush(message + "\n");
+            writePool.execute(() -> {
+                channel.writeAndFlush(message + "\n");
+            });
         } 
     }
 

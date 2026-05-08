@@ -14,7 +14,7 @@ import hawk.JRegistryCenter.Raft.RPC.Server.RaftServerHandler;
 import org.springframework.beans.factory.annotation.Value;
 import hawk.JRegitstryCore.Log.LogEntry;
 import hawk.JRegistryCenter.Raft.Log.LogService;
-import hawk.JRegistryCenter.Raft.RPC.Server.Services.TimeoutService;
+import java.util.concurrent.ThreadPoolExecutor;
 
 
 
@@ -32,6 +32,9 @@ public class AppendEntriesService {
     private LogService logService;
 
 
+    @Autowired
+    private ThreadPoolExecutor writePool;
+
     @Value("${host}")
     private String CLIServerHost;
     @Value("${CLS.port}")
@@ -42,7 +45,9 @@ public class AppendEntriesService {
         RaftRequest request = new RaftRequest();
         request.setType("shakeHand");
         request.setId(raftNode.getId());
-        channel.writeAndFlush(JSON.toJSONString(request) + "\n");
+        writePool.execute(() -> {
+            channel.writeAndFlush(JSON.toJSONString(request) + "\n");
+        });
         log.info("node {} send shake hand request to node {}", raftNode.getId(), peerNodeId);
         
     }
@@ -75,7 +80,9 @@ public class AppendEntriesService {
         request.setTerm(raftNode.getCurrentTerm());
         request.setLeaderHost(CLIServerHost);
         request.setLeaderPort(CLIServerPort);
-        channel.writeAndFlush(JSON.toJSONString(request) + "\n");
+        writePool.execute(() -> {
+            channel.writeAndFlush(JSON.toJSONString(request) + "\n");
+        });
         log.info("term {}, leader node {} send heartbeat to node {}", raftNode.getCurrentTerm(), raftNode.getId(), peerNodeId);
     }
 

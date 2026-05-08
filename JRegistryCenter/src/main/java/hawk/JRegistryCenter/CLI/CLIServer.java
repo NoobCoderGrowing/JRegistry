@@ -5,7 +5,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import io.netty.channel.EventLoopGroup;
-import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
@@ -19,6 +18,8 @@ import io.netty.channel.Channel;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
+import java.util.concurrent.ThreadPoolExecutor;
+
 
 @Slf4j
 @Component
@@ -33,18 +34,19 @@ public class CLIServer {
     @Autowired
     private CLIService cliService;
 
-    private EventLoopGroup boss;
-    private EventLoopGroup worker;
+    @Autowired
+    private ThreadPoolExecutor writePool;
+
+    @Autowired
+    private EventLoopGroup singleGroup;
     private Channel channel;
 
     @PostConstruct
     public void startListen() throws InterruptedException {
         System.out.println("Connecting to " + host + ":" + port);
-        boss = new NioEventLoopGroup(1);
-        worker = new NioEventLoopGroup();
         try {
             ServerBootstrap b = new ServerBootstrap();
-            b.group(boss, worker)
+            b.group(singleGroup)
              .channel(io.netty.channel.socket.nio.NioServerSocketChannel.class)
              .childHandler(new ChannelInitializer<SocketChannel>() {
                  @Override
@@ -53,7 +55,7 @@ public class CLIServer {
                      p.addLast(new LineBasedFrameDecoder(8192));
                      p.addLast(new StringDecoder(StandardCharsets.UTF_8));
                      p.addLast(new StringEncoder(StandardCharsets.UTF_8));
-                     p.addLast(new CLIServerHandler(cliService));
+                     p.addLast(new CLIServerHandler(cliService, writePool));
                  }
              });
 
@@ -79,11 +81,8 @@ public class CLIServer {
         if (channel != null) {
             channel.close();
         }
-        if (boss != null) {
-            boss.shutdownGracefully();
-        }
-        if (worker != null) {
-            worker.shutdownGracefully();
+        if (singleGroup != null) {
+            singleGroup.shutdownGracefully();
         }
         log.info("CLI server {} shutdown gracefully", id);
     }
