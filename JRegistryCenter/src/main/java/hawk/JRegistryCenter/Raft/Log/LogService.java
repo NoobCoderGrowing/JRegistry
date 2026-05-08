@@ -8,14 +8,12 @@ import hawk.JRegitstryCore.Log.LogEntry;
 import java.util.ArrayList;
 import hawk.JRegitstryCore.RPC.RaftRequest;
 import com.alibaba.fastjson.JSON;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import io.netty.channel.Channel;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.beans.factory.annotation.Value;
 import javax.annotation.PostConstruct;
-import java.util.concurrent.locks.ReentrantLock;
 
 
 public class LogService {
@@ -27,10 +25,8 @@ public class LogService {
 
     private ArrayList<LogEntry> logger = new ArrayList<>();
     private AtomicLong currentIndex = new AtomicLong(-1);
-    private ReentrantReadWriteLock logLock = new ReentrantReadWriteLock();
     public ConcurrentHashMap<Integer, Long> matchIndexMap = new ConcurrentHashMap<>();
     private CommitWatcher commitWatcher;
-    private ReentrantLock commitLock = new ReentrantLock();
 
     @Value("${raft.count}")
     private int nodeCount;
@@ -46,7 +42,6 @@ public class LogService {
    }
 
     public void generateLogEntry(CLIRequest cliRequest){
-        logLock.writeLock().lock();
         long prevLogIndex = -1;
         long prevLogTerm = -1;
         
@@ -64,48 +59,34 @@ public class LogService {
         logger.add(logEntry);
         raftNode.setLastLogIndex(logEntry.getIndex());
         raftNode.setLastLogTerm(logEntry.getTerm());
-        logLock.writeLock().unlock();
         replicateLog2All(logEntry, prevLogIndex, prevLogTerm);
     }
 
     public LogEntry getLog(long logIndex){
-        logLock.readLock().lock();
-        try{
-            long startIndex = logIndex - logger.get(0).getIndex();
-            if(startIndex < 0){
-                logLock.readLock().unlock();
-                return null;
-            }
-            return logger.get((int) startIndex);
-        }finally{
-            logLock.readLock().unlock();
+        
+        long startIndex = logIndex - logger.get(0).getIndex();
+        if(startIndex < 0){
+            return null;
         }
+        return logger.get((int) startIndex);
+        
     }
 
     public long getLogTerm(long logIndex){
-        logLock.readLock().lock();
-        try{
-            long startIndex = logIndex - logger.get(0).getIndex();
-            if(startIndex < 0){
-                return -1;
-            }
-            return logger.get((int) startIndex).getTerm();
-        }finally{
-            logLock.readLock().unlock();
+        long startIndex = logIndex - logger.get(0).getIndex();
+        if(startIndex < 0){
+            return -1;
         }
+        return logger.get((int) startIndex).getTerm();
     }
 
     public void deleteLogs(long startIndex){
-        logLock.writeLock().lock();
-        try{
-            int i = logger.size() - 1;
-            while(i >= 0 && logger.get(i).getIndex() > startIndex){
-                i--;
-            }
-            logger.subList(i + 1, logger.size()).clear();
-        }finally{
-            logLock.writeLock().unlock();
+        int i = logger.size() - 1;
+        while(i >= 0 && logger.get(i).getIndex() > startIndex){
+            i--;
         }
+        logger.subList(i + 1, logger.size()).clear();
+        
     }
 
     public void replicateLog2All(LogEntry logEntry, long prevLogIndex, long prevLogTerm){
@@ -152,14 +133,10 @@ public class LogService {
 
     public void appendLog(LogEntry logEntry){
         // insertion sort
-        logLock.writeLock().lock();
-        try{
-            logger.add(logEntry);
-            raftNode.setLastLogIndex(logger.get(logger.size() - 1).getIndex());
-            raftNode.setLastLogTerm(logger.get(logger.size() - 1).getTerm());
-        }finally{
-            logLock.writeLock().unlock();
-        }
+        logger.add(logEntry);
+        raftNode.setLastLogIndex(logger.get(logger.size() - 1).getIndex());
+        raftNode.setLastLogTerm(logger.get(logger.size() - 1).getTerm());
+        
     }
 
     public boolean containLog(long logTerm, long logIndex){
@@ -169,74 +146,54 @@ public class LogService {
         if(logger.size() == 0){
             return false;
         }
-        logLock.readLock().lock();
-        try {
             
-            long index = logIndex - logger.get(0).getIndex();
-            if(logger.size() < index + 1){
-                return false;
-            }
-    
-            LogEntry logEntry = logger.get((int) index);
-            if(logEntry.getTerm() == logTerm && logEntry.getIndex() == logIndex){
-                logLock.readLock().unlock();
-                return true;
-            }
+        long index = logIndex - logger.get(0).getIndex();
+        if(logger.size() < index + 1){
             return false;
-        } finally{
-            logLock.readLock().unlock();
         }
+
+        LogEntry logEntry = logger.get((int) index);
+        if(logEntry.getTerm() == logTerm && logEntry.getIndex() == logIndex){
+            return true;
+        }
+        return false;
+        
     }
 
     public LogEntry containAndGetNextLog(long logIndex, long logTerm){
-        logLock.readLock().lock();
-        try{
-            if(logger.size() <= 1){
-                return null;
-            }
-            long index = logIndex - logger.get(0).getIndex();
-            if(index < 0){
-                return null;
-            }
-            LogEntry logEntry = logger.get((int) index);
-            if(logEntry.getTerm() == logTerm && logEntry.getIndex() == logIndex){
-                logEntry = logger.get((int) index + 1);
-                return logEntry;
-            }
+        if(logger.size() <= 1){
             return null;
-        }finally{
-            logLock.readLock().unlock();
         }
+        long index = logIndex - logger.get(0).getIndex();
+        if(index < 0){
+            return null;
+        }
+        LogEntry logEntry = logger.get((int) index);
+        if(logEntry.getTerm() == logTerm && logEntry.getIndex() == logIndex){
+            logEntry = logger.get((int) index + 1);
+            return logEntry;
+        }
+        return null;
     }
 
     public void sendSnapshot(RaftRequest request, Channel channel){
-        logLock.readLock().lock();
-        try{
-            RaftRequest raftRequest = new RaftRequest();
-            raftRequest.setType("installSnapshot");
-            raftRequest.setId(raftNode.getId());
-            raftRequest.setTerm(raftNode.getCurrentTerm());
-            raftRequest.setLeaderCommit(raftNode.getCommitIndex());
-            raftRequest.setLastLogIndex(raftNode.getLastLogIndex());
-            raftRequest.setLastLogTerm(raftNode.getLastLogTerm());
-            raftRequest.setLeaderHost(raftNode.getLeaderHost());
-            raftRequest.setLeaderPort(raftNode.getLeaderPort());
-            raftRequest.setSnapshot(raftNode.getLsmTree());
-            channel.writeAndFlush(JSON.toJSONString(raftRequest) + "\n");
-        }finally{
-            logLock.readLock().unlock();
-        }
+        RaftRequest raftRequest = new RaftRequest();
+        raftRequest.setType("installSnapshot");
+        raftRequest.setId(raftNode.getId());
+        raftRequest.setTerm(raftNode.getCurrentTerm());
+        raftRequest.setLeaderCommit(raftNode.getCommitIndex());
+        raftRequest.setLastLogIndex(raftNode.getLastLogIndex());
+        raftRequest.setLastLogTerm(raftNode.getLastLogTerm());
+        raftRequest.setLeaderHost(raftNode.getLeaderHost());
+        raftRequest.setLeaderPort(raftNode.getLeaderPort());
+        raftRequest.setSnapshot(raftNode.getLsmTree());
+        channel.writeAndFlush(JSON.toJSONString(raftRequest) + "\n");
     }
 
     public void installLogger(RaftRequest request){
-        logLock.writeLock().lock();
-        try{
-            logger.clear();
-            logger.addAll(request.getLogs());
-            currentIndex.set(logger.get(logger.size() - 1).getIndex());
-        }finally{
-            logLock.writeLock().unlock();
-        }
+        logger.clear();
+        logger.addAll(request.getLogs());
+        currentIndex.set(logger.get(logger.size() - 1).getIndex());
     }
 
     public void updateMatchIndex(RaftRequest reply){
@@ -255,27 +212,22 @@ public class LogService {
     }
 
     public RaftRequest followerCommitLogs(RaftRequest request){
-        commitLock.lock();
-        try{
-            long commitableIndex = request.getLeaderCommit();
-            long currentCommitIndex = raftNode.getCommitIndex();
-            int startIndex = 0;
-            if(logger.size() > 0){
-                startIndex = (int) (currentCommitIndex - logger.get(0).getIndex()) + 1;
-            }
-            while (currentCommitIndex < commitableIndex) {
-                if((startIndex < logger.size()) && startIndex >= 0){
-                    LogEntry logEntry = logger.get(startIndex);
-                    raftNode.getLsmTree().applyLog(logEntry);
-                    raftNode.setCommitIndex(logEntry.getIndex());
-                    startIndex++;
-                    currentCommitIndex++;
-                }
-            }
-            return null;
-        }finally{
-            commitLock.unlock();
+        long commitableIndex = request.getLeaderCommit();
+        long currentCommitIndex = raftNode.getCommitIndex();
+        int startIndex = 0;
+        if(logger.size() > 0){
+            startIndex = (int) (currentCommitIndex - logger.get(0).getIndex()) + 1;
         }
+        while (currentCommitIndex < commitableIndex) {
+            if((startIndex < logger.size()) && startIndex >= 0){
+                LogEntry logEntry = logger.get(startIndex);
+                raftNode.getLsmTree().applyLog(logEntry);
+                raftNode.setCommitIndex(logEntry.getIndex());
+                startIndex++;
+                currentCommitIndex++;
+            }
+        }
+        return null;
     }
 
     public void leaderCommitLogs(long commitableIndex){

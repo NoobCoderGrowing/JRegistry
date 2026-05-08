@@ -1,7 +1,5 @@
 package hawk.JRegitstryCore;
 
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.Arrays;
 import hawk.JRegitstryCore.Log.LogEntry;
 
@@ -9,17 +7,13 @@ public class BPlusTree implements LSMTree {
 
     private BPlusNode root;
 
-    private ReadWriteLock rdLock;
-
     public BPlusTree() {
         this.root = new BPlusNode("root", "~/root" );
-        rdLock = new ReentrantReadWriteLock(false);
     }
 
     public boolean put(String key, byte[] value, String type){
         String[] paths = key.split(".");
         BPlusNode current = root;
-        rdLock.writeLock().lock();
         for (int i = 0; i < paths.length-1; i++) {
             if(current.getChildren().containsKey(paths[i])){ 
                 current = current.getChildren().get(paths[i]);
@@ -31,14 +25,12 @@ public class BPlusTree implements LSMTree {
             }
         }
         if(current.getChildren().containsKey(paths[-1])){// if the node is already exists, return false
-            rdLock.writeLock().unlock();
             return false;
         }else{// if the node is not exists, add it
             BPlusNode newNode = new BPlusNode(paths[-1], value, type);
             current.addNode(newNode);
             newNode.setValue(value);
             newNode.setType(type);
-            rdLock.writeLock().unlock();
             return true;
         }
 }
@@ -57,11 +49,6 @@ public class BPlusTree implements LSMTree {
     }
 
     public void applyLog(LogEntry logEntry){
-        rdLock.writeLock().lock();
-        try{
-        }finally{
-            rdLock.writeLock().unlock();
-        }
         return;
     }
 }

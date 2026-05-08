@@ -20,7 +20,7 @@ import hawk.JRegistryCenter.Raft.RPC.Server.Services.RequestVoteService;
 @Configuration
 @Data
 @Slf4j
-public class TimeoutLoop {
+public class TimeoutService {
 
     private static final long ELECTION_TIMEOUT_MIN_MS = 20_000L;
     private static final long ELECTION_TIMEOUT_MAX_MS = 30_000L;
@@ -43,6 +43,7 @@ public class TimeoutLoop {
 
     @PostConstruct
     public void timeout(){
+        Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown));
         scheduleNextTimeout();
     }
 
@@ -88,6 +89,6 @@ public class TimeoutLoop {
         running.set(false);
         timeoutVersion.incrementAndGet();
         cancelTimeoutFuture();
-        log.info("TimeoutLoop {} shutdown gracefully", raftNode.getId());
+        log.info("TimeoutService {} shutdown gracefully", raftNode.getId());
     }
 }

@@ -9,7 +9,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import hawk.JRegitstryCore.LSMTree;
 import hawk.JRegitstryCore.BPlusTree;
 import io.netty.channel.Channel;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 
 @Component
@@ -49,9 +48,6 @@ public class RaftNode {
     //Request Vote part in raft paper
     private long lastLogIndex;
     private long lastLogTerm;
-
-    private ReentrantReadWriteLock lsmTreeLock = new ReentrantReadWriteLock();
-
     private LSMTree lsmTree;
 
     public RaftNode(){
@@ -72,17 +68,11 @@ public class RaftNode {
     }
 
     public void setLsmTree(LSMTree lsmTree){
-        lsmTreeLock.writeLock().lock();
         this.lsmTree = lsmTree;
-        lsmTreeLock.writeLock().unlock();
     }
 
     public LSMTree getLsmTree(){
-        lsmTreeLock.readLock().lock();
-        try{
-            return this.lsmTree;
-        }finally{
-            lsmTreeLock.readLock().unlock();
-        }
+        return this.lsmTree;
+        
     }
 }
