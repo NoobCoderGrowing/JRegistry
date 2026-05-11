@@ -1,5 +1,6 @@
 package hawk.JRegistryCenter.Raft.RPC.Server.Services;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -18,7 +19,7 @@ import org.springframework.beans.factory.annotation.Value;
 public class RequestVoteService {
 
     @Autowired
-    private AppendEntriesService appendEntriesService;
+    private ObjectProvider<AppendEntriesService> appendEntriesServiceProvider;
 
     @Autowired
     private RaftNode raftNode;
@@ -157,7 +158,7 @@ public class RequestVoteService {
                 raftNode.setLeaderPort(CLIServerPort);
                 log.info("term {} ,client node {} become leader, {} votes received, active nodes: {}", raftNode.getCurrentTerm(), raftNode.getId(), voteReceived, activeNodes);
                 //异步发送心跳包给所有节点（netty发送消息本身就是异步的）
-                appendEntriesService.sendHeartBeatToAll(raftClientManager.getPeerChannels());
+                appendEntriesServiceProvider.getObject().sendHeartBeatToAll(raftClientManager.getPeerChannels());
             }
         }
         return null;

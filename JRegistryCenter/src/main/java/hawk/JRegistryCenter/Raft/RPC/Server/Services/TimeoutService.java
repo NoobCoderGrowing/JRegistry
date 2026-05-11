@@ -3,7 +3,8 @@ package hawk.JRegistryCenter.Raft.RPC.Server.Services;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 
-import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.stereotype.Component;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import io.netty.channel.EventLoopGroup;
@@ -17,10 +18,10 @@ import hawk.JRegistryCenter.Raft.RaftNode;
 import hawk.JRegistryCenter.Raft.RPC.Client.RaftClientManager;
 
 
-@Configuration
+@Component
 @Data
 @Slf4j
-public class TimeoutService {
+public class TimeoutService implements FollowerElectionTimer {
 
     private static final long ELECTION_TIMEOUT_MIN_MS = 20_000L;
     private static final long ELECTION_TIMEOUT_MAX_MS = 30_000L;
@@ -31,8 +32,9 @@ public class TimeoutService {
     @Autowired
     private RaftNode raftNode;
 
+    /** 延迟解析，打破与 RaftClientManager 的构造期环 */
     @Autowired
-    private RaftClientManager raftClientManager;
+    private ObjectProvider<RaftClientManager> raftClientManagerProvider;
 
     @Autowired
     private RequestVoteService requestVoteService;
@@ -66,7 +68,7 @@ public class TimeoutService {
             }
             try {
                 if (!raftNode.getIsLeader().get()) {
-                    requestVoteService.startElection(raftClientManager);
+                    requestVoteService.startElection(raftClientManagerProvider.getObject());
                 }
             } catch (Exception e) {
                 log.error("node {} election timeout handler error", raftNode.getId(), e);

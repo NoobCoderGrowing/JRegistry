@@ -26,7 +26,7 @@ public class AppendEntriesService {
     private RaftNode raftNode;
 
     @Autowired
-    private TimeoutService timeoutService;
+    private FollowerElectionTimer followerElectionTimer;
 
     @Autowired
     private LogService logService;
@@ -61,7 +61,7 @@ public class AppendEntriesService {
 
     public RaftRequest handleInstallSnapshotRequest(RaftRequest request){
         if(request.getTerm() >= raftNode.getCurrentTerm()){
-            timeoutService.resetTimeout();
+            followerElectionTimer.resetTimeout();
             acceptLeader(request);
             raftNode.setLsmTree(request.getSnapshot());
             raftNode.setLastLogIndex(request.getLastLogIndex());
@@ -138,7 +138,7 @@ public class AppendEntriesService {
         if(request.getTerm() < raftNode.getCurrentTerm()){
             reply.setSuccess(false);
         }else{
-            timeoutService.resetTimeout();
+            followerElectionTimer.resetTimeout();
             acceptLeader(request);
             if(logService.containLog(request.getPrevLogIndex(), request.getPrevLogTerm())){
                 //prevLogIndex and prevLogTerm are correct, append log
@@ -200,7 +200,7 @@ public class AppendEntriesService {
 
         if(request.getTerm() >= raftNode.getCurrentTerm()){ 
             //收到更高term或一样term的心跳包，承认对方leader，放弃选举，更新自己term
-            timeoutService.resetTimeout();
+            followerElectionTimer.resetTimeout();
             acceptHeartbeat(request);
         }
         return null;
