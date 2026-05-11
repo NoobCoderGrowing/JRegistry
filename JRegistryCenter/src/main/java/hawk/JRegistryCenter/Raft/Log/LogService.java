@@ -1,5 +1,6 @@
 package hawk.JRegistryCenter.Raft.Log;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import hawk.JRegistryCenter.Raft.RaftNode;
 import hawk.JRegistryCenter.Raft.RPC.Client.RaftClientManager;
@@ -15,15 +16,19 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.beans.factory.annotation.Value;
 import javax.annotation.PostConstruct;
 import java.util.concurrent.ThreadPoolExecutor;
+import org.springframework.stereotype.Service;
 
 
 
+@Service
 public class LogService {
 
     @Autowired
     private RaftNode raftNode;
 
-    private RaftClientManager raftClientManager;
+    /** 延迟解析，避免 LogService → RaftClientManager → AppendEntries → LogService 环 */
+    @Autowired
+    private ObjectProvider<RaftClientManager> raftClientManagerProvider;
 
     private ArrayList<LogEntry> logger = new ArrayList<>();
     private AtomicLong currentIndex = new AtomicLong(-1);
@@ -35,11 +40,6 @@ public class LogService {
 
     @Value("${raft.count}")
     private int nodeCount;
-
-   public LogService(RaftClientManager raftClientManager){
-        this.raftClientManager = raftClientManager;
-        registerCommitWatcher();
-   }
 
    @PostConstruct
    public void registerCommitWatcher(){
@@ -104,7 +104,7 @@ public class LogService {
         raftRequest.setPrevLogIndex(prevLogIndex);
         raftRequest.setPrevLogTerm(prevLogTerm);
         raftRequest.setLog(logEntry);
-        raftClientManager.sendToAllPeers(JSON.toJSONString(raftRequest));
+        raftClientManagerProvider.getObject().sendToAllPeers(JSON.toJSONString(raftRequest));
     }
 
     public void replicateLog(long prevLogIndex, long prevLogTerm, Channel channel, LogEntry currentLog){
@@ -263,7 +263,7 @@ public class LogService {
         raftRequest.setId(raftNode.getId());
         raftRequest.setTerm(raftNode.getCurrentTerm());
         raftRequest.setLeaderCommit(raftNode.getCommitIndex());
-        raftClientManager.sendToAllPeers(JSON.toJSONString(raftRequest));
+        raftClientManagerProvider.getObject().sendToAllPeers(JSON.toJSONString(raftRequest));
 
     }
 
