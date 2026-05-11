@@ -21,7 +21,8 @@ import hawk.JRegistryCenter.Raft.RPC.Client.RaftClientManager;
 @Component
 @Data
 @Slf4j
-public class TimeoutService implements FollowerElectionTimer {
+// public class TimeoutService implements FollowerElectionTimer {
+public class TimeoutService{
 
     private static final long ELECTION_TIMEOUT_MIN_MS = 20_000L;
     private static final long ELECTION_TIMEOUT_MAX_MS = 30_000L;

@@ -25,8 +25,11 @@ public class AppendEntriesService {
     @Autowired
     private RaftNode raftNode;
 
+    // @Autowired
+    // private FollowerElectionTimer followerElectionTimer;
+
     @Autowired
-    private FollowerElectionTimer followerElectionTimer;
+    private TimeoutService timeoutService;
 
     @Autowired
     private LogService logService;
@@ -59,9 +62,12 @@ public class AppendEntriesService {
         return null;
     }
 
+   
+
     public RaftRequest handleInstallSnapshotRequest(RaftRequest request){
         if(request.getTerm() >= raftNode.getCurrentTerm()){
-            followerElectionTimer.resetTimeout();
+            // followerElectionTimer.resetTimeout();
+            timeoutService.resetTimeout();
             acceptLeader(request);
             raftNode.setLsmTree(request.getSnapshot());
             raftNode.setLastLogIndex(request.getLastLogIndex());
@@ -138,7 +144,8 @@ public class AppendEntriesService {
         if(request.getTerm() < raftNode.getCurrentTerm()){
             reply.setSuccess(false);
         }else{
-            followerElectionTimer.resetTimeout();
+            // followerElectionTimer.resetTimeout();
+            timeoutService.resetTimeout();
             acceptLeader(request);
             if(logService.containLog(request.getPrevLogIndex(), request.getPrevLogTerm())){
                 //prevLogIndex and prevLogTerm are correct, append log
@@ -153,7 +160,6 @@ public class AppendEntriesService {
             }
         }
         return reply;
-
     }
 
     //follower to leader (passive)
@@ -200,7 +206,8 @@ public class AppendEntriesService {
 
         if(request.getTerm() >= raftNode.getCurrentTerm()){ 
             //收到更高term或一样term的心跳包，承认对方leader，放弃选举，更新自己term
-            followerElectionTimer.resetTimeout();
+            // followerElectionTimer.resetTimeout();
+            timeoutService.resetTimeout();
             acceptHeartbeat(request);
         }
         return null;

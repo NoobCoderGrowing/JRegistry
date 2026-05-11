@@ -57,8 +57,6 @@ public class RaftClientManager {
     @Autowired
     private RaftNode raftNode;
 
-    private LogService logService;
-
     @Autowired
     private ThreadPoolExecutor writePool;
 
@@ -74,12 +72,7 @@ public class RaftClientManager {
         }
    }
 
-   @Bean
-   public LogService initLogService(){
-        LogService logService = new LogService(this);
-        this.logService = logService;
-        return logService;
-   }
+   
     // 初始化：配置所有 peer 节点的地址
     public void initPeers(Map<Integer, String> peers) {
         peerAddresses.putAll(peers);
