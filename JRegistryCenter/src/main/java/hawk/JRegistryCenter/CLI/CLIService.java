@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import com.alibaba.fastjson.JSON;
 import hawk.JRegistryCenter.Raft.Log.LogService;
 import java.util.concurrent.ThreadPoolExecutor;
+import hawk.JRegitstryCore.Pair;
 
 
 @Service
@@ -41,11 +42,29 @@ public class CLIService {
     }
 
 
+    public void handleGetRequest(Channel channel, CLIRequest cliRequest){
+        String key = cliRequest.getKey();
+        Pair<String, byte[]> value = raftNode.getLsmTree().get(key);
+        CLIRequest reply = new CLIRequest();         
+        reply.setUuid(cliRequest.getUuid());
+        if(value != null){
+            reply.setDataType(value.getLeft());
+            reply.setData(value.getRight());
+        }else{
+            reply.setSuccess(false);
+        }
+        writePool.execute(() -> {
+            channel.writeAndFlush(JSON.toJSONString(reply) + "\n");
+        });
+
+    }
+
+
     public void handleCLIRequest(Channel channel, CLIRequest cliRequest){
         log.info("node {} handle CLI request: {}", raftNode.getId(), JSON.toJSONString(cliRequest));
         switch (cliRequest.getType()) {
             case "get":
-                writeResponse(channel, cliRequest, "ACK: " + cliRequest.getKey());
+                handleGetRequest(channel, cliRequest);
                 break;
             case "set":
                 chekcIsLeader(channel, cliRequest);

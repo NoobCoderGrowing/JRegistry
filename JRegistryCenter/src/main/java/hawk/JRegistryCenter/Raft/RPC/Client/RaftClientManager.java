@@ -15,8 +15,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Bean;
-
 import javax.annotation.PostConstruct;
 import lombok.Data;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -27,7 +25,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import hawk.JRegistryCenter.Raft.RPC.Server.Services.AppendEntriesService;
 import hawk.JRegistryCenter.Raft.RPC.Server.Services.RequestVoteService;
 import hawk.JRegistryCenter.Raft.RaftNode;
-import hawk.JRegistryCenter.Raft.Log.LogService;
 import java.util.concurrent.ThreadPoolExecutor;
 
 @Slf4j

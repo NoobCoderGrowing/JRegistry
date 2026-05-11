@@ -11,8 +11,8 @@ public class CLIRequest {
     private String type;
     private String key;
     private byte[] data;
-    private String message;
-    private boolean redirect;
+    private String message = "";
+    private boolean redirect = false;
     private UUID uuid;
     private String leaderHost;
     private int leaderPort;
