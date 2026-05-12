@@ -11,3 +11,13 @@ raft:
   port: 6003
   peers: "{1:'127.0.0.1:6001',2:'127.0.0.2:6002'}"
   count: 3
+
+
+ssh:
+  enabled: true
+  host: 127.0.0.3
+  port: 2003
+  host-key-path: /var/tmp/.jregistryclient_hostkey_3.ser
+  auth:
+    username: admin
+    password: 123

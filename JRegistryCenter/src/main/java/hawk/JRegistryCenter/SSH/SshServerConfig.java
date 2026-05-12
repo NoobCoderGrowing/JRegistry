@@ -46,7 +46,7 @@ public class SshServerConfig {
     private SshServer sshd;
 
     @Autowired
-    private SSHService CLIService;
+    private SSHService SSHService;
 
     @Autowired
     private RaftNode raftNode;
@@ -130,7 +130,7 @@ public class SshServerConfig {
                                 break;
                             }
 
-                            String result = CLIService.userInputCheck(cmd, seessionRoot);
+                            String result = SSHService.userInputCheck(cmd, seessionRoot);
                             if (result != null && !result.isEmpty()) {
                                 terminal.writer().println(result);
                                 terminal.flush();

@@ -7,7 +7,6 @@ import hawk.JRegistryCenter.Raft.RaftNode;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.alibaba.fastjson.JSON;
 import hawk.JRegistryCenter.Raft.Log.LogService;
-import java.util.concurrent.ThreadPoolExecutor;
 
 import hawk.JRegitstryCore.BPlusNode;
 import hawk.JRegitstryCore.Pair;
@@ -17,7 +16,8 @@ import java.util.concurrent.ExecutionException;
 import hawk.JRegistryCenter.Raft.RPC.Client.RaftClientManager;
 import hawk.JRegitstryCore.RPC.RaftRequest;
 import hawk.JRegitstryCore.RPC.SSH.SSHRequest;
-
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.Set;
 
 @Service
@@ -30,9 +30,6 @@ public class SSHService {
 
     @Autowired
     private LogService logService;
-
-    @Autowired
-    private ThreadPoolExecutor writePool;
 
     @Autowired
     private EventLoopGroup singleGroup;
@@ -211,12 +208,14 @@ public class SSHService {
         // String response = handleCLIRequest(cliRequest, sessionRoot);
         String response = null;
         try {
-            response = future.get();
+            response = future.get(3, TimeUnit.SECONDS);
         } catch (InterruptedException | ExecutionException e) {
             log.error("userInputCheck error: {}", e.getMessage());
             return "ssh server error";
+        }catch (TimeoutException e) {
+            log.error("userInputCheck timeout: {}", e.getMessage());
+            return "ssh server timeout";
         }
-
         
         log.info("userInputCheck after sendRequest: requestId={}, response={}", cliRequest.getUuid(), response);
 
