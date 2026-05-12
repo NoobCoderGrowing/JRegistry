@@ -1,4 +1,4 @@
-package hawk.JRegitstryCore.RPC;
+package hawk.JRegitstryCore.RPC.SSH;
 
 import java.util.UUID;
 
@@ -6,7 +6,7 @@ import com.github.f4b6a3.uuid.UuidCreator;
 import lombok.Data;
 
 @Data
-public class CLIRequest {
+public class SSHRequest {
 
     private String type;
     private String key;
@@ -19,7 +19,7 @@ public class CLIRequest {
     private String dataType;
     private boolean success = true;
 
-    public CLIRequest(){
+    public SSHRequest(){
         this.uuid = UuidCreator.getTimeOrderedEpoch();
     }
 

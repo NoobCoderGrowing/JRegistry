@@ -6,13 +6,15 @@ import java.util.concurrent.ThreadPoolExecutor;
 import com.alibaba.fastjson.JSON;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.Set;
 
 public class BPlusTree implements LSMTree {
 
     private BPlusNode root;
 
+
     public BPlusTree() {
-        this.root = new BPlusNode("root", "~/root" );
+        this.root = new BPlusNode("root", "/root" );
     }
 
     public boolean putIfAbsent(String key, byte[] value, String type){
@@ -116,9 +118,33 @@ public class BPlusTree implements LSMTree {
             case "delete":
                 success = delete(logEntry.getKey());
                 break;
+            case "no-op":
+                success = true;
+                break;
             default:
                 break;
         }
         return success;
     }
+
+    public BPlusNode getRoot(){
+        return root;
+    }
+
+    public BPlusNode cd(String path){
+        String[] paths = path.split(".");
+        BPlusNode current = root;
+        for (int i = 0; i < paths.length; i++) {
+            if(current.getChildren().containsKey(paths[i])){
+                current = current.getChildren().get(paths[i]);
+            }else{
+                return null;
+            }
+        }
+        return current;
+    }
+
+   
+
+
 }

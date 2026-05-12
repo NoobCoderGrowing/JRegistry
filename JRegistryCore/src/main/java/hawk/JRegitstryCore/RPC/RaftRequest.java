@@ -4,6 +4,7 @@ import lombok.Data;
 import hawk.JRegitstryCore.Log.LogEntry;
 import hawk.JRegitstryCore.LSMTree;
 import java.util.ArrayList;
+import java.util.UUID;
 
 @Data
 public class RaftRequest {
@@ -33,4 +34,10 @@ public class RaftRequest {
     private LogEntry log;
     private ArrayList<LogEntry> logs;
     private LSMTree snapshot;
+
+    private String cmd;
+    private String key;
+    private byte[] data;
+    private String dataType;
+    private UUID uuid;
 }

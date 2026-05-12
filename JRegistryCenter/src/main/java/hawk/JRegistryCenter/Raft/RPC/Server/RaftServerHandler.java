@@ -71,6 +71,9 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
                 case "commitLogs":
                     reply = logService.followerCommitLogs(request);
                     break;
+                case "writeRequest":
+                    reply = logService.handleWriteRequest(request);
+                    break;
                 default:
                     break;
             }

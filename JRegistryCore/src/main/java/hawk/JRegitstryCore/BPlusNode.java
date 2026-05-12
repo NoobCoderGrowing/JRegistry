@@ -3,19 +3,20 @@ import lombok.Data;
 
 import java.util.HashMap;
 import java.util.Set;
+import com.alibaba.fastjson.JSON;
 
 @Data
 public class BPlusNode {
 
-    private String key;
-
     private String path;
-
+    private String key;
+    private String type;
+    private byte[] value;
     private HashMap<String, BPlusNode> children;
 
-    private byte[] value;
+    
 
-    private String type;
+    
 
     public BPlusNode(String key, String path) {
         this.key = key;
@@ -61,6 +62,10 @@ public class BPlusNode {
 
     public String pwd(){
         return path;
+    }
+
+    public String show(){
+         return JSON.toJSONString(this);
     }
 
 

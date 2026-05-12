@@ -57,6 +57,9 @@ public class RaftClientManager {
     @Autowired
     private ThreadPoolExecutor writePool;
 
+    // @Autowired
+    // private EventLoopGroup reconnectGroup;
+
     @PostConstruct
     public void init(){
         // singleGroup = new NioEventLoopGroup(1);

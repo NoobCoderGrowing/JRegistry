@@ -4,10 +4,11 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import hawk.JRegistryCenter.Raft.RaftNode;
 import hawk.JRegistryCenter.Raft.RPC.Client.RaftClientManager;
-import hawk.JRegitstryCore.RPC.CLIRequest;
 import hawk.JRegitstryCore.Log.LogEntry;
 import java.util.ArrayList;
 import hawk.JRegitstryCore.RPC.RaftRequest;
+import hawk.JRegitstryCore.RPC.SSH.SSHRequest;
+
 import com.alibaba.fastjson.JSON;
 import io.netty.channel.Channel;
 
@@ -46,7 +47,32 @@ public class LogService {
         this.commitWatcher = new CommitWatcher(this, raftNode, nodeCount);
    }
 
-    public void generateLogEntry(CLIRequest cliRequest){
+   public RaftRequest handleWriteRequest(RaftRequest request){
+        generateLogEntry(request);
+        return null;
+   }
+
+    public void generateLogEntry(RaftRequest request){
+        long prevLogIndex = -1;
+        long prevLogTerm = -1;
+        
+        if(logger.size() != 0){ // always keep last log in logger
+            prevLogIndex = logger.get(logger.size() - 1).getIndex();
+            prevLogTerm = logger.get(logger.size() - 1).getTerm();    
+        }
+        LogEntry logEntry = new LogEntry();
+        logEntry.setTerm(raftNode.getCurrentTerm());
+        logEntry.setIndex(currentIndex.incrementAndGet());
+        logEntry.setCommand(request.getType());
+        logEntry.setKey(request.getKey());
+        logEntry.setData(request.getData());
+        logEntry.setDataType(request.getDataType());
+        logger.add(logEntry);
+        raftNode.setLastLogIndex(logEntry.getIndex());
+        raftNode.setLastLogTerm(logEntry.getTerm());
+        replicateLog2All(logEntry, prevLogIndex, prevLogTerm);
+    }
+    public void generateLogEntry(SSHRequest cliRequest){
         long prevLogIndex = -1;
         long prevLogTerm = -1;
         

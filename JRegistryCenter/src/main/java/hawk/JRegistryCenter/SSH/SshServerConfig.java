@@ -1,4 +1,4 @@
-package hawk.JRegistryClient.SSH;
+package hawk.JRegistryCenter.SSH;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.sshd.server.Environment;
@@ -24,7 +24,9 @@ import java.io.OutputStream;
 import java.nio.file.Paths;
 import lombok.Data;
 import org.springframework.beans.factory.annotation.Autowired;
-import hawk.JRegistryClient.Service.CLIService;
+import hawk.JRegistryCenter.Raft.RaftNode;
+import hawk.JRegitstryCore.BPlusNode;
+
 @Slf4j
 @Configuration
 @Data
@@ -44,7 +46,10 @@ public class SshServerConfig {
     private SshServer sshd;
 
     @Autowired
-    private CLIService CLIService;
+    private SSHService CLIService;
+
+    @Autowired
+    private RaftNode raftNode;
 
     @PostConstruct
     public void init() {
@@ -87,6 +92,8 @@ public class SshServerConfig {
             @Override
             public void start(ChannelSession channelSession, Environment env) {
                 running = true;
+
+                BPlusNode seessionRoot = raftNode.getLsmTree().getRoot();
                 worker = new Thread(() -> {
                     try (Terminal terminal = TerminalBuilder.builder()
                             .system(false)
@@ -98,7 +105,6 @@ public class SshServerConfig {
                                 .build();
                         terminal.writer().println("JRegistryClient SSH connected. Type 'exit' to quit.");
                         terminal.flush();
-
                         while (running) {
                             String cmd;
                             try {
@@ -124,7 +130,7 @@ public class SshServerConfig {
                                 break;
                             }
 
-                            String result = CLIService.userInputCheck(cmd);
+                            String result = CLIService.userInputCheck(cmd, seessionRoot);
                             if (result != null && !result.isEmpty()) {
                                 terminal.writer().println(result);
                                 terminal.flush();
