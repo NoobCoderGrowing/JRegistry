@@ -17,6 +17,7 @@ public class CLIRequest {
     private String leaderHost;
     private int leaderPort;
     private String dataType;
+    private boolean success = true;
 
     public CLIRequest(){
         this.uuid = UuidCreator.getTimeOrderedEpoch();
