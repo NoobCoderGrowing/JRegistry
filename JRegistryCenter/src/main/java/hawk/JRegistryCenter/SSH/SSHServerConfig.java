@@ -101,9 +101,9 @@ public class SSHServerConfig {
                             .build()) {
                         LineReader lineReader = LineReaderBuilder.builder()
                                 .terminal(terminal)
-                                .appName("JRegistryClient")
+                                .appName("JRegistryCenterCLI")
                                 .build();
-                        terminal.writer().println("JRegistryClient SSH connected. Type 'exit' to quit.");
+                        terminal.writer().println("JRegistryCenterCLI SSH connected. Type 'exit' to quit.");
                         terminal.flush();
                         while (running) {
                             String cmd;

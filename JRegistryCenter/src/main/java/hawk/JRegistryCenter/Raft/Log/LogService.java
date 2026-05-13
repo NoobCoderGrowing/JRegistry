@@ -70,7 +70,7 @@ public class LogService {
         LogEntry logEntry = new LogEntry();
         logEntry.setTerm(raftNode.getCurrentTerm());
         logEntry.setIndex(currentIndex.incrementAndGet());
-        logEntry.setCommand(request.getType());
+        logEntry.setCommand(request.getCmd());
         logEntry.setKey(request.getKey());
         logEntry.setData(request.getData());
         logEntry.setDataType(request.getDataType());

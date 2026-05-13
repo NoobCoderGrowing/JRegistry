@@ -6,7 +6,7 @@ import java.util.Set;
 
 public interface LSMTree {
 
-    public boolean put(String key, byte[] value, String type);
+    public boolean put(LogEntry logEntry);
     public Pair<String, byte[]> get(String key);
     public boolean delete(String key);
     public boolean persist(ThreadPoolExecutor writePool);

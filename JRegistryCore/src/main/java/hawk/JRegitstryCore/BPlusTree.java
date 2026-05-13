@@ -6,8 +6,9 @@ import java.util.concurrent.ThreadPoolExecutor;
 import com.alibaba.fastjson.JSON;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.Set;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class BPlusTree implements LSMTree {
 
     private BPlusNode root;
@@ -18,7 +19,7 @@ public class BPlusTree implements LSMTree {
     }
 
     public boolean putIfAbsent(String key, byte[] value, String type){
-        String[] paths = key.split(".");
+        String[] paths = key.split("\\.");
         BPlusNode current = root;
         for (int i = 0; i < paths.length-1; i++) {
             if(current.getChildren().containsKey(paths[i])){ 
@@ -30,10 +31,10 @@ public class BPlusTree implements LSMTree {
                 current = newNode;
             }
         }
-        if(current.getChildren().containsKey(paths[-1])){// if the node is already exists, return false
+        if(current.getChildren().containsKey(paths[paths.length-1])){// if the node is already exists, return false
             return false;
         }else{// if the node is not exists, add it
-            BPlusNode newNode = new BPlusNode(paths[-1], value, type);
+            BPlusNode newNode = new BPlusNode(paths[paths.length-1], value, type);
             current.addNode(newNode);
             newNode.setValue(value);
             newNode.setType(type);
@@ -41,30 +42,34 @@ public class BPlusTree implements LSMTree {
         }
     }
 
-    public boolean put(String key, byte[] value, String type){
-        String[] paths = key.split(".");
+    public boolean put(LogEntry logEntry){
+        String key = logEntry.getKey();
+        byte[] value = logEntry.getData();
+        String type = logEntry.getDataType();
+
+        String[] paths = key.split("\\.");
         BPlusNode current = root;
         for (int i = 0; i < paths.length-1; i++) {
             if(current.getChildren().containsKey(paths[i])){ 
                 current = current.getChildren().get(paths[i]);
             }else{ // if the node is not exists, add it
-                String path = String.join("/", Arrays.copyOfRange(paths, 0, i+1));
-                BPlusNode newNode = new BPlusNode(paths[i], path);
+                // String path = String.join("/", Arrays.copyOfRange(paths, 0, i+1));
+                // BPlusNode newNode = new BPlusNode(paths[i], path);
+                BPlusNode newNode = new BPlusNode(paths[i]);
                 current.addNode(newNode);
                 current = newNode;
             }
         }
-       
-        BPlusNode newNode = new BPlusNode(paths[-1], value, type);
+
+        BPlusNode newNode = new BPlusNode(paths[paths.length-1], value, type);
         current.addNode(newNode);
-        newNode.setValue(value);
-        newNode.setType(type);
+        log.info("current node info: {}", current.show());
         return true;
     }
 
 
     public Pair<String, byte[]> get(String key){
-        String[] paths = key.split(".");
+        String[] paths = key.split("\\.");
         BPlusNode current = root;
         for (int i = 0; i < paths.length; i++) {
             if(current.getChildren().containsKey(paths[i])){
@@ -77,7 +82,7 @@ public class BPlusTree implements LSMTree {
     }
 
     public boolean delete(String key){
-        String[] paths = key.split(".");
+        String[] paths = key.split("\\.");
         BPlusNode current = root;
         for (int i = 0; i < paths.length-1; i++) {
             if(current.getChildren().containsKey(paths[i])){
@@ -86,8 +91,8 @@ public class BPlusTree implements LSMTree {
                 return false;
             }
         }
-        if(current.getChildren().containsKey(paths[-1])){
-            current.deleteNode(paths[-1]);
+        if(current.getChildren().containsKey(paths[paths.length-1])){
+            current.deleteNode(paths[paths.length-1]);
             return true;
         }else{
             return false;
@@ -110,10 +115,12 @@ public class BPlusTree implements LSMTree {
 
     public boolean applyLog(LogEntry logEntry){
         String cmd = logEntry.getCommand();
+        log.info("apply log: {}", JSON.toJSONString(logEntry));
         boolean success = false;
         switch (cmd) {
             case "set":
-                success = put(logEntry.getKey(), logEntry.getData(), logEntry.getDataType());
+                log.info("into set");
+                success = put(logEntry);
                 break;
             case "delete":
                 success = delete(logEntry.getKey());
@@ -132,7 +139,7 @@ public class BPlusTree implements LSMTree {
     }
 
     public BPlusNode cd(String path){
-        String[] paths = path.split(".");
+        String[] paths = path.split("\\.");
         BPlusNode current = root;
         for (int i = 0; i < paths.length; i++) {
             if(current.getChildren().containsKey(paths[i])){
@@ -145,6 +152,10 @@ public class BPlusTree implements LSMTree {
     }
 
    
-
+public static void main(String[] args) {
+    String[] paths = "we.n".split("\\.");
+    // String[] paths = "we.n".split("\\.");
+    System.out.println(paths[-1]);
+}
 
 }

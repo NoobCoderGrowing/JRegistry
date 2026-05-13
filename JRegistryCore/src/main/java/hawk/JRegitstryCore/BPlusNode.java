@@ -4,8 +4,10 @@ import lombok.Data;
 import java.util.HashMap;
 import java.util.Set;
 import com.alibaba.fastjson.JSON;
+import lombok.extern.slf4j.Slf4j;
 
 @Data
+@Slf4j
 public class BPlusNode {
 
     private String path;
@@ -16,7 +18,10 @@ public class BPlusNode {
 
     
 
-    
+    public BPlusNode(String key) {
+        this.key = key;
+        this.children = new HashMap<>();
+    }
 
     public BPlusNode(String key, String path) {
         this.key = key;
@@ -32,13 +37,19 @@ public class BPlusNode {
     }
 
 
-    public boolean addNode(BPlusNode newNode) {
-        if (children.containsKey(newNode.getKey())) {
+    public boolean addNodeIfAbsent(BPlusNode newNode) {
+        if (!children.containsKey(newNode.getKey())) {
             newNode.setPath(path+'/'+newNode.getKey());
             children.put(newNode.getKey(), newNode);
             return true;
         }
         return false;
+    }
+
+    public boolean addNode(BPlusNode newNode) {
+        newNode.setPath(path+'/'+newNode.getKey());
+        children.put(newNode.getKey(), newNode);
+        return true;
     }
 
     public boolean deleteNode(String key){
