@@ -30,7 +30,7 @@ import hawk.JRegitstryCore.BPlusNode;
 @Slf4j
 @Configuration
 @Data
-public class SshServerConfig {
+public class SSHServerConfig {
     @Value("${ssh.enabled:true}")
     private boolean enabled;
     @Value("${ssh.host}")

@@ -101,6 +101,7 @@ public class AppendEntriesService {
         }
     }
 
+
     public RaftRequest clientHandleAppendEntriesRequest(RaftRequest reply, Channel channel, int peerNodeId) {
         if(!reply.isSuccess()){
             if(reply.getTerm() > raftNode.getCurrentTerm()){ // 收到更高term的回复，放弃leader身份，成为candidate
@@ -145,8 +146,9 @@ public class AppendEntriesService {
             reply.setSuccess(false);
         }else{
             // followerElectionTimer.resetTimeout();
-            timeoutService.resetTimeout();
             acceptLeader(request);
+            timeoutService.resetTimeout();
+            
             if(logService.containLog(request.getPrevLogIndex(), request.getPrevLogTerm())){
                 //prevLogIndex and prevLogTerm are correct, append log
                 logService.deleteLogs(request.getPrevLogIndex());

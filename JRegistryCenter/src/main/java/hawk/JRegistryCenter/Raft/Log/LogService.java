@@ -18,10 +18,14 @@ import org.springframework.beans.factory.annotation.Value;
 import javax.annotation.PostConstruct;
 import java.util.concurrent.ThreadPoolExecutor;
 import org.springframework.stereotype.Service;
+import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 
 
 
 @Service
+@Data
+@Slf4j
 public class LogService {
 
     @Autowired
@@ -52,6 +56,8 @@ public class LogService {
         return null;
    }
 
+   
+
     public void generateLogEntry(RaftRequest request){
         long prevLogIndex = -1;
         long prevLogTerm = -1;
@@ -72,6 +78,25 @@ public class LogService {
         raftNode.setLastLogTerm(logEntry.getTerm());
         replicateLog2All(logEntry, prevLogIndex, prevLogTerm);
     }
+
+    public void generateNoOpLog(){
+        long prevLogIndex = -1;
+        long prevLogTerm = -1;
+        
+        if(logger.size() != 0){ // always keep last log in logger
+            prevLogIndex = logger.get(logger.size() - 1).getIndex();
+            prevLogTerm = logger.get(logger.size() - 1).getTerm();    
+        }
+        LogEntry logEntry = new LogEntry();
+        logEntry.setTerm(raftNode.getCurrentTerm());
+        logEntry.setIndex(currentIndex.incrementAndGet());
+        logEntry.setCommand("noOp");
+        logger.add(logEntry);
+        raftNode.setLastLogIndex(logEntry.getIndex());
+        raftNode.setLastLogTerm(logEntry.getTerm());
+        replicateLog2All(logEntry, prevLogIndex, prevLogTerm);
+    }
+
     public void generateLogEntry(SSHRequest cliRequest){
         long prevLogIndex = -1;
         long prevLogTerm = -1;
@@ -243,6 +268,7 @@ public class LogService {
             }
             return v;
         });
+        log.info("Node {} matchIndexMap updated to {}", raftNode.getId(), matchIndexMap);
         commitWatcher.update();
     }
 
@@ -262,10 +288,11 @@ public class LogService {
                 currentCommitIndex++;
             }
         }
+        log.info("follower node {} commit logs to {}", raftNode.getId(), commitableIndex);
         return null;
     }
 
-    public void leaderCommitLogs(long commitableIndex){
+    public void commitLogs(long commitableIndex){
         long commitableTerm = getLogTerm(commitableIndex);
         if(commitableTerm != raftNode.getCurrentTerm()){
             return; // leader only commit logs of current term
@@ -289,6 +316,8 @@ public class LogService {
         raftRequest.setId(raftNode.getId());
         raftRequest.setTerm(raftNode.getCurrentTerm());
         raftRequest.setLeaderCommit(raftNode.getCommitIndex());
+
+        log.info("leader node {} require commit logs to {}", raftNode.getId(), commitableIndex);
         raftClientManagerProvider.getObject().sendToAllPeers(JSON.toJSONString(raftRequest));
 
     }

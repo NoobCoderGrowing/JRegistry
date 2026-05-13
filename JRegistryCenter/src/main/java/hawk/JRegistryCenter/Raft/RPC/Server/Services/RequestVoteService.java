@@ -12,6 +12,7 @@ import hawk.JRegistryCenter.Raft.RPC.Client.RaftClientManager;
 import hawk.JRegitstryCore.RPC.RaftRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import hawk.JRegistryCenter.Raft.Log.LogService;
 
 
 @Slf4j
@@ -19,10 +20,10 @@ import org.springframework.beans.factory.annotation.Value;
 public class RequestVoteService {
 
     @Autowired
-    private ObjectProvider<AppendEntriesService> appendEntriesServiceProvider;
+    private RaftNode raftNode;
 
     @Autowired
-    private RaftNode raftNode;
+    private LogService logService;
 
    
 
@@ -158,7 +159,8 @@ public class RequestVoteService {
                 raftNode.setLeaderPort(CLIServerPort);
                 log.info("term {} ,client node {} become leader, {} votes received, active nodes: {}", raftNode.getCurrentTerm(), raftNode.getId(), voteReceived, activeNodes);
                 //异步发送心跳包给所有节点（netty发送消息本身就是异步的）
-                appendEntriesServiceProvider.getObject().sendHeartBeatToAll(raftClientManager.getPeerChannels());
+                // appendEntriesServiceProvider.getObject().sendHeartBeatToAll(raftClientManager.getPeerChannels());
+                logService.generateNoOpLog();
             }
         }
         return null;
