@@ -4,7 +4,9 @@ import hawk.JRegistryCenter.Raft.RaftNode;
 import java.util.Collections;
 import java.util.ArrayList;
 
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class CommitWatcher{
 
     private int nodeCount;
@@ -21,7 +23,7 @@ public class CommitWatcher{
     }
 
 
-    public synchronized void update(){
+    public void update(){
         long commitIndex = raftNode.getCommitIndex();
         ArrayList<Long> matchIndexes = new ArrayList<>();
         logService.matchIndexMap.forEach((k,v)->{
@@ -32,6 +34,7 @@ public class CommitWatcher{
         }
         Collections.sort(matchIndexes);
         long commitableIndex  = matchIndexes.get(nodeCount/2);
+        log.info("commitableIndex: {}, commitIndex: {}", commitableIndex, commitIndex);
         if(commitableIndex > commitIndex){
             logService.commitLogs(commitableIndex);
         }
