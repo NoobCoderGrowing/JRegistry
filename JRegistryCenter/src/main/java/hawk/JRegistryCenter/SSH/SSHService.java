@@ -138,6 +138,7 @@ public class SSHService {
         raftRequest.setData(cliRequest.getData());
         raftRequest.setDataType(cliRequest.getDataType());
         raftRequest.setUuid(cliRequest.getUuid());
+        log.info("node {} redirect write requestt leader {}", raftNode.getId(), cmd, raftNode.getLeaderId());
         raftClientManager.sendToPeer(raftNode.getLeaderId(), JSON.toJSONString(raftRequest));
         return message;
     }

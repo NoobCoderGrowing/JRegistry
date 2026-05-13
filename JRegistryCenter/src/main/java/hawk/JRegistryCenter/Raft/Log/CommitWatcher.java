@@ -33,7 +33,7 @@ public class CommitWatcher{
         Collections.sort(matchIndexes);
         long commitableIndex  = matchIndexes.get(nodeCount/2);
         if(commitableIndex > commitIndex){
-            logService.leaderCommitLogs(commitableIndex);
+            logService.commitLogs(commitableIndex);
         }
     }
 

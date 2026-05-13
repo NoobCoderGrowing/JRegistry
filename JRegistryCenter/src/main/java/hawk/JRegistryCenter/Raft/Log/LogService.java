@@ -52,6 +52,7 @@ public class LogService {
    }
 
    public RaftRequest handleWriteRequest(RaftRequest request){
+        log.info("node {} handle write request: {}", raftNode.getId(), JSON.toJSONString(request));
         generateLogEntry(request);
         return null;
    }
@@ -76,6 +77,7 @@ public class LogService {
         logger.add(logEntry);
         raftNode.setLastLogIndex(logEntry.getIndex());
         raftNode.setLastLogTerm(logEntry.getTerm());
+        log.info("node {} replicate log to all nodes", raftNode.getId());
         replicateLog2All(logEntry, prevLogIndex, prevLogTerm);
     }
 
@@ -94,6 +96,7 @@ public class LogService {
         logger.add(logEntry);
         raftNode.setLastLogIndex(logEntry.getIndex());
         raftNode.setLastLogTerm(logEntry.getTerm());
+        log.info("term {} node {} generate no op log", raftNode.getCurrentTerm(), raftNode.getId());
         replicateLog2All(logEntry, prevLogIndex, prevLogTerm);
     }
 
@@ -147,7 +150,7 @@ public class LogService {
 
     public void replicateLog2All(LogEntry logEntry, long prevLogIndex, long prevLogTerm){
         RaftRequest raftRequest = new RaftRequest();
-        raftRequest.setType("AppendEntries");
+        raftRequest.setType("appendEntries");
         raftRequest.setId(raftNode.getId());
         raftRequest.setTerm(raftNode.getCurrentTerm());
         raftRequest.setId(raftNode.getId());
@@ -160,7 +163,7 @@ public class LogService {
 
     public void replicateLog(long prevLogIndex, long prevLogTerm, Channel channel, LogEntry currentLog){
         RaftRequest raftRequest = new RaftRequest();
-        raftRequest.setType("AppendEntries");
+        raftRequest.setType("appendEntries");
         raftRequest.setId(raftNode.getId());
         raftRequest.setTerm(raftNode.getCurrentTerm());
         raftRequest.setLeaderCommit(raftNode.getLeaderCommit());

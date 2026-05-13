@@ -138,7 +138,7 @@ public class AppendEntriesService {
 
     public RaftRequest handleAppendEntriesRequest(RaftRequest request) {
         RaftRequest reply = new RaftRequest();
-        reply.setType("AppendEntries");
+        reply.setType("appendEntries");
         reply.setId(raftNode.getId());
         reply.setTerm(raftNode.getCurrentTerm());
         log.info("server {} handle append entries request: {}", raftNode.getId(), JSON.toJSONString(request));
@@ -146,8 +146,9 @@ public class AppendEntriesService {
             reply.setSuccess(false);
         }else{
             // followerElectionTimer.resetTimeout();
-            acceptLeader(request);
             timeoutService.resetTimeout();
+            acceptLeader(request);
+            
             
             if(logService.containLog(request.getPrevLogIndex(), request.getPrevLogTerm())){
                 //prevLogIndex and prevLogTerm are correct, append log

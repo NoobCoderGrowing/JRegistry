@@ -24,7 +24,7 @@ import hawk.JRegistryCenter.Raft.RPC.Client.RaftClientManager;
 // public class TimeoutService implements FollowerElectionTimer {
 public class TimeoutService{
 
-    private static final long ELECTION_TIMEOUT_MIN_MS = 20_000L;
+    private static final long ELECTION_TIMEOUT_MIN_MS = 15_000L;
     private static final long ELECTION_TIMEOUT_MAX_MS = 30_000L;
 
     @Autowired

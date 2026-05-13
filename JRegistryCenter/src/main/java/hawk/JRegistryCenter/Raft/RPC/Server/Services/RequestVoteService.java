@@ -25,7 +25,8 @@ public class RequestVoteService {
     @Autowired
     private LogService logService;
 
-   
+    @Autowired
+    private ObjectProvider<AppendEntriesService> appendEntriesServiceProvider;
 
     @Value("${host}")
     private String CLIServerHost;

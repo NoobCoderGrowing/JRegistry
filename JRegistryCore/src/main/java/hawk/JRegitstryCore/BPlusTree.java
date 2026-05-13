@@ -118,7 +118,7 @@ public class BPlusTree implements LSMTree {
             case "delete":
                 success = delete(logEntry.getKey());
                 break;
-            case "no-op":
+            case "noOp":
                 success = true;
                 break;
             default:
