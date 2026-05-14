@@ -19,6 +19,7 @@ import hawk.JRegitstryCore.RPC.SSH.SSHRequest;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Service
 @Data
@@ -68,7 +69,7 @@ public class SSHService {
 
 
 
-    public String handleSSHRequest( SSHRequest cliRequest, BPlusNode sessionRoot){
+    public String handleSSHRequest( SSHRequest cliRequest, AtomicReference<BPlusNode> sessionCurrent){
         String response = null;
         log.info("node {} handle CLI request: {}", raftNode.getId(), JSON.toJSONString(cliRequest));
         switch (cliRequest.getType()) {
@@ -82,13 +83,13 @@ public class SSHService {
                 response = chekcIsLeader(cliRequest);
                 break;
             case "cd":
-                response = handleCD(cliRequest, sessionRoot);
+                response = handleCD(cliRequest, sessionCurrent);
                 break;
             case "pwd":
-                response = handlePwd(cliRequest, sessionRoot);
+                response = handlePwd(cliRequest, sessionCurrent);
                 break;
             case "ls":
-                response = handleLs(cliRequest, sessionRoot);
+                response = handleLs(cliRequest, sessionCurrent);
                 break;
             default:
                 response = "invalid cmd";
@@ -97,20 +98,21 @@ public class SSHService {
         return response;
     }
 
-    public String handleLs(SSHRequest cliRequest, BPlusNode sessionRoot){
-        Set<String> keys = sessionRoot.ls();
-        return JSON.toJSONString(keys);
+    public String handleLs(SSHRequest cliRequest, AtomicReference<BPlusNode> sessionCurrent){
+        Set<String> keys = sessionCurrent.get().ls();
+        String nodeStrings = String.join("  ", keys);
+        return nodeStrings;
     }
 
-    public String handlePwd(SSHRequest cliRequest, BPlusNode sessionRoot){
-        return sessionRoot.pwd();
+    public String handlePwd(SSHRequest cliRequest, AtomicReference<BPlusNode> sessionCurrent){
+        return sessionCurrent.get().pwd();
     }
 
-    public String handleCD(SSHRequest cliRequest, BPlusNode sessionRoot){
-        BPlusNode temp = raftNode.getLsmTree().cd(cliRequest.getKey());
+    public String handleCD(SSHRequest cliRequest, AtomicReference<BPlusNode> sessionCurrent){
+        BPlusNode temp = raftNode.getLsmTree().cd(cliRequest.getKey(), sessionCurrent.get());
         if(temp != null){
-            sessionRoot = temp;
-            return ">"+sessionRoot.pwd();
+            sessionCurrent.set(temp);
+            return ">"+sessionCurrent.get().pwd();
         }else{
             return "invalid path";
         }
@@ -164,12 +166,12 @@ public class SSHService {
     }
 
 
-    public String userInputCheck(String input, BPlusNode sessionRoot){
+    public String userInputCheck(String input, AtomicReference<BPlusNode> sessionCurrent){
         if (input.isEmpty()) {
             log.info("user input is empty");
             return "invalid cmd";
         }
-        if(!input.matches("[A-Za-z0-9. ]+")){
+        if(!input.matches("[A-Za-z0-9.~/ ]+")){
             log.info("user input is empty");
             return "invalid cmd";
         }
@@ -204,9 +206,9 @@ public class SSHService {
         log.info("userInputCheck before sendRequest: requestId={}", cliRequest.getUuid());
         CompletableFuture<String> future = new CompletableFuture<>();
         future.completeAsync(() -> {
-            return handleSSHRequest(cliRequest, sessionRoot);
+            return handleSSHRequest(cliRequest, sessionCurrent);
         },singleGroup);
-        // String response = handleCLIRequest(cliRequest, sessionRoot);
+        // String response = handleCLIRequest(cliRequest, sessionCurrent);
         String response = null;
         try {
             response = future.get(3, TimeUnit.SECONDS);

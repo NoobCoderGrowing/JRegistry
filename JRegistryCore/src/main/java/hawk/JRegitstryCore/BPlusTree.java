@@ -138,7 +138,19 @@ public class BPlusTree implements LSMTree {
         return root;
     }
 
-    public BPlusNode cd(String path){
+    public BPlusNode cd(String path, BPlusNode position){
+        if(path.equals("/")||path.equals("/root")||path.equals("~")){
+            return root;
+        }
+
+        if(path.equals("..")){
+            if(position!=root){
+                return position.getParent();
+            }
+            return root;
+        }
+
+
         String[] paths = path.split("\\.");
         BPlusNode current = root;
         for (int i = 0; i < paths.length; i++) {

@@ -13,7 +13,7 @@ public interface LSMTree {
 
     public boolean applyLog(LogEntry logEntry);
 
-    public BPlusNode cd(String path);
+    public BPlusNode cd(String path, BPlusNode position);
 
     // public String pwd();
 

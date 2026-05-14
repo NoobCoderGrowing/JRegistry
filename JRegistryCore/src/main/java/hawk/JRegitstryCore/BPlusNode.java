@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class BPlusNode {
 
+    private BPlusNode parent;
     private String path;
     private String key;
     private String type;
@@ -41,6 +42,7 @@ public class BPlusNode {
         if (!children.containsKey(newNode.getKey())) {
             newNode.setPath(path+'/'+newNode.getKey());
             children.put(newNode.getKey(), newNode);
+            newNode.setParent(this);
             return true;
         }
         return false;
@@ -49,6 +51,7 @@ public class BPlusNode {
     public boolean addNode(BPlusNode newNode) {
         newNode.setPath(path+'/'+newNode.getKey());
         children.put(newNode.getKey(), newNode);
+        newNode.setParent(this);
         return true;
     }
 

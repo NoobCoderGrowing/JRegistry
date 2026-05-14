@@ -26,6 +26,7 @@ import lombok.Data;
 import org.springframework.beans.factory.annotation.Autowired;
 import hawk.JRegistryCenter.Raft.RaftNode;
 import hawk.JRegitstryCore.BPlusNode;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 @Configuration
@@ -92,8 +93,7 @@ public class SSHServerConfig {
             @Override
             public void start(ChannelSession channelSession, Environment env) {
                 running = true;
-
-                BPlusNode seessionRoot = raftNode.getLsmTree().getRoot();
+                AtomicReference<BPlusNode> sessionRoot = new AtomicReference<>(raftNode.getLsmTree().getRoot());
                 worker = new Thread(() -> {
                     try (Terminal terminal = TerminalBuilder.builder()
                             .system(false)
@@ -130,7 +130,7 @@ public class SSHServerConfig {
                                 break;
                             }
 
-                            String result = SSHService.userInputCheck(cmd, seessionRoot);
+                            String result = SSHService.userInputCheck(cmd, sessionRoot);
                             if (result != null && !result.isEmpty()) {
                                 terminal.writer().println(result);
                                 terminal.flush();
