@@ -170,7 +170,7 @@ public class AppendEntriesService {
     //         // followerElectionTimer.resetTimeout();
     //         timeoutService.resetTimeout();
     //         acceptLeader(request);
-    //         if(logService.containLog(request.getPrevLogIndex(), request.getPrevLogTerm())){
+    //         if(logService.containLog(request.getLastLogTerm(), request.getLastLogIndex())){
     //             //prevLogIndex and prevLogTerm are correct, append log
     //             logService.deleteLogs(request.getPrevLogIndex());
     //             logService.appendLog(request.getLog());

@@ -20,6 +20,9 @@ import java.util.concurrent.ThreadPoolExecutor;
 import org.springframework.stereotype.Service;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.event.ContextRefreshedEvent;
+import org.springframework.context.event.EventListener;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 
 
@@ -41,6 +44,9 @@ public class LogService {
     public ConcurrentHashMap<Integer, Long> nextIndexMap = new ConcurrentHashMap<>();
     private CommitWatcher commitWatcher;
 
+     /** 防止父子容器各刷新一次时重复初始化 */
+     private final AtomicBoolean indexMapInitialized = new AtomicBoolean(false);
+
     @Autowired
     private ThreadPoolExecutor writePool;
 
@@ -54,6 +60,26 @@ public class LogService {
             matchIndexMap.put(k, -1L);
         });
     }
+
+
+    // @EventListener(ContextRefreshedEvent.class)
+    // public void initIndexMap(ContextRefreshedEvent event){
+
+    //     if(event.getApplicationContext().getParent() != null){
+    //         return;
+    //     }
+
+    //     if(!indexMapInitialized.compareAndSet(false, true)){ // 防止重复初始化
+    //         return;
+    //     }
+    //     raftClientManagerProvider.getObject().getPeerChannels().forEach((k,v)->{
+    //         nextIndexMap.put(k, 0L);
+    //         matchIndexMap.put(k, -1L);
+    //     });
+    // }
+
+
+
 
    @PostConstruct
    public void registerCommitWatcher(){
