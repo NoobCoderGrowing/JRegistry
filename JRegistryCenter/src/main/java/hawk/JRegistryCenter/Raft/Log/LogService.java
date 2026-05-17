@@ -87,7 +87,7 @@ public class LogService {
         raftNode.setLastLogIndex(logEntry.getIndex());
         raftNode.setLastLogTerm(logEntry.getTerm());
         log.info("node {} replicate log to all nodes", raftNode.getId());
-        replicateLog2All(logEntry, prevLogIndex, prevLogTerm);
+        replicateLog2All();
     }
 
     public void generateNoOpLog(){
@@ -106,7 +106,7 @@ public class LogService {
         raftNode.setLastLogIndex(logEntry.getIndex());
         raftNode.setLastLogTerm(logEntry.getTerm());
         log.info("term {} node {} generate no op log", raftNode.getCurrentTerm(), raftNode.getId());
-        replicateLog2All(logEntry, prevLogIndex, prevLogTerm);
+        replicateLog2All();
     }
 
     public void generateLogEntry(SSHRequest cliRequest){
@@ -127,7 +127,7 @@ public class LogService {
         logger.add(logEntry);
         raftNode.setLastLogIndex(logEntry.getIndex());
         raftNode.setLastLogTerm(logEntry.getTerm());
-        replicateLog2All(logEntry, prevLogIndex, prevLogTerm);
+        replicateLog2All();
     }
 
     public LogEntry getLog(long logIndex){

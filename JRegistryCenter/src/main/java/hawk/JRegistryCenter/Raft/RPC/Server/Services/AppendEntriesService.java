@@ -158,7 +158,36 @@ public class AppendEntriesService {
     return null;
 }
 
-public RaftRequest handleAppendEntriesRequest(RaftRequest request) {
+    // public RaftRequest handleAppendEntriesRequest(RaftRequest request) {
+    //     RaftRequest reply = new RaftRequest();
+    //     reply.setType("appendEntries");
+    //     reply.setId(raftNode.getId());
+    //     reply.setTerm(raftNode.getCurrentTerm());
+    //     log.info("server {} handle append entries request: {}", raftNode.getId(), JSON.toJSONString(request));
+    //     if(request.getTerm() < raftNode.getCurrentTerm()){
+    //         reply.setSuccess(false);
+    //     }else{
+    //         // followerElectionTimer.resetTimeout();
+    //         timeoutService.resetTimeout();
+    //         acceptLeader(request);
+    //         if(logService.containLog(request.getPrevLogIndex(), request.getPrevLogTerm())){
+    //             //prevLogIndex and prevLogTerm are correct, append log
+    //             logService.deleteLogs(request.getPrevLogIndex());
+    //             logService.appendLog(request.getLog());
+    //             reply.setLastLogIndex(request.getLog().getIndex());
+    //             reply.setLastLogTerm(request.getLog().getTerm());
+    //             reply.setSuccess(true);
+    //         }else{// does not contain prevlog, reject append entries request
+    //             reply.setPrevLogIndex(request.getPrevLogIndex());
+    //             // reply.setPrevLogIndex(request.getPrevLogIndex() - 1);
+    //             reply.setSuccess(false);
+    //         }
+    //     }
+    //     return reply;
+    // }
+
+
+    public RaftRequest handleAppendEntriesRequest(RaftRequest request) {
         RaftRequest reply = new RaftRequest();
         reply.setType("appendEntries");
         reply.setId(raftNode.getId());
@@ -170,13 +199,22 @@ public RaftRequest handleAppendEntriesRequest(RaftRequest request) {
             // followerElectionTimer.resetTimeout();
             timeoutService.resetTimeout();
             acceptLeader(request);
-            if(logService.containLog(request.getPrevLogIndex(), request.getPrevLogTerm())){
+            if(logService.containLog(request.getPrevLogTerm(), request.getLastLogIndex())){
+                //containLog already handle -1 case
+                LogEntry currentLog = request.getLog();
+                if(logService.containLog(currentLog.getTerm(), currentLog.getIndex())){
+                    //log exist, do not append but return success
+                    reply.setSuccess(true);
+                    reply.setLastLogIndex(currentLog.getIndex());
+                    reply.setLastLogTerm(currentLog.getTerm());
+                    return reply;
+                }
                 //prevLogIndex and prevLogTerm are correct, append log
-                logService.deleteLogs(request.getPrevLogIndex());
-                logService.appendLog(request.getLog());
-                reply.setLastLogIndex(request.getLog().getIndex());
-                reply.setLastLogTerm(request.getLog().getTerm());
                 reply.setSuccess(true);
+                logService.deleteLogs(request.getPrevLogIndex());
+                logService.appendLog(currentLog);
+                reply.setLastLogIndex(currentLog.getIndex());
+                reply.setLastLogTerm(currentLog.getTerm());
             }else{// does not contain prevlog, reject append entries request
                 reply.setPrevLogIndex(request.getPrevLogIndex());
                 // reply.setPrevLogIndex(request.getPrevLogIndex() - 1);
@@ -185,6 +223,9 @@ public RaftRequest handleAppendEntriesRequest(RaftRequest request) {
         }
         return reply;
     }
+
+
+
 
     //follower to leader (passive)
     // for now leader needn't respond to follower's heartbeat response
