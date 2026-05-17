@@ -23,6 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.event.EventListener;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Map;
 
 
 
@@ -53,9 +54,12 @@ public class LogService {
     @Value("${raft.count}")
     private int nodeCount;
 
+    @Value("#{${raft.peers:{}}}")
+    private Map<Integer, String> peers;
+
     @PostConstruct
     public void initIndexMap(){
-        raftClientManagerProvider.getObject().getPeerChannels().forEach((k,v)->{
+        peers.forEach((k,v)->{
             nextIndexMap.put(k, 0L);
             matchIndexMap.put(k, -1L);
         });
