@@ -82,6 +82,10 @@ public class BPlusNode {
          return JSON.toJSONString(this);
     }
 
+    public Pair<String, byte[]> get(){
+        return new Pair<String, byte[]>(this.type, this.value);
+    }
+
 
 
 

@@ -109,7 +109,7 @@ public class SSHServerConfig {
                             String cmd;
                             try {
                                 // JLine provides echo, backspace, arrow keys and history.
-                                cmd = lineReader.readLine("> ");
+                                cmd = lineReader.readLine("> " + sessionRoot.get().pwd() + " ");
                             } catch (UserInterruptException e) {
                                 // Ctrl+C: keep session alive and show a new prompt.
                                 terminal.writer().println();

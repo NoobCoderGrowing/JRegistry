@@ -150,6 +150,11 @@ public class BPlusTree implements LSMTree {
             return root;
         }
 
+        if(path.charAt(0)!='/' && path.charAt(0)!='~'){
+            BPlusNode current = position.cd(path);
+            return current;
+        }
+
 
         String[] paths = path.split("\\.");
         BPlusNode current = root;

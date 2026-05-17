@@ -335,10 +335,13 @@ public class LogService {
         raftRequest.setLeaderHost(raftNode.getLeaderHost());
         raftRequest.setLeaderPort(raftNode.getLeaderPort());
         raftRequest.setSnapshot(raftNode.getLsmTree());
+        raftRequest.setLogs(logger);
         writePool.execute(() -> {
             channel.writeAndFlush(JSON.toJSONString(raftRequest) + "\n");
         });
     }
+
+    
 
     public void installLogger(RaftRequest request){
         logger.clear();

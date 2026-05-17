@@ -200,7 +200,7 @@ public class AppendEntriesService {
             // followerElectionTimer.resetTimeout();
             timeoutService.resetTimeout();
             acceptLeader(request);
-            if(logService.containLog(request.getPrevLogTerm(), request.getLastLogIndex())){
+            if(logService.containLog(request.getPrevLogTerm(), request.getPrevLogIndex())){
                 //containLog already handle -1 case
                 LogEntry currentLog = request.getLog();
                 if(logService.containLog(currentLog.getTerm(), currentLog.getIndex())){

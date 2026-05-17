@@ -57,8 +57,18 @@ public class SSHService {
 
     // }
 
-    public String handleGetRequest( SSHRequest cliRequest){
+    public String handleGetRequest( SSHRequest cliRequest, AtomicReference<BPlusNode> sessionCurrent){
         String key = cliRequest.getKey();
+        if(key == null || key.isEmpty()){ // if the key is empty, return the current node's kv pair
+            BPlusNode current = sessionCurrent.get();
+            if(current.getKey().equals("root")){
+                return "root contains no kv pair";
+            }else{
+                Pair<String, byte[]> result = current.get();
+                return JSON.toJSONString(result);
+            }
+        }
+
         Pair<String, byte[]> result = raftNode.getLsmTree().get(key);
         if(result != null){
             return JSON.toJSONString(result);
@@ -74,7 +84,7 @@ public class SSHService {
         log.info("node {} handle CLI request: {}", raftNode.getId(), JSON.toJSONString(cliRequest));
         switch (cliRequest.getType()) {
             case "get":
-                response = handleGetRequest(cliRequest);
+                response = handleGetRequest(cliRequest, sessionCurrent);
                 break;
             case "set":
                 response = chekcIsLeader(cliRequest);
@@ -112,7 +122,8 @@ public class SSHService {
         BPlusNode temp = raftNode.getLsmTree().cd(cliRequest.getKey(), sessionCurrent.get());
         if(temp != null){
             sessionCurrent.set(temp);
-            return ">"+sessionCurrent.get().pwd();
+            // return ">"+sessionCurrent.get().pwd();
+            return "";
         }else{
             return "invalid path";
         }
