@@ -29,9 +29,6 @@ public class CommitWatcher{
         logService.matchIndexMap.forEach((k,v)->{
             matchIndexes.add(v);
         });
-        while (matchIndexes.size() < nodeCount) {
-            matchIndexes.add(-1L);
-        }
         Collections.sort(matchIndexes);
         long commitableIndex  = matchIndexes.get(nodeCount/2);
         log.info("commitableIndex: {}, commitIndex: {}", commitableIndex, commitIndex);
