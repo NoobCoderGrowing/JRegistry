@@ -149,9 +149,9 @@ public class AppendEntriesService {
         }else{ // if success
             // handle commitable log
             logService.updateMatchIndex(reply);
-            if(reply.getLastLogIndex() < raftNode.getLastLogIndex()){ // if last log not match
-                Long nextIndex = reply.getLastLogIndex() + 1;
-                logService.nextIndexMap.put(peerNodeId, nextIndex);
+            Long nextIndex = reply.getLastLogIndex() + 1;
+            logService.nextIndexMap.put(peerNodeId, nextIndex);
+            if(nextIndex < raftNode.getLastLogIndex()){ // if last log not match
                 logService.replicateLog(peerNodeId, channel);
             }
     }

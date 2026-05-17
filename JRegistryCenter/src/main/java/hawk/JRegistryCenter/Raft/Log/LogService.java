@@ -50,7 +50,7 @@ public class LogService {
     @PostConstruct
     public void initIndexMap(){
         raftClientManagerProvider.getObject().getPeerChannels().forEach((k,v)->{
-            nextIndexMap.put(k, -1L);
+            nextIndexMap.put(k, 0L);
             matchIndexMap.put(k, -1L);
         });
     }
@@ -157,24 +157,24 @@ public class LogService {
         
     }
 
-    public void replicateLog2All(LogEntry logEntry, long prevLogIndex, long prevLogTerm){
-        RaftRequest raftRequest = new RaftRequest();
-        raftRequest.setType("appendEntries");
-        raftRequest.setId(raftNode.getId());
-        raftRequest.setTerm(raftNode.getCurrentTerm());
-        raftRequest.setId(raftNode.getId());
-        raftRequest.setLeaderCommit(raftNode.getLeaderCommit());
-        raftRequest.setPrevLogIndex(prevLogIndex);
-        raftRequest.setPrevLogTerm(prevLogTerm);
-        raftRequest.setLog(logEntry);
-        raftClientManagerProvider.getObject().sendToAllPeers(JSON.toJSONString(raftRequest));
-    }
-
-    // public void replicateLog2All(){
-    //     raftClientManagerProvider.getObject().getPeerChannels().forEach((k,v)->{
-    //         replicateLog(k, v);
-    //     });
+    // public void replicateLog2All(LogEntry logEntry, long prevLogIndex, long prevLogTerm){
+    //     RaftRequest raftRequest = new RaftRequest();
+    //     raftRequest.setType("appendEntries");
+    //     raftRequest.setId(raftNode.getId());
+    //     raftRequest.setTerm(raftNode.getCurrentTerm());
+    //     raftRequest.setId(raftNode.getId());
+    //     raftRequest.setLeaderCommit(raftNode.getLeaderCommit());
+    //     raftRequest.setPrevLogIndex(prevLogIndex);
+    //     raftRequest.setPrevLogTerm(prevLogTerm);
+    //     raftRequest.setLog(logEntry);
+    //     raftClientManagerProvider.getObject().sendToAllPeers(JSON.toJSONString(raftRequest));
     // }
+
+    public void replicateLog2All(){
+        raftClientManagerProvider.getObject().getPeerChannels().forEach((k,v)->{
+            replicateLog(k, v);
+        });
+    }
 
     // public void replicateLog(long prevLogIndex, long prevLogTerm, Channel channel, LogEntry currentLog){
     //     RaftRequest raftRequest = new RaftRequest();
@@ -193,10 +193,25 @@ public class LogService {
 
     public void replicateLog( int id , Channel channel){
         long nextIndex = nextIndexMap.get(id);
-        if(nextIndex == raftNode.getLastLogIndex()){
+        if(nextIndex > raftNode.getLastLogIndex()){
             return;
         }
-
+        
+        if(nextIndex == 0){
+            LogEntry currentLog = getLog(nextIndex);
+            RaftRequest raftRequest = new RaftRequest();
+            raftRequest.setType("appendEntries");
+            raftRequest.setId(raftNode.getId());
+            raftRequest.setTerm(raftNode.getCurrentTerm());
+            raftRequest.setLeaderCommit(raftNode.getLeaderCommit());
+            raftRequest.setPrevLogIndex(-1);
+            raftRequest.setPrevLogTerm(-1);
+            raftRequest.setLog(currentLog);
+            writePool.execute(() -> {
+                channel.writeAndFlush(JSON.toJSONString(raftRequest) + "\n");
+            });
+            return;
+        }
 
         LogEntry currentLog = getLog(nextIndex);
         LogEntry prevLog = getLog(nextIndex - 1);
