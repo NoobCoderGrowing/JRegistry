@@ -280,11 +280,9 @@ public class LogService {
     // }
 
     public void appendLog(LogEntry logEntry){
-        // insertion sort
         logger.add(logEntry);
         raftNode.setLastLogIndex(logger.get(logger.size() - 1).getIndex());
         raftNode.setLastLogTerm(logger.get(logger.size() - 1).getTerm());
-        
     }
 
     public boolean containLog(long logTerm, long logIndex){

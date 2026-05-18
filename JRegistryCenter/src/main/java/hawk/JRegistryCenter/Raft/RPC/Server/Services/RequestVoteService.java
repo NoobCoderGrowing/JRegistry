@@ -1,6 +1,6 @@
 package hawk.JRegistryCenter.Raft.RPC.Server.Services;
 
-import org.springframework.beans.factory.ObjectProvider;
+// import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -25,8 +25,8 @@ public class RequestVoteService {
     @Autowired
     private LogService logService;
 
-    @Autowired
-    private ObjectProvider<AppendEntriesService> appendEntriesServiceProvider;
+    // @Autowired
+    // private ObjectProvider<AppendEntriesService> appendEntriesServiceProvider;
 
     @Value("${host}")
     private String CLIServerHost;
