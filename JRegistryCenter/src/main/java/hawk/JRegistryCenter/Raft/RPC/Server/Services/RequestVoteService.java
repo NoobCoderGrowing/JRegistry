@@ -13,6 +13,7 @@ import hawk.JRegitstryCore.RPC.RaftRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import hawk.JRegistryCenter.Raft.Log.LogService;
+import hawk.JRegistryCenter.Raft.RPC.Server.Services.Timer.TimeoutService;
 
 
 @Slf4j
@@ -33,72 +34,67 @@ public class RequestVoteService {
     @Value("${CLS.port}")
     private int CLIServerPort;
 
+    @Autowired
+    private TimeoutService timeoutService;
+
 
    
-// voting logic
-    public RaftRequest serverHandleRequestVoteRequest1(RaftRequest request) {
 
-        RaftRequest reply = null;
-        if(request.getTerm() < raftNode.getCurrentTerm()){// term比自己小，拒绝投票
-            reply = rejectVote(request);
-        }else if(request.getTerm() > raftNode.getCurrentTerm()){// term比自己大，接受投票
-            reply = acceptVote(request);
-        }else{ // term和自己一样，比较日志
-            if(request.getLastLogTerm()<raftNode.getLastLogTerm()){// 日志的term比自己旧，拒绝投票
-                reply = rejectVote(request);
-            }else{ // 日志的term和自己一样或比自己新
-                if(request.getLastLogTerm()>raftNode.getLastLogTerm()){// 日志的term比自己新，接受投票
-                    reply = acceptVote(request);
-                }else{ //日志的term和自己一样，比较index
-                    if(request.getLastLogIndex() < raftNode.getLastLogIndex()){//日志的index比自己旧，拒绝投票
-                        reply = rejectVote(request);
-                    }else{ // 日志的index比自己新或一样新，接受投票
-                        reply = acceptVote(request);
-                    }
-                }
-            }
-        }
-        return reply;
-    }
+
+
+    // new voting logic(compare log term and index to determine whether to accept)
+    // public RaftRequest serverHandleRequestVoteRequestOld(RaftRequest request) {
+    //     RaftRequest reply = null;
+    //     if(request.getTerm() < raftNode.getCurrentTerm()){// term比自己小，拒绝投票
+    //         reply = rejectVote(request);
+    //     }else{ // term比自己大，比较日志
+    //         if(request.getLastLogTerm() < raftNode.getLastLogTerm()){
+    //             // 日志的term比自己小，拒绝投票
+    //             reply = rejectVote(request);
+    //         }else{ // 日志的term和自己一样或比自己新
+    //             if(request.getLastLogTerm() > raftNode.getLastLogTerm()){
+    //                 // 日志的term比自己新，接受投票
+    //                 reply = acceptVote(request);
+    //             }else{ // 日志的term和自己一样，比较index
+    //                 if(request.getLastLogIndex() < raftNode.getLastLogIndex()){
+    //                     // 日志的index比自己旧，拒绝投票
+    //                     reply = rejectVote(request);
+    //                 }else{ // 日志的index比自己新或一样新，接受投票
+    //                     reply = acceptVote(request);
+    //                 }
+    //             }   
+    //         }
+    //     }
+    //     return reply;
+    // }
+
 
     // new voting logic(compare log term and index to determine whether to accept)
     public RaftRequest serverHandleRequestVoteRequest(RaftRequest request) {
-
-        // if(!serverTimer.isTimerUp() && raftNode.getLeaderId() != -1){ 
-        //     //如果计时器没有超时，且有leader，拒绝投票
-        //     return rejectVote(request);
-        // }
-
-
-        RaftRequest reply = null;
         if(request.getTerm() < raftNode.getCurrentTerm()){// term比自己小，拒绝投票
-            reply = rejectVote(request);
-        }else{ // term比自己大，比较日志
-            if(request.getLastLogTerm() < raftNode.getLastLogTerm()){
-                // 日志的term比自己小，拒绝投票
-                reply = rejectVote(request);
-            }else{ // 日志的term和自己一样或比自己新
-                if(request.getLastLogTerm() > raftNode.getLastLogTerm()){
-                    // 日志的term比自己新，接受投票
-                    reply = acceptVote(request);
-                }else{ // 日志的term和自己一样，比较index
-                    if(request.getLastLogIndex() < raftNode.getLastLogIndex()){
-                        // 日志的index比自己旧，拒绝投票
-                        reply = rejectVote(request);
-                    }else{ // 日志的index比自己新或一样新，接受投票
-                        reply = acceptVote(request);
+            return rejectVoteRequest(request);
+        }else{ // term>=自己的，比较日志
+            if(request.getLastLogTerm() < raftNode.getLastLogTerm()){ // 日志的term比自己旧，拒绝投票
+                return rejectVoteRequest(request);
+            }else{ // 日志的term>=自己的
+                if(request.getLastLogTerm() == raftNode.getLastLogTerm()){  // 日志的term=自己，比较index
+                    if(request.getLastLogIndex() < raftNode.getLastLogIndex()){ // 日志的index比自己旧，拒绝投票
+                        return rejectVoteRequest(request);
+                    }else{ // 日志的index>=自己的，接受投票
+                        return acceptVoteRequest(request);
                     }
-                }   
+                }else{ // 日志的term比自己新，接受投票
+                    return acceptVoteRequest(request);
+                }
             }
         }
-        return reply;
     }
 
 
 
 
 
-    public RaftRequest rejectVote(RaftRequest request) {
+    public RaftRequest rejectVoteRequest(RaftRequest request) {
         RaftRequest reply = new RaftRequest();
         reply.setType("requestVote");
         reply.setId(raftNode.getId());
@@ -119,24 +115,19 @@ public class RequestVoteService {
 
     
     
-    public RaftRequest acceptVote(RaftRequest request){
-        
-        // return to candidate
-        raftNode.getIsCandidate().compareAndSet(true, false);
+    public RaftRequest acceptVoteRequest(RaftRequest request){  
         if(checkTermVoted(request.getTerm())){ // 当前term已经投过票了，拒绝投票
-            return rejectVote(request);
+            return rejectVoteRequest(request);
         }
-        raftNode.setTermVoted(request.getTerm());
-        raftNode.setCurrentTerm(request.getTerm());
-        
-
+        timeoutService.resetTimeout();
+        raftNode.turn2Follower(request); 
         RaftRequest reply = new RaftRequest();
         reply.setType("requestVote");
         reply.setId(raftNode.getId());
-        reply.setVoteTerm(request.getTerm());
+        // reply.setVoteTerm(request.getTerm());
         reply.setTerm(raftNode.getCurrentTerm());
-        reply.setLastLogTerm(raftNode.getLastLogTerm());
-        reply.setLastLogIndex(raftNode.getLastLogIndex());
+        // reply.setLastLogTerm(raftNode.getLastLogTerm());
+        // reply.setLastLogIndex(raftNode.getLastLogIndex());
         reply.setVoteGranted(true);
         log.info("server {} granted vote for node {}", raftNode.getId(), request.getId());
         return reply;
@@ -168,15 +159,16 @@ public class RequestVoteService {
     }
 
     public void startElection(RaftClientManager raftClientManager){
-        raftNode.getVoteReceived().set(0);
-        raftNode.setCurrentTerm(raftNode.getCurrentTerm() + 1);
+        raftNode.turn2CandidateTimeout();
+        // raftNode.getVoteReceived().set(0);
+        // raftNode.setCurrentTerm(raftNode.getCurrentTerm() + 1);
     
-        if(checkTermVoted(raftNode.getCurrentTerm())){ // 当前term已经投过票了，拒绝投票
-            return;
-        }
-        raftNode.setTermVoted(raftNode.getCurrentTerm());
-        raftNode.getIsCandidate().compareAndSet(false, true);
-        raftNode.getVoteReceived().incrementAndGet();//自己投给自己
+        // if(checkTermVoted(raftNode.getCurrentTerm())){ // 当前term已经投过票了，拒绝投票
+        //     return;
+        // }
+        // raftNode.setTermVoted(raftNode.getCurrentTerm());
+        // raftNode.getIsCandidate().compareAndSet(false, true);
+        // raftNode.getVoteReceived().incrementAndGet();//自己投给自己
        
         log.info("node {} timeout, start election term {}", raftNode.getId(), raftNode.getCurrentTerm());
         sendRequestVote(raftClientManager);
