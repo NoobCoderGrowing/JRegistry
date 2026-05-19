@@ -42,7 +42,7 @@ public class LogService {
     private ObjectProvider<RaftClientManager> raftClientManagerProvider;
 
     private ArrayList<LogEntry> logger = new ArrayList<>();
-    private AtomicLong currentIndex = new AtomicLong(-1);
+
     public ConcurrentHashMap<Integer, Long> matchIndexMap = new ConcurrentHashMap<>();
     public ConcurrentHashMap<Integer, Long> nextIndexMap = new ConcurrentHashMap<>();
     private CommitWatcher commitWatcher;
@@ -114,7 +114,7 @@ public class LogService {
         }
         LogEntry logEntry = new LogEntry();
         logEntry.setTerm(raftNode.getCurrentTerm());
-        logEntry.setIndex(currentIndex.incrementAndGet());
+        logEntry.setIndex(raftNode.getLastLogIndex() + 1);
         logEntry.setCommand(request.getCmd());
         logEntry.setKey(request.getKey());
         logEntry.setData(request.getData());
@@ -136,12 +136,12 @@ public class LogService {
         }
         LogEntry logEntry = new LogEntry();
         logEntry.setTerm(raftNode.getCurrentTerm());
-        logEntry.setIndex(currentIndex.incrementAndGet());
+        logEntry.setIndex(raftNode.getLastLogIndex() + 1);
         logEntry.setCommand("noOp");
         logger.add(logEntry);
         raftNode.setLastLogIndex(logEntry.getIndex());
         raftNode.setLastLogTerm(logEntry.getTerm());
-        log.info("term {} node {} generate no op log", raftNode.getCurrentTerm(), raftNode.getId());
+        log.info("term {} node {} generate no op log {}", raftNode.getCurrentTerm(), raftNode.getId(), JSON.toJSONString(logEntry));
         replicateLog2All();
     }
 
@@ -155,7 +155,7 @@ public class LogService {
         }
         LogEntry logEntry = new LogEntry();
         logEntry.setTerm(raftNode.getCurrentTerm());
-        logEntry.setIndex(currentIndex.incrementAndGet());
+        logEntry.setIndex(raftNode.getLastLogIndex() + 1);
         logEntry.setCommand(cliRequest.getType());
         logEntry.setKey(cliRequest.getKey());
         logEntry.setData(cliRequest.getData());
@@ -350,7 +350,8 @@ public class LogService {
     public void installLogger(RaftRequest request){
         logger.clear();
         logger.addAll(request.getLogs());
-        currentIndex.set(logger.get(logger.size() - 1).getIndex());
+        raftNode.setLastLogIndex(logger.get(logger.size() - 1).getIndex());
+        raftNode.setLastLogTerm(logger.get(logger.size() - 1).getTerm());
     }
 
     public void updateMatchIndex(RaftRequest reply){
