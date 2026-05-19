@@ -13,6 +13,9 @@ raft:
   count: 3
 
 
+admin:
+  peer-http-ports: "{1:6101, 2:6102, 3:6103}"
+
 ssh:
   enabled: true
   host: 127.0.0.3
