@@ -19,4 +19,5 @@ public class NodeStatusDTO {
     private boolean leader;
     private boolean candidate;
     private boolean follower;
+    private int activePeerConnections;
 }

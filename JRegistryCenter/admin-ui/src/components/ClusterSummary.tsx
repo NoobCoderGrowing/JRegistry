@@ -39,7 +39,7 @@ export function ClusterSummary({ data }: Props) {
         </div>
       </div>
       <div className="summary-card">
-        <div className="label">法定人数</div>
+        <div className="label">最小投票通过数</div>
         <div className="value">{data.quorum}</div>
       </div>
     </section>

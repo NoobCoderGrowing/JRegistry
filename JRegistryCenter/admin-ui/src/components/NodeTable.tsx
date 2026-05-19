@@ -32,13 +32,13 @@ export function NodeTable({ nodes, leaderId }: Props) {
               <th>角色</th>
               <th>连接</th>
               <th>主机</th>
-              <th>Raft</th>
-              <th>HTTP</th>
-              <th>SSH</th>
+              <th>Raft port</th>
+              <th>HTTP port</th>
+              <th>SSH port</th>
               <th>Term</th>
-              <th>Commit</th>
-              <th>Last Log</th>
-              <th>备注</th>
+              <th>Commit index</th>
+              <th>Last log index</th>
+              <th>活跃连接数</th>
             </tr>
           </thead>
           <tbody>
@@ -73,13 +73,7 @@ export function NodeTable({ nodes, leaderId }: Props) {
                 <td>{fmt(node.currentTerm)}</td>
                 <td>{fmt(node.commitIndex)}</td>
                 <td>{fmt(node.lastLogIndex)}</td>
-                <td className="mono" style={{ color: 'var(--muted)', fontSize: '0.75rem' }}>
-                  {node.self && node.activePeerConnections != null
-                    ? `活跃连接 ${node.activePeerConnections}`
-                    : node.leaderId != null && node.leaderId > 0
-                      ? `跟随 Leader #${node.leaderId}`
-                      : '—'}
-                </td>
+                <td>{fmt(node.activePeerConnections)}</td>
               </tr>
             ))}
           </tbody>

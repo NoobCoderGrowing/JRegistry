@@ -173,6 +173,7 @@ public class AdminService {
         String leaderHost = null;
         Integer leaderPort = null;
         Integer voteReceived = null;
+        Integer activePeerConnections = null;
 
         if (remote != null) {
             role = remote.getRole() != null ? remote.getRole() : role;
@@ -183,7 +184,10 @@ public class AdminService {
             leaderHost = remote.getLeaderHost();
             leaderPort = remote.getLeaderPort();
             voteReceived = remote.getVoteReceived();
+            activePeerConnections = remote.getActivePeerConnections();
         }
+
+        Integer activeConnections = activePeerConnections;
 
         return NodeInfoDTO.builder()
                 .nodeId(peerId)
@@ -202,7 +206,7 @@ public class AdminService {
                 .leaderHost(leaderHost)
                 .leaderPort(leaderPort)
                 .voteReceived(voteReceived)
-                .activePeerConnections(null)
+                .activePeerConnections(activeConnections)
                 .build();
     }
 
@@ -215,8 +219,12 @@ public class AdminService {
         return inbound != null && inbound.isActive();
     }
 
-    private int countActiveChannels() {
+    public int getActivePeerConnections() {
         return raftClientManager.getActivePeers() + raftServerManager.getActivePeers();
+    }
+
+    private int countActiveChannels() {
+        return getActivePeerConnections();
     }
 
     private int countConnectedPeers(List<NodeInfoDTO> nodes, int selfId) {

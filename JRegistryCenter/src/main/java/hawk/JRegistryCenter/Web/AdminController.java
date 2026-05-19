@@ -61,6 +61,7 @@ public class AdminController {
         } else {
             dto.setRole("FOLLOWER");
         }
+        dto.setActivePeerConnections(adminService.getActivePeerConnections());
         return dto;
     }
 
