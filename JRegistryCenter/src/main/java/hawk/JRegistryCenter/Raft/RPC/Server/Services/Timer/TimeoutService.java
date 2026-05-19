@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import hawk.JRegistryCenter.Raft.RaftNode;
 import hawk.JRegistryCenter.Raft.RPC.Client.RaftClientManager;
 import hawk.JRegistryCenter.Raft.RPC.Server.Services.RequestVoteService;
+import org.springframework.context.annotation.Lazy;
 
 
 @Component
@@ -38,6 +39,7 @@ public class TimeoutService{
     @Autowired
     private ObjectProvider<RaftClientManager> raftClientManagerProvider;
 
+    @Lazy
     @Autowired
     private RequestVoteService requestVoteService;
 

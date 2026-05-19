@@ -25,6 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.Map;
 import hawk.JRegistryCenter.Raft.RPC.Server.Services.Timer.TimeoutService;
+import org.springframework.context.annotation.Lazy;
 
 
 
@@ -58,6 +59,7 @@ public class LogService {
     @Value("#{${raft.peers:{}}}")
     private Map<Integer, String> peers;
 
+    @Lazy
     @Autowired
     private TimeoutService timeoutService;
 

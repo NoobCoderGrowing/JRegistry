@@ -104,7 +104,7 @@ public class RequestVoteService {
         reply.setId(raftNode.getId());
         reply.setTerm(raftNode.getCurrentTerm());
         reply.setVoteGranted(true);
-        log.info("server {} granted vote for node {}", raftNode.getId(), request.getId());
+        log.info("server {} granted vote to node {}", raftNode.getId(), request.getId());
         return reply;
     }
 
