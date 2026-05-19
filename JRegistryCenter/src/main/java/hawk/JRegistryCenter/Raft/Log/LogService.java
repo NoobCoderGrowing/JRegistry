@@ -20,10 +20,11 @@ import java.util.concurrent.ThreadPoolExecutor;
 import org.springframework.stereotype.Service;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.event.ContextRefreshedEvent;
-import org.springframework.context.event.EventListener;
+// import org.springframework.context.event.ContextRefreshedEvent;
+// import org.springframework.context.event.EventListener;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.Map;
+import hawk.JRegistryCenter.Raft.RPC.Server.Services.Timer.TimeoutService;
 
 
 
@@ -56,6 +57,9 @@ public class LogService {
 
     @Value("#{${raft.peers:{}}}")
     private Map<Integer, String> peers;
+
+    @Autowired
+    private TimeoutService timeoutService;
 
     @PostConstruct
     public void initIndexMap(){
@@ -364,6 +368,11 @@ public class LogService {
     }
 
     public RaftRequest followerCommitLogs(RaftRequest request){
+        if(request.getTerm() < raftNode.getCurrentTerm()){
+            return null;
+        }
+        timeoutService.resetTimeout();
+        raftNode.acceptLeader(request);
         long commitableIndex = request.getLeaderCommit();
         long currentCommitIndex = raftNode.getCommitIndex();
         int startIndex = 0;

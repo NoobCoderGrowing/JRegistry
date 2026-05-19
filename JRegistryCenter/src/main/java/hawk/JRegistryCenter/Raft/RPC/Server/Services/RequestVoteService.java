@@ -125,6 +125,7 @@ public class RequestVoteService {
             if(reply.isVoteGranted()){
                 int voteReceived = raftNode.getVoteReceived().incrementAndGet();
                 if(voteReceived > nodeCount/2){ // 获得多数票，成为leader
+                    timeoutService.resetTimeout();
                     raftNode.turn2Leader();
                     log.info("term {} ,client node {} become leader, {} votes received, active nodes: {}", raftNode.getCurrentTerm(), raftNode.getId(), voteReceived, 
                     nodeCount);

@@ -157,38 +157,9 @@ public class AppendEntriesService {
             if(nextIndex < raftNode.getLastLogIndex()){ // if last log not match
                 logService.replicateLog(peerNodeId, channel);
             }
-    }
+        }
         return null;
     }
-
-    // public RaftRequest handleAppendEntriesRequest(RaftRequest request) {
-    //     RaftRequest reply = new RaftRequest();
-    //     reply.setType("appendEntries");
-    //     reply.setId(raftNode.getId());
-    //     reply.setTerm(raftNode.getCurrentTerm());
-    //     log.info("server {} handle append entries request: {}", raftNode.getId(), JSON.toJSONString(request));
-    //     if(request.getTerm() < raftNode.getCurrentTerm()){
-    //         reply.setSuccess(false);
-    //     }else{
-    //         // followerElectionTimer.resetTimeout();
-    //         timeoutService.resetTimeout();
-    //         acceptLeader(request);
-    //         if(logService.containLog(request.getLastLogTerm(), request.getLastLogIndex())){
-    //             //prevLogIndex and prevLogTerm are correct, append log
-    //             logService.deleteLogs(request.getPrevLogIndex());
-    //             logService.appendLog(request.getLog());
-    //             reply.setLastLogIndex(request.getLog().getIndex());
-    //             reply.setLastLogTerm(request.getLog().getTerm());
-    //             reply.setSuccess(true);
-    //         }else{// does not contain prevlog, reject append entries request
-    //             reply.setPrevLogIndex(request.getPrevLogIndex());
-    //             // reply.setPrevLogIndex(request.getPrevLogIndex() - 1);
-    //             reply.setSuccess(false);
-    //         }
-    //     }
-    //     return reply;
-    // }
-
 
     public RaftRequest handleAppendEntriesRequest(RaftRequest request) {
         RaftRequest reply = new RaftRequest();
@@ -254,7 +225,7 @@ public class AppendEntriesService {
         
 
         if(request.getTerm() >= raftNode.getCurrentTerm()){ 
-            //收到更高term或一样term的心跳包，承认对方leader，放弃选举，更新自己term
+            //收到更高term或一样term的心跳包，承认对方leader，更新自己term
             // followerElectionTimer.resetTimeout();
             timeoutService.resetTimeout();
             acceptHeartbeat(request);
