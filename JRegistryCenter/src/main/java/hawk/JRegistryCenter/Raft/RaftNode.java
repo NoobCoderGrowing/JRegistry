@@ -78,18 +78,6 @@ public class RaftNode {
         
     }
 
-    public void turn2Candidate(RaftRequest request){
-        log.info("server {} turn to candidate from higher term {} node {}", this.getId(), request.getTerm(), request.getId());
-        this.getIsCandidate().compareAndSet(false, true);
-        this.getIsLeader().compareAndSet(true, false); // 放弃leader身份
-        this.setCurrentTerm(request.getTerm());
-        this.setLeaderId(-1);   
-        this.setLeaderHost(null);
-        this.setLeaderPort(-1);
-        this.setTermVoted(-1);
-        this.getVoteReceived().set(0);
-    }
-
     public void turn2CandidateTimeout(){
         log.info("server {} turn to candidate term {}", this.getId(), this.getCurrentTerm() + 1);
         this.getIsCandidate().compareAndSet(false, true);
@@ -103,14 +91,15 @@ public class RaftNode {
     }
 
     public void turn2Follower(RaftRequest request){
-        log.info("server {} turn to candidate from higher term {} node {}", this.getId(), request.getTerm(), request.getId());
+        log.info("server {} turn to follower from higher term {} node {}", this.getId(), request.getTerm(), request.getId());
         this.getIsCandidate().compareAndSet(true, false);
         this.getIsLeader().compareAndSet(true, false); // 放弃leader身份
         this.setCurrentTerm(request.getTerm());
-        this.setLeaderId(request.getId());   
-        this.setLeaderHost(request.getLeaderHost());
-        this.setLeaderPort(request.getLeaderPort());
-        this.setTermVoted(request.getTerm());
+        this.setLeaderId(-1);   
+        this.setLeaderHost(null);
+        this.setLeaderPort(-1);
+        this.setTermVoted(-1);
+        this.getVoteReceived().set(0);
     }
 
     public void acceptLeader(RaftRequest request){

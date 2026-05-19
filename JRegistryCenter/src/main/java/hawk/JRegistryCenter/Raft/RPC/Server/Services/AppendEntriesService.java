@@ -140,9 +140,9 @@ public class AppendEntriesService {
     public RaftRequest clientHandleAppendEntriesRequest(RaftRequest reply, Channel channel, int peerNodeId) {
         if (!raftNode.getIsLeader().get()) return null; // 如果当前节点退位，不处理请求
         if(!reply.isSuccess()){
-            if(reply.getTerm() > raftNode.getCurrentTerm()){ // 收到更高term的回复，放弃leader身份，成为candidate
+            if(reply.getTerm() > raftNode.getCurrentTerm()){ // 收到更高term的回复，放弃leader身份，成为follower
                 timeoutService.resetTimeout();
-                raftNode.turn2Candidate(reply);
+                raftNode.turn2Follower(reply);
                 return null;
             }else{ //log miss match
                 long prevlogIndex = reply.getPrevLogIndex();

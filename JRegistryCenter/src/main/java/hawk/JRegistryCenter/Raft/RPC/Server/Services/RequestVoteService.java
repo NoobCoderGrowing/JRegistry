@@ -38,42 +38,17 @@ public class RequestVoteService {
     private TimeoutService timeoutService;
 
 
-   
-
-
-
-    // new voting logic(compare log term and index to determine whether to accept)
-    // public RaftRequest serverHandleRequestVoteRequestOld(RaftRequest request) {
-    //     RaftRequest reply = null;
-    //     if(request.getTerm() < raftNode.getCurrentTerm()){// term比自己小，拒绝投票
-    //         reply = rejectVote(request);
-    //     }else{ // term比自己大，比较日志
-    //         if(request.getLastLogTerm() < raftNode.getLastLogTerm()){
-    //             // 日志的term比自己小，拒绝投票
-    //             reply = rejectVote(request);
-    //         }else{ // 日志的term和自己一样或比自己新
-    //             if(request.getLastLogTerm() > raftNode.getLastLogTerm()){
-    //                 // 日志的term比自己新，接受投票
-    //                 reply = acceptVote(request);
-    //             }else{ // 日志的term和自己一样，比较index
-    //                 if(request.getLastLogIndex() < raftNode.getLastLogIndex()){
-    //                     // 日志的index比自己旧，拒绝投票
-    //                     reply = rejectVote(request);
-    //                 }else{ // 日志的index比自己新或一样新，接受投票
-    //                     reply = acceptVote(request);
-    //                 }
-    //             }   
-    //         }
-    //     }
-    //     return reply;
-    // }
-
 
     // new voting logic(compare log term and index to determine whether to accept)
     public RaftRequest serverHandleRequestVoteRequest(RaftRequest request) {
         if(request.getTerm() < raftNode.getCurrentTerm()){// term比自己小，拒绝投票
             return rejectVoteRequest(request);
         }else{ // term>=自己的，比较日志
+
+            if(request.getTerm() > raftNode.getCurrentTerm()){
+                raftNode.turn2Follower(request);
+            }
+
             if(request.getLastLogTerm() < raftNode.getLastLogTerm()){ // 日志的term比自己旧，拒绝投票
                 return rejectVoteRequest(request);
             }else{ // 日志的term>=自己的
@@ -120,14 +95,11 @@ public class RequestVoteService {
             return rejectVoteRequest(request);
         }
         timeoutService.resetTimeout();
-        raftNode.turn2Follower(request); 
+        raftNode.setTermVoted(request.getTerm());
         RaftRequest reply = new RaftRequest();
         reply.setType("requestVote");
         reply.setId(raftNode.getId());
-        // reply.setVoteTerm(request.getTerm());
         reply.setTerm(raftNode.getCurrentTerm());
-        // reply.setLastLogTerm(raftNode.getLastLogTerm());
-        // reply.setLastLogIndex(raftNode.getLastLogIndex());
         reply.setVoteGranted(true);
         log.info("server {} granted vote for node {}", raftNode.getId(), request.getId());
         return reply;
