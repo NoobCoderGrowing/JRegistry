@@ -25,7 +25,6 @@ public class RaftRequest {
     //Request Vote part in raft paper
     private long lastLogIndex;     // Candidate 最后一条日志的索引
     private long lastLogTerm; 
-    private long voteTerm;
     private boolean voteGranted;
 
     private String leaderHost;

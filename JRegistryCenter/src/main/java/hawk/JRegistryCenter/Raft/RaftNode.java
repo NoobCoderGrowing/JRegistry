@@ -17,10 +17,16 @@ import hawk.JRegitstryCore.RPC.RaftRequest;
 @Data
 public class RaftNode {
 
+
+    @Value("${host}")
+    private String CLIServerHost;
+    @Value("${CLS.port}")
+    private int CLIServerPort;
+
     @Value("${raft.node-id}")
     private int id;
-    private AtomicBoolean isLeader;
-    private AtomicBoolean isCandidate;
+    private volatile AtomicBoolean isLeader;
+    private volatile AtomicBoolean isCandidate;
 
     private String leaderHost;
     private int leaderPort;
@@ -100,6 +106,14 @@ public class RaftNode {
         this.setLeaderPort(-1);
         this.setTermVoted(-1);
         this.getVoteReceived().set(0);
+    }
+
+    public void turn2Leader(){
+        this.getIsLeader().compareAndSet(false, true);
+        this.getIsCandidate().compareAndSet(true, false);
+        this.setLeaderId(this.getId());
+        this.setLeaderHost(CLIServerHost);
+        this.setLeaderPort(CLIServerPort);
     }
 
     public void acceptLeader(RaftRequest request){

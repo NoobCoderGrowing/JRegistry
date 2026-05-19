@@ -37,6 +37,9 @@ public class RequestVoteService {
     @Autowired
     private TimeoutService timeoutService;
 
+    @Value("${raft.count}")
+    private int nodeCount;
+
 
 
     // new voting logic(compare log term and index to determine whether to accept)
@@ -105,26 +108,30 @@ public class RequestVoteService {
         return reply;
     }
 
-    //client to server
     public RaftRequest clientHandleRequestVoteRequest(RaftRequest reply, RaftClientManager raftClientManager) {
         // log.info("client node{} handle request vote request: {}", raftNode.getId(), JSON.toJSONString(request));
-        if(reply.getVoteTerm() == raftNode.getCurrentTerm() && 
+        if(reply.getTerm() > raftNode.getCurrentTerm()){ // 收到更高term的回复，放弃candidate身份，成为follower
+            timeoutService.resetTimeout();
+            raftNode.turn2Follower(reply);
+            return null;
+        }
+
+        if(raftNode.getIsLeader().get()){ //already becom leader, no duplicate noOP
+            return null;
+        }
+
+        if(reply.getTerm() == raftNode.getCurrentTerm() && 
         raftNode.getIsCandidate().get()){
-            int voteReceived = raftNode.getVoteReceived().get();
             if(reply.isVoteGranted()){
-                voteReceived = raftNode.getVoteReceived().incrementAndGet();
-            }
-            int activeNodes = raftClientManager.getActivePeers() + 1;
-            if(voteReceived > activeNodes/2){ // 获得多数票，成为leader
-                raftNode.getIsLeader().compareAndSet(false, true);
-                raftNode.getIsCandidate().compareAndSet(true, false);
-                raftNode.setLeaderId(raftNode.getId());
-                raftNode.setLeaderHost(CLIServerHost);
-                raftNode.setLeaderPort(CLIServerPort);
-                log.info("term {} ,client node {} become leader, {} votes received, active nodes: {}", raftNode.getCurrentTerm(), raftNode.getId(), voteReceived, activeNodes);
-                //异步发送心跳包给所有节点（netty发送消息本身就是异步的）
-                // appendEntriesServiceProvider.getObject().sendHeartBeatToAll(raftClientManager.getPeerChannels());
-                logService.generateNoOpLog();
+                int voteReceived = raftNode.getVoteReceived().incrementAndGet();
+                if(voteReceived > nodeCount/2){ // 获得多数票，成为leader
+                    raftNode.turn2Leader();
+                    log.info("term {} ,client node {} become leader, {} votes received, active nodes: {}", raftNode.getCurrentTerm(), raftNode.getId(), voteReceived, 
+                    nodeCount);
+                    //异步发送心跳包给所有节点（netty发送消息本身就是异步的）
+                    // appendEntriesServiceProvider.getObject().sendHeartBeatToAll(raftClientManager.getPeerChannels());
+                    logService.generateNoOpLog();
+                }
             }
         }
         return null;
