@@ -2,8 +2,9 @@ package hawk.JRegitstryCore;
 
 import hawk.JRegitstryCore.Log.LogEntry;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.Set;
+import com.alibaba.fastjson.annotation.JSONType;
 
+@JSONType(seeAlso = {BPlusTree.class})
 public interface LSMTree {
 
     public boolean put(LogEntry logEntry);

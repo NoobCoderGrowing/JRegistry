@@ -25,6 +25,7 @@ import hawk.JRegistryCenter.Raft.RPC.Server.Services.RequestVoteService;
 import hawk.JRegistryCenter.Raft.RaftNode;
 import hawk.JRegistryCenter.Raft.Log.LogService;
 import java.util.concurrent.ThreadPoolExecutor;
+import hawk.JRegistryCenter.Raft.RPC.Server.Services.Persist.PersistService;
 
 @Component
 @Slf4j
@@ -48,6 +49,9 @@ public class RaftServerManager {
 
     @Autowired
     private LogService logService;
+
+    @Autowired
+    private PersistService persistService;
 
     @Autowired
     private EventLoopGroup singleGroup;
@@ -94,7 +98,8 @@ public class RaftServerManager {
                      p.addLast(new LineBasedFrameDecoder(8192));
                      p.addLast(new StringDecoder(StandardCharsets.UTF_8));
                      p.addLast(new StringEncoder(StandardCharsets.UTF_8));
-                     p.addLast(new RaftServerHandler(RaftServerManager.this, appendEntriesService, requestVoteService, raftNode, logService, writePool));
+                     p.addLast(new RaftServerHandler(RaftServerManager.this, appendEntriesService, requestVoteService, raftNode, 
+                        logService, writePool, persistService));
                  }
              });
             

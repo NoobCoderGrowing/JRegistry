@@ -13,7 +13,6 @@ import com.alibaba.fastjson.JSON;
 import io.netty.channel.Channel;
 
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.beans.factory.annotation.Value;
 import javax.annotation.PostConstruct;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -26,7 +25,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.Map;
 import hawk.JRegistryCenter.Raft.RPC.Server.Services.Timer.TimeoutService;
 import org.springframework.context.annotation.Lazy;
-
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.List;
 
 
 @Service
@@ -41,7 +42,7 @@ public class LogService {
     @Autowired
     private ObjectProvider<RaftClientManager> raftClientManagerProvider;
 
-    private ArrayList<LogEntry> logger = new ArrayList<>();
+    private List<LogEntry> logger = new ArrayList<>();
 
     public ConcurrentHashMap<Integer, Long> matchIndexMap = new ConcurrentHashMap<>();
     public ConcurrentHashMap<Integer, Long> nextIndexMap = new ConcurrentHashMap<>();
@@ -425,10 +426,25 @@ public class LogService {
 
     }
 
+    public boolean persist(){
+        String serializedLogs = JSON.toJSONString(logger);
+        try {
+            FileOutputStream fileOutputStream = new FileOutputStream("log"+raftNode.getId()+".json");
+            fileOutputStream.write(serializedLogs.getBytes());
+            fileOutputStream.close();
+            return true;
+        }catch (IOException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
     public static void main(String[] args) {
         ArrayList<LogEntry> log = new ArrayList<>();
         System.out.println(log.get(0).getIndex());
     }
+
+
 
 
     

@@ -20,6 +20,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import hawk.JRegistryCenter.Raft.RPC.Server.Services.Persist.PersistService;
 
 @Service
 @Data
@@ -38,24 +39,9 @@ public class SSHService {
     @Autowired
     private RaftClientManager raftClientManager;
 
-    
+    @Autowired
+    private PersistService persistService;
 
-    // public void handleGetRequest(Channel channel, CLIRequest cliRequest){
-    //     String key = cliRequest.getKey();
-    //     Pair<String, byte[]> value = raftNode.getLsmTree().get(key);
-    //     CLIRequest reply = new CLIRequest();         
-    //     reply.setUuid(cliRequest.getUuid());
-    //     if(value != null){
-    //         reply.setDataType(value.getLeft());
-    //         reply.setData(value.getRight());
-    //     }else{
-    //         reply.setSuccess(false);
-    //     }
-    //     writePool.execute(() -> {
-    //         channel.writeAndFlush(JSON.toJSONString(reply) + "\n");
-    //     });
-
-    // }
 
     public String handleGetRequest( SSHRequest cliRequest, AtomicReference<BPlusNode> sessionCurrent){
         String key = cliRequest.getKey();
@@ -101,6 +87,9 @@ public class SSHService {
             case "ls":
                 response = handleLs(cliRequest, sessionCurrent);
                 break;
+            case "persist":
+                response = handlePersist();
+                break;
             default:
                 response = "invalid cmd";
                 break;
@@ -134,6 +123,11 @@ public class SSHService {
         String message = cmd + " received";
         logService.generateLogEntry(cliRequest);
         return message;
+    }
+
+    public String handlePersist(){
+        persistService.sendPersistRequest2All(raftClientManager);
+        return "persisit cmd received";
     }
 
     public String redirectCMD2Leader(SSHRequest cliRequest){

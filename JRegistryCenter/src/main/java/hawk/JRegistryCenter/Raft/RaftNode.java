@@ -3,39 +3,51 @@ package hawk.JRegistryCenter.Raft;
 import org.springframework.stereotype.Component;
 import org.springframework.beans.factory.annotation.Value;
 import lombok.Data;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import hawk.JRegitstryCore.LSMTree;
 import hawk.JRegitstryCore.BPlusTree;
-import io.netty.channel.Channel;
 import lombok.extern.slf4j.Slf4j;
 import hawk.JRegitstryCore.RPC.RaftRequest;
+import java.util.concurrent.ThreadPoolExecutor;
+import org.springframework.beans.factory.annotation.Autowired;
+import com.alibaba.fastjson.JSON;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import com.alibaba.fastjson.annotation.JSONField;
 
 @Slf4j
 @Component
 @Data
 public class RaftNode {
 
+    @Autowired
+    @JSONField(serialize = false)
+    private ThreadPoolExecutor writePool;
 
     @Value("${host}")
+    @JSONField(serialize = false)
     private String CLIServerHost;
     @Value("${CLS.port}")
+    @JSONField(serialize = false)
     private int CLIServerPort;
 
     @Value("${raft.node-id}")
+    @JSONField(serialize = false)
     private int id;
-    private volatile AtomicBoolean isLeader;
-    private volatile AtomicBoolean isCandidate;
 
-    private String leaderHost;
+    @JSONField(serialize = false)
+    private volatile AtomicBoolean isLeader;
+
+    @JSONField(serialize = false)
+    private volatile AtomicBoolean isCandidate;
+    @JSONField(serialize = false)
+    private String leaderHost;  
+    @JSONField(serialize = false)
     private int leaderPort;
 
-    //peer nodes
-    private Map<Integer, Channel> peerChannels;
-
     private volatile long termVoted;
-
+    @JSONField(serialize = false)
     private AtomicInteger voteReceived;
 
 
@@ -43,14 +55,17 @@ public class RaftNode {
     private volatile long currentTerm;
 
     private long commitIndex;
-    private long lastApplied;
+    // private long lastApplied;
     // private long[] nextIndex;
     // private long[] matchIndex;
 
     //Append Entries part in raft paper
+    @JSONField(serialize = false)
     private long leaderTerm;
+    @JSONField(serialize = false)
     private volatile int leaderId;
     // private String[] entries;
+    @JSONField(serialize = false)
     private long leaderCommit;
 
     //Request Vote part in raft paper
@@ -63,7 +78,6 @@ public class RaftNode {
         this.isCandidate = new AtomicBoolean(true); // candidate by default
         this.currentTerm = -1;
         this.commitIndex = -1;
-        this.lastApplied = -1;
         // this.nextIndex = new long[10];
         // this.matchIndex = new long[10];
         this.leaderTerm = -1;
@@ -124,5 +138,36 @@ public class RaftNode {
         this.setLeaderId(request.getId());   
         this.setLeaderHost(request.getLeaderHost());
         this.setLeaderPort(request.getLeaderPort());
+    }
+
+    public boolean persist(){
+        String serializedNode = JSON.toJSONString(this);
+
+        writePool.execute(() -> {
+            try {
+                FileOutputStream fileOutputStream = new FileOutputStream("raftNode"+this.getId()+".json");
+                fileOutputStream.write(serializedNode.getBytes());
+                fileOutputStream.close();
+            } catch (IOException e) {
+                log.error("node {} persist failed", this.getId());
+            } 
+        });    
+        return true;
+    }
+
+    public void recoverFromImage(RaftNode nodeImage){
+        this.setCurrentTerm(nodeImage.getCurrentTerm());
+        this.setCommitIndex(nodeImage.getCommitIndex());
+        this.setLsmTree(nodeImage.getLsmTree());
+        this.setLastLogTerm(nodeImage.getLastLogTerm());
+        this.setLastLogIndex(nodeImage.getLastLogIndex());
+
+        this.setLeaderId(-1);
+        this.setLeaderHost(null);
+        this.setLeaderPort(-1);
+        this.setTermVoted(nodeImage.getTermVoted());
+        this.getVoteReceived().set(0);
+        this.getIsLeader().compareAndSet(true, false);
+        this.getIsCandidate().compareAndSet(true, false);
     }
 }

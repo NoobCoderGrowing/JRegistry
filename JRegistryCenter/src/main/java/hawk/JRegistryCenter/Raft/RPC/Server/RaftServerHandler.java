@@ -14,6 +14,7 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import hawk.JRegistryCenter.Raft.Log.LogService;
 import java.util.concurrent.ThreadPoolExecutor;
+import hawk.JRegistryCenter.Raft.RPC.Server.Services.Persist.PersistService;
 
 @Slf4j
 @Component
@@ -36,14 +37,18 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
 
     private ThreadPoolExecutor writePool;
 
+    private PersistService persistService;
+
     public RaftServerHandler(RaftServerManager raftServer, AppendEntriesService appendEntriesService, 
-        RequestVoteService requestVoteService, RaftNode raftNode, LogService logService, ThreadPoolExecutor writePool) {
+        RequestVoteService requestVoteService, RaftNode raftNode, LogService logService, 
+        ThreadPoolExecutor writePool, PersistService persistService) {
         this.raftServer = raftServer;
         this.appendEntriesService = appendEntriesService;
         this.requestVoteService = requestVoteService;
         this.raftNode = raftNode;
         this.logService = logService;
         this.writePool = writePool;
+        this.persistService = persistService;
     }
 
     @Override
@@ -73,6 +78,9 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
                     break;
                 case "writeRequest":
                     reply = logService.handleWriteRequest(request);
+                    break;
+                case "persist":
+                    persistService.persist();
                     break;
                 default:
                     break;
