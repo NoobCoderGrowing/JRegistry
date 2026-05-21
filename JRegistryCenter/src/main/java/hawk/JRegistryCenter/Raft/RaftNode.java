@@ -28,6 +28,7 @@ public class RaftNode {
     @Value("${host}")
     @JSONField(serialize = false)
     private String CLIServerHost;
+
     @Value("${CLS.port}")
     @JSONField(serialize = false)
     private int CLIServerPort;
@@ -41,12 +42,15 @@ public class RaftNode {
 
     @JSONField(serialize = false)
     private volatile AtomicBoolean isCandidate;
+
     @JSONField(serialize = false)
     private String leaderHost;  
+
     @JSONField(serialize = false)
     private int leaderPort;
 
     private volatile long termVoted;
+    
     @JSONField(serialize = false)
     private AtomicInteger voteReceived;
 

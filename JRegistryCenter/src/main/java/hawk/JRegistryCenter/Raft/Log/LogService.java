@@ -65,6 +65,9 @@ public class LogService {
     @Autowired
     private TimeoutService timeoutService;
 
+    @Value("${raft.auto-persist}")
+    private boolean autoPersist;
+
     @PostConstruct
     public void initIndexMap(){
         peers.forEach((k,v)->{
@@ -124,6 +127,10 @@ public class LogService {
         logger.add(logEntry);
         raftNode.setLastLogIndex(logEntry.getIndex());
         raftNode.setLastLogTerm(logEntry.getTerm());
+        if(autoPersist){
+            persistEntry(logEntry);
+        }
+
         log.info("node {} replicate log to all nodes", raftNode.getId());
         replicateLog2All();
     }
@@ -143,6 +150,9 @@ public class LogService {
         logger.add(logEntry);
         raftNode.setLastLogIndex(logEntry.getIndex());
         raftNode.setLastLogTerm(logEntry.getTerm());
+        if(autoPersist){
+            persistEntry(logEntry);
+        }
         log.info("term {} node {} generate no op log {}", raftNode.getCurrentTerm(), raftNode.getId(), JSON.toJSONString(logEntry));
         replicateLog2All();
     }
@@ -195,18 +205,9 @@ public class LogService {
         
     }
 
-    // public void replicateLog2All(LogEntry logEntry, long prevLogIndex, long prevLogTerm){
-    //     RaftRequest raftRequest = new RaftRequest();
-    //     raftRequest.setType("appendEntries");
-    //     raftRequest.setId(raftNode.getId());
-    //     raftRequest.setTerm(raftNode.getCurrentTerm());
-    //     raftRequest.setId(raftNode.getId());
-    //     raftRequest.setLeaderCommit(raftNode.getLeaderCommit());
-    //     raftRequest.setPrevLogIndex(prevLogIndex);
-    //     raftRequest.setPrevLogTerm(prevLogTerm);
-    //     raftRequest.setLog(logEntry);
-    //     raftClientManagerProvider.getObject().sendToAllPeers(JSON.toJSONString(raftRequest));
-    // }
+    public void persistEntry(LogEntry logEntry){
+        
+    }
 
     public void replicateLog2All(){
         raftClientManagerProvider.getObject().getPeerChannels().forEach((k,v)->{
