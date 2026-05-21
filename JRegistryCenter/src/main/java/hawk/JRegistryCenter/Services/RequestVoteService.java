@@ -1,4 +1,4 @@
-package hawk.JRegistryCenter.Raft.RPC.Server.Services;
+package hawk.JRegistryCenter.Services;
 
 // import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,11 +9,12 @@ import java.util.Map;
 import io.netty.channel.Channel;
 import hawk.JRegistryCenter.Raft.RaftNode;
 import hawk.JRegistryCenter.Raft.RPC.Client.RaftClientManager;
+import hawk.JRegistryCenter.Services.Timer.TimeoutService;
 import hawk.JRegitstryCore.RPC.RaftRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import hawk.JRegistryCenter.Raft.Log.LogService;
-import hawk.JRegistryCenter.Raft.RPC.Server.Services.Timer.TimeoutService;
+import hawk.JRegistryCenter.Services.Persist.PersistService;
 
 
 @Slf4j
@@ -26,8 +27,6 @@ public class RequestVoteService {
     @Autowired
     private LogService logService;
 
-    // @Autowired
-    // private ObjectProvider<AppendEntriesService> appendEntriesServiceProvider;
 
     @Value("${host}")
     private String CLIServerHost;
@@ -39,6 +38,12 @@ public class RequestVoteService {
 
     @Value("${raft.count}")
     private int nodeCount;
+
+    @Value("${raft.auto-persist}")
+    private boolean autoPersist;
+
+    @Autowired
+    private PersistService persistService;
 
 
 
@@ -105,6 +110,9 @@ public class RequestVoteService {
         reply.setTerm(raftNode.getCurrentTerm());
         reply.setVoteGranted(true);
         log.info("server {} granted vote to node {}", raftNode.getId(), request.getId());
+        if(autoPersist){ // must persist before voting
+            persistService.persistNode();
+        }
         return reply;
     }
 
@@ -139,17 +147,7 @@ public class RequestVoteService {
     }
 
     public void startElection(RaftClientManager raftClientManager){
-        raftNode.turn2CandidateTimeout();
-        // raftNode.getVoteReceived().set(0);
-        // raftNode.setCurrentTerm(raftNode.getCurrentTerm() + 1);
-    
-        // if(checkTermVoted(raftNode.getCurrentTerm())){ // 当前term已经投过票了，拒绝投票
-        //     return;
-        // }
-        // raftNode.setTermVoted(raftNode.getCurrentTerm());
-        // raftNode.getIsCandidate().compareAndSet(false, true);
-        // raftNode.getVoteReceived().incrementAndGet();//自己投给自己
-       
+        raftNode.turn2Candidate();
         log.info("node {} timeout, start election term {}", raftNode.getId(), raftNode.getCurrentTerm());
         sendRequestVote(raftClientManager);
     }

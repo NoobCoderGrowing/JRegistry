@@ -12,6 +12,7 @@ raft:
   port: 6002
   peers: "{1:'127.0.0.1:6001',3:'127.0.0.3:6003'}"
   count: 3
+  auto-persist: true
 
 admin:
   peer-http-ports: "{1:6101, 2:6102, 3:6103}"

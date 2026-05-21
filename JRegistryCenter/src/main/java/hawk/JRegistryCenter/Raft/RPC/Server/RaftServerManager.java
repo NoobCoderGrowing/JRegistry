@@ -20,12 +20,14 @@ import lombok.Data;
 import java.util.Random;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import hawk.JRegistryCenter.Raft.RPC.Server.Services.AppendEntriesService;
-import hawk.JRegistryCenter.Raft.RPC.Server.Services.RequestVoteService;
+
 import hawk.JRegistryCenter.Raft.RaftNode;
 import hawk.JRegistryCenter.Raft.Log.LogService;
+import hawk.JRegistryCenter.Services.AppendEntriesService;
+import hawk.JRegistryCenter.Services.RequestVoteService;
+import hawk.JRegistryCenter.Services.Persist.PersistService;
+
 import java.util.concurrent.ThreadPoolExecutor;
-import hawk.JRegistryCenter.Raft.RPC.Server.Services.Persist.PersistService;
 
 @Component
 @Slf4j

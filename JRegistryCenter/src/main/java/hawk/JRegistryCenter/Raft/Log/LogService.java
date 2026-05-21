@@ -4,6 +4,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import hawk.JRegistryCenter.Raft.RaftNode;
 import hawk.JRegistryCenter.Raft.RPC.Client.RaftClientManager;
+import hawk.JRegistryCenter.Services.Timer.TimeoutService;
 import hawk.JRegitstryCore.Log.LogEntry;
 import java.util.ArrayList;
 import hawk.JRegitstryCore.RPC.RaftRequest;
@@ -23,7 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 // import org.springframework.context.event.EventListener;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.Map;
-import hawk.JRegistryCenter.Raft.RPC.Server.Services.Timer.TimeoutService;
+
 import org.springframework.context.annotation.Lazy;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -428,15 +429,18 @@ public class LogService {
 
     public boolean persist(){
         String serializedLogs = JSON.toJSONString(logger);
-        try {
-            FileOutputStream fileOutputStream = new FileOutputStream("log"+raftNode.getId()+".json");
-            fileOutputStream.write(serializedLogs.getBytes());
-            fileOutputStream.close();
-            return true;
-        }catch (IOException e) {
-            e.printStackTrace();
-            return false;
-        }
+        writePool.execute(() -> {
+            try {
+                FileOutputStream fileOutputStream = new FileOutputStream("log"+raftNode.getId()+".json");
+                fileOutputStream.write(serializedLogs.getBytes());
+                fileOutputStream.close();
+           
+            }catch (IOException e) {
+                e.printStackTrace();
+                log.error("node {} persist log failed", raftNode.getId());
+            }
+        });
+        return true;
     }
 
     public static void main(String[] args) {

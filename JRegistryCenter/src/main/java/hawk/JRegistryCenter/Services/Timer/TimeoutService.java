@@ -1,4 +1,4 @@
-package hawk.JRegistryCenter.Raft.RPC.Server.Services.Timer;
+package hawk.JRegistryCenter.Services.Timer;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
@@ -16,7 +16,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.beans.factory.annotation.Autowired;
 import hawk.JRegistryCenter.Raft.RaftNode;
 import hawk.JRegistryCenter.Raft.RPC.Client.RaftClientManager;
-import hawk.JRegistryCenter.Raft.RPC.Server.Services.RequestVoteService;
+import hawk.JRegistryCenter.Services.RequestVoteService;
+
 import org.springframework.context.annotation.Lazy;
 
 

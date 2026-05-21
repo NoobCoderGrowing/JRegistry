@@ -1,4 +1,4 @@
-package hawk.JRegistryCenter.Raft.RPC.Server.Services;
+package hawk.JRegistryCenter.Services;
 
 
 import org.springframework.stereotype.Service;
@@ -11,7 +11,8 @@ import java.util.Map;
 import hawk.JRegitstryCore.RPC.RaftRequest;
 import lombok.extern.slf4j.Slf4j;
 import hawk.JRegistryCenter.Raft.RPC.Server.RaftServerHandler;
-import hawk.JRegistryCenter.Raft.RPC.Server.Services.Timer.TimeoutService;
+import hawk.JRegistryCenter.Services.Timer.TimeoutService;
+
 import org.springframework.beans.factory.annotation.Value;
 import hawk.JRegitstryCore.Log.LogEntry;
 import hawk.JRegistryCenter.Raft.Log.LogService;
@@ -43,6 +44,9 @@ public class AppendEntriesService {
     private String CLIServerHost;
     @Value("${CLS.port}")
     private int CLIServerPort;
+
+    @Value("${raft.auto-persist}")
+    private boolean autoPersist;
 
 
     public void sendShakeHands(Channel channel, int peerNodeId){
@@ -103,39 +107,6 @@ public class AppendEntriesService {
     }
 
 
-    // public RaftRequest clientHandleAppendEntriesRequest(RaftRequest reply, Channel channel, int peerNodeId) {
-    //     if(!reply.isSuccess()){
-    //         if(reply.getTerm() > raftNode.getCurrentTerm()){ // 收到更高term的回复，放弃leader身份，成为candidate
-    //             turn2Candidate(reply);
-    //             return null;
-    //         }else{ //log miss match
-    //             long prevlogIndex = reply.getPrevLogIndex();
-    //             long prevlogTerm = logService.getLogTerm(prevlogIndex);
-    //             if(prevlogTerm == -1){ // log do not exist, send snapshot
-    //                 logService.sendSnapshot(reply, channel);
-    //             }else{ // log exist, replicate log
-    //                 LogEntry currentLog = logService.getLog(prevlogIndex + 1);
-    //                 logService.replicateLog(prevlogIndex, prevlogTerm, channel, currentLog);
-    //             }
-    //         }
-    //     }else{ // if success
-    //         // handle commitable log
-    //         logService.updateMatchIndex(reply);
-    //         if(reply.getLastLogIndex() < raftNode.getLastLogIndex()){ // if last log not match
-    //             LogEntry nextLog = null;
-    //             if(( nextLog = logService.containAndGetNextLog(reply.getLastLogIndex(), reply.getLastLogTerm())) != null){
-    //                 // if contain next log, replicate next log
-    //                 logService.replicateLog(reply.getLastLogIndex(), reply.getLastLogTerm(), channel, nextLog);
-    //             }else{
-    //                 // if not contain next log, send snapshot
-    //                 logService.sendSnapshot(reply, channel);
-    //             }
-    //         }
-    //     }
-    //     return null;
-
-    // }
-
 
     public RaftRequest clientHandleAppendEntriesRequest(RaftRequest reply, Channel channel, int peerNodeId) {
         if (!raftNode.getIsLeader().get()) return null; // 如果当前节点退位，不处理请求
@@ -170,9 +141,10 @@ public class AppendEntriesService {
         if(request.getTerm() < raftNode.getCurrentTerm()){
             reply.setSuccess(false);
         }else{
-            // followerElectionTimer.resetTimeout();
             timeoutService.resetTimeout();
-            raftNode.acceptLeader(request);
+            if(request.getTerm() > raftNode.getCurrentTerm()){
+                raftNode.acceptLeader(request);
+            }
             if(logService.containLog(request.getPrevLogTerm(), request.getPrevLogIndex())){
                 //containLog already handle -1 case
                 LogEntry currentLog = request.getLog();
@@ -199,28 +171,6 @@ public class AppendEntriesService {
     }
 
 
-
-
-    //follower to leader (passive)
-    // for now leader needn't respond to follower's heartbeat response
-    public RaftRequest handleHeartbeatReply(RaftRequest reply) {
-
-        return null;
-
-    }
-
-
-    public void acceptHeartbeat(RaftRequest request){
-        log.info("server {} accept heartbeat from leader node {}", raftNode.getId(), request.getId());
-        raftNode.getIsCandidate().compareAndSet(true, false);
-        raftNode.getIsLeader().compareAndSet(true, false); // 放弃leader身份
-        raftNode.setCurrentTerm(request.getTerm());
-        raftNode.setLeaderId(request.getId());   
-        raftNode.setLeaderHost(request.getLeaderHost());
-        raftNode.setLeaderPort(request.getLeaderPort());
-    }
-
-
     public RaftRequest serverHandleHeartbeatRequest(RaftRequest request) {
         
 
@@ -228,7 +178,9 @@ public class AppendEntriesService {
             //收到更高term或一样term的心跳包，承认对方leader，更新自己term
             // followerElectionTimer.resetTimeout();
             timeoutService.resetTimeout();
-            acceptHeartbeat(request);
+            if(request.getTerm() > raftNode.getCurrentTerm()){
+                raftNode.acceptHeartbeat(request);
+            }
         }
         return null;
     }

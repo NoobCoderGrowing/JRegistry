@@ -1,4 +1,4 @@
-package hawk.JRegistryCenter.Raft.RPC.Server.Services.Persist;
+package hawk.JRegistryCenter.Services.Persist;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import hawk.JRegistryCenter.Raft.RaftNode;
@@ -31,6 +31,14 @@ public class PersistService {
         }else{
             return false;
         }
+    }
+
+    public void persistNode(){
+        raftNode.persist();
+    }
+
+    public void persistLog(){
+        logService.persist();
     }
 
     public void sendPersistRequest2All(RaftClientManager raftClientManager){

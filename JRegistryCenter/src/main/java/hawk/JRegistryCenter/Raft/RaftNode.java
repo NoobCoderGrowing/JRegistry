@@ -73,6 +73,9 @@ public class RaftNode {
     private long lastLogTerm;
     private LSMTree lsmTree;
 
+    @Value("${raft.auto-persist}")
+    private boolean autoPersist;
+
     public RaftNode(){
         this.isLeader = new AtomicBoolean(false);
         this.isCandidate = new AtomicBoolean(true); // candidate by default
@@ -98,7 +101,7 @@ public class RaftNode {
         
     }
 
-    public void turn2CandidateTimeout(){
+    public void turn2Candidate(){
         log.info("server {} turn to candidate term {}", this.getId(), this.getCurrentTerm() + 1);
         this.getIsCandidate().compareAndSet(false, true);
         this.getIsLeader().compareAndSet(true, false); // 放弃leader身份
@@ -108,9 +111,17 @@ public class RaftNode {
         this.setLeaderPort(-1);
         this.setTermVoted(this.getCurrentTerm());
         this.getVoteReceived().set(1);
+
+        if(autoPersist){
+            this.persist();
+        }
     }
 
     public void turn2Follower(RaftRequest request){
+        if(autoPersist){
+            this.persist();
+        }
+
         log.info("server {} turn to follower from higher term {} node {}", this.getId(), request.getTerm(), request.getId());
         this.getIsCandidate().compareAndSet(true, false);
         this.getIsLeader().compareAndSet(true, false); // 放弃leader身份
@@ -130,6 +141,19 @@ public class RaftNode {
         this.setLeaderPort(CLIServerPort);
     }
 
+    public void acceptHeartbeat(RaftRequest request){
+        log.info("server {} accept heartbeat from leader node {}", this.getId(), request.getId());
+        this.getIsCandidate().compareAndSet(true, false);
+        this.getIsLeader().compareAndSet(true, false); // 放弃leader身份
+        this.setCurrentTerm(request.getTerm());
+        this.setLeaderId(request.getId());   
+        this.setLeaderHost(request.getLeaderHost());
+        this.setLeaderPort(request.getLeaderPort());
+        if(autoPersist){
+            this.persist();
+        }
+    }
+
     public void acceptLeader(RaftRequest request){
         log.info("server {} accept leader from leader node {}", this.getId(), request.getId());
         this.getIsCandidate().compareAndSet(true, false); // 放弃candidate身份
@@ -138,6 +162,9 @@ public class RaftNode {
         this.setLeaderId(request.getId());   
         this.setLeaderHost(request.getLeaderHost());
         this.setLeaderPort(request.getLeaderPort());
+        if(autoPersist){
+            this.persist();
+        }
     }
 
     public boolean persist(){

@@ -22,9 +22,11 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.PreDestroy;
 import java.lang.Thread;
 import org.springframework.beans.factory.annotation.Autowired;
-import hawk.JRegistryCenter.Raft.RPC.Server.Services.AppendEntriesService;
-import hawk.JRegistryCenter.Raft.RPC.Server.Services.RequestVoteService;
+
 import hawk.JRegistryCenter.Raft.RaftNode;
+import hawk.JRegistryCenter.Services.AppendEntriesService;
+import hawk.JRegistryCenter.Services.RequestVoteService;
+
 import java.util.concurrent.ThreadPoolExecutor;
 
 @Slf4j
