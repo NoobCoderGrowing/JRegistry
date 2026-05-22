@@ -26,7 +26,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.Map;
 
 import org.springframework.context.annotation.Lazy;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.List;
 import java.nio.file.Path;
@@ -34,6 +33,8 @@ import java.io.BufferedWriter;
 import java.nio.file.Files;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.StandardOpenOption;
+import java.io.BufferedReader;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 
 @Service
@@ -79,6 +80,8 @@ public class LogService {
 
     @Autowired
     private ThreadPoolExecutor persistThread;
+
+    private ReentrantReadWriteLock readWriteLock = new ReentrantReadWriteLock();
 
     @PostConstruct
     public void initIndexMap(){
@@ -243,11 +246,14 @@ public class LogService {
         String line = JSON.toJSONString(logEntry) + "\n";
         persistThread.execute(() -> {
             try {
+                readWriteLock.writeLock().lock();
                 ensureLogWriterOpen();
                 logWriter.write(line);
                 logWriter.flush();
             } catch (IOException e) {
                 log.error("node {} persist log entry {} failed", raftNode.getId(), line);
+            }finally{
+                readWriteLock.writeLock().unlock();
             }
         });
     }
@@ -463,6 +469,7 @@ public class LogService {
             deepCopy.add(new LogEntry(logEntry));
         }
         persistThread.execute(() -> {
+            readWriteLock.writeLock().lock();
             try {
                 closeLogWriterQuietly();
                 BufferedWriter writer = Files.newBufferedWriter(
@@ -477,9 +484,38 @@ public class LogService {
                 writer.close();
             }catch (IOException e) {
                 log.error("node {} persist log failed", raftNode.getId());
+            }finally{
+                readWriteLock.writeLock().unlock();
             }
         });
         return true;
+    }
+
+    public void recoverFromLocalImage(){
+        Path logPath = Path.of("log" + raftNode.getId() + ".json");
+        if(!Files.exists(logPath)){
+            return;
+        }
+        logger.clear();
+
+        try (BufferedReader reader = Files.newBufferedReader(logPath, StandardCharsets.UTF_8)) {
+            readWriteLock.readLock().lock();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.isBlank()) {
+                    continue;
+                }
+                LogEntry entry = JSON.parseObject(line, LogEntry.class);
+                if (entry != null) {
+                    logger.add(entry);
+                }
+            }
+            reader.close();
+        }catch (IOException e) {
+            log.error("node {} recover from local image failed", raftNode.getId());
+        }finally{
+            readWriteLock.readLock().unlock();
+        }
     }
 
     public static void main(String[] args) {

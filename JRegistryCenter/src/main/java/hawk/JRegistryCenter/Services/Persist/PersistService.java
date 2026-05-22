@@ -58,13 +58,7 @@ public class PersistService {
                 String nodejson = new String(java.nio.file.Files.readAllBytes(nodeFile.toPath()), java.nio.charset.StandardCharsets.UTF_8);
                 RaftNode nodeImage = JSON.parseObject( nodejson,RaftNode.class);
                 raftNode.recoverFromImage(nodeImage);
-                String logjson = new String(java.nio.file.Files.readAllBytes(logFile.toPath()), java.nio.charset.StandardCharsets.UTF_8);
-                List<LogEntry> logEntries = JSON.parseArray(logjson, LogEntry.class);
-                if(logEntries != null){
-                    logService.setLogger(logEntries);
-                }else{
-                    logService.getLogger().clear();
-                }
+                logService.recoverFromLocalImage();
                 log.info("node {} recover from local image success", raftNode.getId());
             } catch (IOException e) {
                 e.printStackTrace();
