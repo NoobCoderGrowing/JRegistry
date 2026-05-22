@@ -10,9 +10,6 @@ import lombok.extern.slf4j.Slf4j;
 import hawk.JRegitstryCore.RPC.RaftRequest;
 import com.alibaba.fastjson.JSON;
 import java.io.File;
-import java.io.IOException;
-import java.util.List;
-import hawk.JRegitstryCore.Log.LogEntry;
 
 @Service
 @Data
@@ -54,17 +51,9 @@ public class PersistService {
         File nodeFile = new File("raftNode" + raftNode.getId() + ".json");
         File logFile = new File("log" + raftNode.getId() + ".json");
         if(nodeFile.exists() && logFile.exists()){
-            try {
-                String nodejson = new String(java.nio.file.Files.readAllBytes(nodeFile.toPath()), java.nio.charset.StandardCharsets.UTF_8);
-                RaftNode nodeImage = JSON.parseObject( nodejson,RaftNode.class);
-                raftNode.recoverFromImage(nodeImage);
-                logService.recoverFromLocalImage();
-                log.info("node {} recover from local image success", raftNode.getId());
-            } catch (IOException e) {
-                e.printStackTrace();
-                log.error("node {} recover from local image failed", raftNode.getId());
-            }
-            
+            raftNode.recoverFromImage();
+            logService.recoverFromLocalImage();
+            log.info("node {} recover from local image success", raftNode.getId());
         }
     }
     
