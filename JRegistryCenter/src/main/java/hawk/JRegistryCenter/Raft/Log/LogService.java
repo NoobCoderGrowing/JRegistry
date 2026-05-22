@@ -78,6 +78,9 @@ public class LogService {
 
     private volatile BufferedWriter logWriter;
 
+    @Value("${raft.image-path}")
+    private String imagePath;
+
     @Autowired
     private ThreadPoolExecutor persistThread;
 
@@ -93,7 +96,7 @@ public class LogService {
 
     @PostConstruct
     public void initLogWriter(){
-        logFilePath = Path.of("log"+raftNode.getId()+".json");
+        logFilePath = Path.of(imagePath+"log"+raftNode.getId()+".json");
         openLogWriter();
     }
 
@@ -327,6 +330,9 @@ public class LogService {
         logger.add(logEntry);
         raftNode.setLastLogIndex(logger.get(logger.size() - 1).getIndex());
         raftNode.setLastLogTerm(logger.get(logger.size() - 1).getTerm());
+        if(autoPersist){
+            persistEntry(logEntry);
+        }
     }
 
     public boolean containLog(long logTerm, long logIndex){

@@ -84,6 +84,7 @@ public class RaftNode {
     private LSMTree lsmTree;
 
     @Value("${raft.auto-persist}")
+    @JSONField(serialize = false)
     private boolean autoPersist;
 
     @Autowired
@@ -98,6 +99,10 @@ public class RaftNode {
 
     @JSONField(serialize = false)
     private ReentrantReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+
+    @Value("${raft.image-path}")
+    @JSONField(serialize = false)
+    private String imagePath;
 
     public RaftNode(){
         this.isLeader = new AtomicBoolean(false);
@@ -119,7 +124,7 @@ public class RaftNode {
 
     @PostConstruct
     public void initNodeWriter(){
-        nodeFilePath = Path.of("raftNode"+this.getId()+".json");
+        nodeFilePath = Path.of(imagePath+"raftNode"+this.getId()+".json");
     }
 
     private void openNodeWriter(){

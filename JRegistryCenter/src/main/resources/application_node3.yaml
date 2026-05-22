@@ -12,6 +12,7 @@ raft:
   peers: "{1:'127.0.0.1:6001',2:'127.0.0.2:6002'}"
   count: 3
   auto-persist: true
+  image-path: "persistency/"
 
 
 admin:
