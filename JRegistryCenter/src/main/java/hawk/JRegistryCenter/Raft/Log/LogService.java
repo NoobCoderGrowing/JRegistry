@@ -103,6 +103,7 @@ public class LogService {
     private void openLogWriter(){
         try {
         closeLogWriterQuietly();
+        Files.createDirectories(logFilePath.getParent());
         logWriter = Files.newBufferedWriter(
             logFilePath,
             StandardCharsets.UTF_8,

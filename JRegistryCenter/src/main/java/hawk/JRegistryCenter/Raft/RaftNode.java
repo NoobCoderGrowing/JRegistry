@@ -130,6 +130,7 @@ public class RaftNode {
     private void openNodeWriter(){
         try {
         closeNodeWriterQuietly();
+        Files.createDirectories(nodeFilePath.getParent());
         nodeWriter = Files.newBufferedWriter(
             nodeFilePath,
             StandardCharsets.UTF_8,
