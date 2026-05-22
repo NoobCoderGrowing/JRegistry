@@ -455,15 +455,24 @@ public class LogService {
     }
 
     public boolean persist(){
-        String serializedLogs = JSON.toJSONString(logger);
+        List<LogEntry> deepCopy =  new ArrayList<>(logger.size());
+        for(LogEntry logEntry : logger){
+            deepCopy.add(new LogEntry(logEntry));
+        }
         writePool.execute(() -> {
             try {
-                FileOutputStream fileOutputStream = new FileOutputStream("log"+raftNode.getId()+".json");
-                fileOutputStream.write(serializedLogs.getBytes());
-                fileOutputStream.close();
-           
+                closeLogWriterQuietly();
+                BufferedWriter writer = Files.newBufferedWriter(
+                logFilePath,
+                StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.TRUNCATE_EXISTING);
+                for(LogEntry logEntry : deepCopy){
+                    writer.write(JSON.toJSONString(logEntry) + "\n");
+                }
+                writer.flush();
+                writer.close();
             }catch (IOException e) {
-                e.printStackTrace();
                 log.error("node {} persist log failed", raftNode.getId());
             }
         });
