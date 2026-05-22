@@ -41,4 +41,9 @@ public class RaftConfig {
         return new ThreadPoolExecutor(3, 9, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>());
     }
 
+    @Bean("persistThread")
+    public ThreadPoolExecutor persistThread() {
+        return new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>());
+    }
+
 }

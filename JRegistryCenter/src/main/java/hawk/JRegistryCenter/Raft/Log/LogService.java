@@ -77,6 +77,9 @@ public class LogService {
 
     private volatile BufferedWriter logWriter;
 
+    @Autowired
+    private ThreadPoolExecutor persistThread;
+
     @PostConstruct
     public void initIndexMap(){
         peers.forEach((k,v)->{
@@ -238,7 +241,7 @@ public class LogService {
 
     public void persistEntry(LogEntry logEntry){
         String line = JSON.toJSONString(logEntry) + "\n";
-        writePool.execute(() -> {
+        persistThread.execute(() -> {
             try {
                 ensureLogWriterOpen();
                 logWriter.write(line);
@@ -459,7 +462,7 @@ public class LogService {
         for(LogEntry logEntry : logger){
             deepCopy.add(new LogEntry(logEntry));
         }
-        writePool.execute(() -> {
+        persistThread.execute(() -> {
             try {
                 closeLogWriterQuietly();
                 BufferedWriter writer = Files.newBufferedWriter(
