@@ -1,0 +1,4 @@
+{"command":"noOp","index":0,"term":0}
+{"command":"noOp","index":0,"term":0}
+{"command":"set","index":1,"key":"exit","term":0}
+{"command":"set","data":"d3Jvbmc=","dataType":"string","index":2,"key":"wenjun","term":0}

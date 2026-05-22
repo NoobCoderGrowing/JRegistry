@@ -74,6 +74,11 @@ public class AppendEntriesService {
             // followerElectionTimer.resetTimeout();
             timeoutService.resetTimeout();
             raftNode.acceptLeader(request);
+            if(request.getTerm() > raftNode.getCurrentTerm()){
+                if(autoPersist){
+                    raftNode.persist();
+                }
+            }
             raftNode.setLsmTree(request.getSnapshot());
             raftNode.setLastLogIndex(request.getLastLogIndex());
             raftNode.setLastLogTerm(request.getLastLogTerm());
@@ -142,8 +147,11 @@ public class AppendEntriesService {
             reply.setSuccess(false);
         }else{
             timeoutService.resetTimeout();
+            raftNode.acceptLeader(request);
             if(request.getTerm() > raftNode.getCurrentTerm()){
-                raftNode.acceptLeader(request);
+                if(autoPersist){
+                    raftNode.persist();
+                }
             }
             if(logService.containLog(request.getPrevLogTerm(), request.getPrevLogIndex())){
                 //containLog already handle -1 case
@@ -178,8 +186,11 @@ public class AppendEntriesService {
             //收到更高term或一样term的心跳包，承认对方leader，更新自己term
             // followerElectionTimer.resetTimeout();
             timeoutService.resetTimeout();
+            raftNode.acceptHeartbeat(request);
             if(request.getTerm() > raftNode.getCurrentTerm()){
-                raftNode.acceptHeartbeat(request);
+                if(autoPersist){
+                    raftNode.persist();
+                }
             }
         }
         return null;

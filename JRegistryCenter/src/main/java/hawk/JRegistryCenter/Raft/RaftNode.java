@@ -79,8 +79,12 @@ public class RaftNode {
     private long leaderCommit;
 
     //Request Vote part in raft paper
+    @JSONField(serialize = false)
     private long lastLogIndex;
+
+    @JSONField(serialize = false)
     private long lastLogTerm;
+
     private LSMTree lsmTree;
 
     @Value("${raft.auto-persist}")
@@ -211,9 +215,6 @@ public class RaftNode {
         this.setLeaderId(request.getId());   
         this.setLeaderHost(request.getLeaderHost());
         this.setLeaderPort(request.getLeaderPort());
-        if(autoPersist){
-            this.persist();
-        }
     }
 
     public void acceptLeader(RaftRequest request){
@@ -224,9 +225,6 @@ public class RaftNode {
         this.setLeaderId(request.getId());   
         this.setLeaderHost(request.getLeaderHost());
         this.setLeaderPort(request.getLeaderPort());
-        if(autoPersist){
-            this.persist();
-        }
     }
 
 

@@ -285,6 +285,8 @@ public class LogService {
             raftRequest.setPrevLogIndex(-1);
             raftRequest.setPrevLogTerm(-1);
             raftRequest.setLog(currentLog);
+            raftRequest.setLeaderHost(raftNode.getLeaderHost());
+            raftRequest.setLeaderPort(raftNode.getLeaderPort());
             writePool.execute(() -> {
                 channel.writeAndFlush(JSON.toJSONString(raftRequest) + "\n");
             });
@@ -305,6 +307,8 @@ public class LogService {
         raftRequest.setPrevLogIndex(prevLog.getIndex());
         raftRequest.setPrevLogTerm(prevLog.getTerm());
         raftRequest.setLog(currentLog);
+        raftRequest.setLeaderHost(raftNode.getLeaderHost());
+        raftRequest.setLeaderPort(raftNode.getLeaderPort());
         writePool.execute(() -> {
             channel.writeAndFlush(JSON.toJSONString(raftRequest) + "\n");
         });
@@ -421,6 +425,12 @@ public class LogService {
         }
         timeoutService.resetTimeout();
         raftNode.acceptLeader(request);
+        if(request.getTerm() > raftNode.getCurrentTerm()){
+            if(autoPersist){
+                raftNode.persist();
+            }
+        }
+        // 找到起始index,逐个提交到要求的index
         long commitableIndex = request.getLeaderCommit();
         long currentCommitIndex = raftNode.getCommitIndex();
         int startIndex = 0;
@@ -434,6 +444,9 @@ public class LogService {
                 raftNode.setCommitIndex(logEntry.getIndex());
                 startIndex++;
                 currentCommitIndex++;
+                if(autoPersist){
+                    raftNode.persist();
+                }
             }
         }
         log.info("follower node {} commit logs to {}", raftNode.getId(), commitableIndex);
@@ -457,6 +470,9 @@ public class LogService {
             raftNode.setCommitIndex(logEntry.getIndex());
             startIndex++;
             currentCommitIndex++;
+            if(autoPersist){
+                raftNode.persist();
+            }
         }
         
         RaftRequest raftRequest = new RaftRequest();
@@ -464,6 +480,8 @@ public class LogService {
         raftRequest.setId(raftNode.getId());
         raftRequest.setTerm(raftNode.getCurrentTerm());
         raftRequest.setLeaderCommit(raftNode.getCommitIndex());
+        raftRequest.setLeaderHost(raftNode.getLeaderHost());
+        raftRequest.setLeaderPort(raftNode.getLeaderPort());
 
         log.info("leader node {} require commit logs to {}", raftNode.getId(), commitableIndex);
         raftClientManagerProvider.getObject().sendToAllPeers(JSON.toJSONString(raftRequest));
