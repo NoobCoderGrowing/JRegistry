@@ -29,6 +29,11 @@ import org.springframework.context.annotation.Lazy;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.List;
+import java.nio.file.Path;
+import java.io.BufferedWriter;
+import java.nio.file.Files;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.StandardOpenOption;
 
 
 @Service
@@ -68,6 +73,10 @@ public class LogService {
     @Value("${raft.auto-persist}")
     private boolean autoPersist;
 
+    private volatile Path logFilePath;
+
+    private volatile BufferedWriter logWriter;
+
     @PostConstruct
     public void initIndexMap(){
         peers.forEach((k,v)->{
@@ -76,25 +85,44 @@ public class LogService {
         });
     }
 
+    @PostConstruct
+    public void initLogWriter(){
+        logFilePath = Path.of("log"+raftNode.getId()+".json");
+        openLogWriter();
+    }
 
-    // @EventListener(ContextRefreshedEvent.class)
-    // public void initIndexMap(ContextRefreshedEvent event){
+    private void openLogWriter(){
+        try {
+        closeLogWriterQuietly();
+        logWriter = Files.newBufferedWriter(
+            logFilePath,
+            StandardCharsets.UTF_8,
+            StandardOpenOption.CREATE,
+            StandardOpenOption.APPEND
+        );
+        } catch (IOException e) {
+            log.error("node {} open log writer failed", raftNode.getId());
+        }
+    }
 
-    //     if(event.getApplicationContext().getParent() != null){
-    //         return;
-    //     }
+    private void closeLogWriterQuietly() {
+        if (logWriter != null) {
+            try {
+                logWriter.close();
+            } catch (IOException e) {
+                log.error("node {} close log writer failed", raftNode.getId());
+            }
+            logWriter = null;
+        }
+    }
 
-    //     if(!indexMapInitialized.compareAndSet(false, true)){ // 防止重复初始化
-    //         return;
-    //     }
-    //     raftClientManagerProvider.getObject().getPeerChannels().forEach((k,v)->{
-    //         nextIndexMap.put(k, 0L);
-    //         matchIndexMap.put(k, -1L);
-    //     });
-    // }
-
-
-
+    
+    private void ensureLogWriterOpen(){
+        if (logWriter == null) {
+            openLogWriter();
+        }
+    }
+   
 
    @PostConstruct
    public void registerCommitWatcher(){
@@ -175,6 +203,9 @@ public class LogService {
         logger.add(logEntry);
         raftNode.setLastLogIndex(logEntry.getIndex());
         raftNode.setLastLogTerm(logEntry.getTerm());
+        if(autoPersist){
+            persistEntry(logEntry);
+        }
         replicateLog2All();
     }
 
@@ -206,7 +237,16 @@ public class LogService {
     }
 
     public void persistEntry(LogEntry logEntry){
-        
+        String line = JSON.toJSONString(logEntry) + "\n";
+        writePool.execute(() -> {
+            try {
+                ensureLogWriterOpen();
+                logWriter.write(line);
+                logWriter.flush();
+            } catch (IOException e) {
+                log.error("node {} persist log entry {} failed", raftNode.getId(), line);
+            }
+        });
     }
 
     public void replicateLog2All(){
@@ -214,20 +254,6 @@ public class LogService {
             replicateLog(k, v);
         });
     }
-
-    // public void replicateLog(long prevLogIndex, long prevLogTerm, Channel channel, LogEntry currentLog){
-    //     RaftRequest raftRequest = new RaftRequest();
-    //     raftRequest.setType("appendEntries");
-    //     raftRequest.setId(raftNode.getId());
-    //     raftRequest.setTerm(raftNode.getCurrentTerm());
-    //     raftRequest.setLeaderCommit(raftNode.getLeaderCommit());
-    //     raftRequest.setPrevLogIndex(prevLogIndex);
-    //     raftRequest.setPrevLogTerm(prevLogTerm);
-    //     raftRequest.setLog(currentLog);
-    //     writePool.execute(() -> {
-    //         channel.writeAndFlush(JSON.toJSONString(raftRequest) + "\n");
-    //     });
-    // }
 
 
     public void replicateLog( int id , Channel channel){
