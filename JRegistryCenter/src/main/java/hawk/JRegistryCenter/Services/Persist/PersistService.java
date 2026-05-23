@@ -12,6 +12,7 @@ import com.alibaba.fastjson.JSON;
 import java.io.File;
 import io.netty.channel.EventLoopGroup;
 import javax.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Value;
 
 @Service
 @Data
@@ -24,13 +25,14 @@ public class PersistService {
     @Autowired
     private LogService logService;
 
-    @Autowired
-    private EventLoopGroup singleGroup;
+  
+
+    @Value("${raft.image-path}")
+    private String imagePath;
 
 
-    @PostConstruct
     public void autoRecovery(){
-        singleGroup.execute(this::recoverFromLocalImage);
+        recoverFromLocalImage();
     }
 
     public boolean persist(){
@@ -59,8 +61,8 @@ public class PersistService {
     }
 
     public void recoverFromLocalImage(){
-        File nodeFile = new File("raftNode" + raftNode.getId() + ".json");
-        File logFile = new File("log" + raftNode.getId() + ".json");
+        File nodeFile = new File(imagePath + "raftNode" + raftNode.getId() + ".json");
+        File logFile = new File(imagePath + "log" + raftNode.getId() + ".json");
         if(nodeFile.exists() && logFile.exists()){
             raftNode.recoverFromImage();
             logService.recoverFromLocalImage();

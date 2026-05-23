@@ -519,11 +519,12 @@ public class LogService {
     }
 
     public void recoverFromLocalImage(){
-        Path logPath = Path.of("log" + raftNode.getId() + ".json");
+        Path logPath = Path.of(imagePath + "log" + raftNode.getId() + ".json");
         logger.clear();
-
+        
+        readWriteLock.readLock().lock();
         try (BufferedReader reader = Files.newBufferedReader(logPath, StandardCharsets.UTF_8)) {
-            readWriteLock.readLock().lock();
+            
             String line;
             while ((line = reader.readLine()) != null) {
                 if (line.isBlank()) {

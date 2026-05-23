@@ -76,7 +76,6 @@ public class RaftNode {
     private long leaderCommit;
 
     //Request Vote part in raft paper
-    @JSONField(serialize = false)
     private long lastLogIndex;
 
     @JSONField(serialize = false)

@@ -5,7 +5,6 @@ import com.alibaba.fastjson.JSON;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.timeout.IdleStateEvent;
-import org.springframework.stereotype.Component;
 
 import hawk.JRegitstryCore.RPC.RaftRequest;
 import hawk.JRegistryCenter.Raft.RaftNode;
@@ -19,7 +18,6 @@ import hawk.JRegistryCenter.Services.Persist.PersistService;
 import java.util.concurrent.ThreadPoolExecutor;
 
 @Slf4j
-@Component
 @Data
 public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
 

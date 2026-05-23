@@ -61,9 +61,7 @@ public class RaftClientManager {
 
     // @Autowired
     // private EventLoopGroup reconnectGroup;
-
-    @PostConstruct
-    public void init(){
+    public void start(){
         // singleGroup = new NioEventLoopGroup(1);
         initPeers(peers);
         connectAllPeers();

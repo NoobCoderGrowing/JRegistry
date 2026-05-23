@@ -48,8 +48,8 @@ public class TimeoutService{
     private final AtomicLong timeoutVersion = new AtomicLong(0);
     private volatile ScheduledFuture<?> timeoutFuture;
 
-    @PostConstruct
-    public void timeout(){
+    
+    public void timeoutStart(){
         Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown));
         scheduleNextTimeout();
     }

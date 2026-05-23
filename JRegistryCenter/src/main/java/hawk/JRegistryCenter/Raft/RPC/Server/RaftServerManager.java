@@ -76,12 +76,8 @@ public class RaftServerManager {
         }
     }
 
-
-    @PostConstruct
     public void start() throws InterruptedException {
         initPeers(peers);
-
-        // singleGroup = new NioEventLoopGroup(1);
         
         try {
             ServerBootstrap b = new ServerBootstrap();
