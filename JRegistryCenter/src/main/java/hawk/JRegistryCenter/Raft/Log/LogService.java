@@ -465,13 +465,15 @@ public class LogService {
             startIndex = (int) (currentCommitIndex - logger.get(0).getIndex()) + 1;
         }
         while (currentCommitIndex < commitableIndex) {
-            LogEntry logEntry = logger.get(startIndex);
-            raftNode.getLsmTree().applyLog(logEntry);
-            raftNode.setCommitIndex(logEntry.getIndex());
-            startIndex++;
-            currentCommitIndex++;
-            if(autoPersist){
-                raftNode.persist();
+            if((startIndex < logger.size()) && startIndex >= 0){
+                LogEntry logEntry = logger.get(startIndex);
+                raftNode.getLsmTree().applyLog(logEntry);
+                raftNode.setCommitIndex(logEntry.getIndex());
+                startIndex++;
+                currentCommitIndex++;
+                if(autoPersist){
+                    raftNode.persist();
+                }
             }
         }
         
