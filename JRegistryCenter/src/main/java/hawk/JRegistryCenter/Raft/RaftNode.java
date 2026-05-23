@@ -65,9 +65,6 @@ public class RaftNode {
     private volatile long currentTerm;
 
     private long commitIndex;
-    // private long lastApplied;
-    // private long[] nextIndex;
-    // private long[] matchIndex;
 
     //Append Entries part in raft paper
     @JSONField(serialize = false)
@@ -252,6 +249,9 @@ public class RaftNode {
         try {
             readWriteLock.readLock().lock();
             String nodejson = Files.readString(nodeFilePath, StandardCharsets.UTF_8);
+            if(nodejson.isBlank()){
+                return;
+            }
             RaftNode nodeImage = JSON.parseObject( nodejson,RaftNode.class);
             this.setCurrentTerm(nodeImage.getCurrentTerm());
             this.setCommitIndex(nodeImage.getCommitIndex());

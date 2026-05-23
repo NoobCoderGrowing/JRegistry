@@ -10,6 +10,8 @@ import lombok.extern.slf4j.Slf4j;
 import hawk.JRegitstryCore.RPC.RaftRequest;
 import com.alibaba.fastjson.JSON;
 import java.io.File;
+import io.netty.channel.EventLoopGroup;
+import javax.annotation.PostConstruct;
 
 @Service
 @Data
@@ -21,6 +23,15 @@ public class PersistService {
 
     @Autowired
     private LogService logService;
+
+    @Autowired
+    private EventLoopGroup singleGroup;
+
+
+    @PostConstruct
+    public void autoRecovery(){
+        singleGroup.execute(this::recoverFromLocalImage);
+    }
 
     public boolean persist(){
         if(raftNode.persist() && logService.persist()){

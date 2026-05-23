@@ -520,9 +520,6 @@ public class LogService {
 
     public void recoverFromLocalImage(){
         Path logPath = Path.of("log" + raftNode.getId() + ".json");
-        if(!Files.exists(logPath)){
-            return;
-        }
         logger.clear();
 
         try (BufferedReader reader = Files.newBufferedReader(logPath, StandardCharsets.UTF_8)) {
