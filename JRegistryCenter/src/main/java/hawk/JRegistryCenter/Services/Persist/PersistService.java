@@ -57,7 +57,7 @@ public class PersistService {
         raftRequest.setId(raftNode.getId());
         log.info("node {} send persist request to all nodes", raftNode.getId());
         raftClientManager.sendToAllPeers(JSON.toJSONString(raftRequest));
-        this.persist();
+        this.manualPersist();
     }
 
     public void recoverFromLocalImage(){
