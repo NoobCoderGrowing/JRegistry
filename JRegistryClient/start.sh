@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_JAR="$SCRIPT_DIR/target/JRegistryClient-1.0-SNAPSHOT.jar"
 LOG_DIR="$SCRIPT_DIR/logs"
 
+
 mkdir -p "$LOG_DIR"
 
 "$SCRIPT_DIR/stop.sh" || true

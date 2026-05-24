@@ -1,5 +1,6 @@
 package hawk.JRegistryCenter.Web;
 
+import hawk.JRegistryCenter.Raft.Log.LogService;
 import hawk.JRegistryCenter.Raft.RPC.Client.RaftClientManager;
 import hawk.JRegistryCenter.Raft.RPC.Server.RaftServerManager;
 import hawk.JRegistryCenter.Raft.RaftNode;
@@ -25,6 +26,9 @@ public class AdminService {
 
     @Autowired
     private RaftNode raftNode;
+
+    @Autowired
+    private LogService logService;
 
     @Autowired
     private RaftServerManager raftServerManager;
@@ -142,7 +146,8 @@ public class AdminService {
                 .self(true)
                 .currentTerm(raftNode.getCurrentTerm())
                 .commitIndex(raftNode.getCommitIndex())
-                // .lastLogIndex(raftNode.getLastLogIndex())
+                .lastLogIndex(logService.getLastLogIndex())
+                .lastLogTerm(logService.getLastLogTerm())
                 .leaderId(raftNode.getLeaderId())
                 .leaderHost(raftNode.getLeaderHost())
                 .leaderPort(raftNode.getLeaderPort())
@@ -169,6 +174,7 @@ public class AdminService {
         Long term = null;
         Long commitIndex = null;
         Long lastLogIndex = null;
+        Long lastLogTerm = null;
         Integer leaderId = null;
         String leaderHost = null;
         Integer leaderPort = null;
@@ -180,6 +186,7 @@ public class AdminService {
             term = remote.getCurrentTerm();
             commitIndex = remote.getCommitIndex();
             lastLogIndex = remote.getLastLogIndex();
+            lastLogTerm = remote.getLastLogTerm();
             leaderId = remote.getLeaderId();
             leaderHost = remote.getLeaderHost();
             leaderPort = remote.getLeaderPort();
@@ -202,6 +209,7 @@ public class AdminService {
                 .currentTerm(term)
                 .commitIndex(commitIndex)
                 .lastLogIndex(lastLogIndex)
+                .lastLogTerm(lastLogTerm)
                 .leaderId(leaderId)
                 .leaderHost(leaderHost)
                 .leaderPort(leaderPort)

@@ -38,6 +38,7 @@ export function NodeTable({ nodes, leaderId }: Props) {
               <th>Term</th>
               <th>Commit index</th>
               <th>Last log index</th>
+              <th>Last log term</th>
               <th>活跃连接数</th>
             </tr>
           </thead>
@@ -73,6 +74,7 @@ export function NodeTable({ nodes, leaderId }: Props) {
                 <td>{fmt(node.currentTerm)}</td>
                 <td>{fmt(node.commitIndex)}</td>
                 <td>{fmt(node.lastLogIndex)}</td>
+                <td>{fmt(node.lastLogTerm)}</td>
                 <td>{fmt(node.activePeerConnections)}</td>
               </tr>
             ))}

@@ -1,5 +1,6 @@
 package hawk.JRegistryCenter.Web;
 
+import hawk.JRegistryCenter.Raft.Log.LogService;
 import hawk.JRegistryCenter.Raft.RaftNode;
 import hawk.JRegistryCenter.Web.dto.ClusterStatusDTO;
 import hawk.JRegistryCenter.Web.dto.NodeInfoDTO;
@@ -19,6 +20,9 @@ public class AdminController {
 
     @Autowired
     private RaftNode raftNode;
+
+    @Autowired
+    private LogService logService;
 
     @Value("${raft.node-id}")
     private int localNodeId;
@@ -46,7 +50,8 @@ public class AdminController {
         dto.setRaftPort(raftPort);
         dto.setCurrentTerm(raftNode.getCurrentTerm());
         dto.setCommitIndex(raftNode.getCommitIndex());
-        // dto.setLastLogIndex(raftNode.getLastLogIndex());
+        dto.setLastLogIndex(logService.getLastLogIndex());
+        dto.setLastLogTerm(logService.getLastLogTerm());
         dto.setLeaderId(raftNode.getLeaderId());
         dto.setLeaderHost(raftNode.getLeaderHost());
         dto.setLeaderPort(raftNode.getLeaderPort());
