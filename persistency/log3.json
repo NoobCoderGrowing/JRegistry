@@ -1,6 +1,3 @@
 {"command":"noOp","index":0,"term":0}
-{"command":"set","data":"d3Jvbmc=","dataType":"string","index":1,"key":"wenjun","term":0}
-{"command":"noOp","index":2,"term":9}
-{"command":"noOp","index":3,"term":10}
-{"command":"noOp","index":4,"term":11}
-{"command":"noOp","index":5,"term":12}
+{"command":"set","data":"cmlnaHQ=","dataType":"string","index":1,"key":"wenjun","term":0}
+{"command":"set","data":"d3Jvbmc=","dataType":"string","index":2,"key":"jingjing","term":0}

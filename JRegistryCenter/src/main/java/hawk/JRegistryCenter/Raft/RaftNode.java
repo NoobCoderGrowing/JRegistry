@@ -256,6 +256,7 @@ public class RaftNode {
             this.setCurrentTerm(nodeImage.getCurrentTerm());
             this.setCommitIndex(nodeImage.getCommitIndex());
             this.setLsmTree(nodeImage.getLsmTree());
+            this.getLsmTree().rebuildParentLinks();
             // this.setLastLogTerm(nodeImage.getLastLogTerm());
             // this.setLastLogIndex(nodeImage.getLastLogIndex());
 

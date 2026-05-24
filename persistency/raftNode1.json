@@ -1,1 +1,1 @@
-{"commitIndex":1,"currentTerm":12,"lsmTree":{},"termVoted":12}
+{"commitIndex":2,"currentTerm":0,"lsmTree":{"root":{"children":{"wenjun":{"children":{},"key":"wenjun","path":"/root/wenjun","type":"string","value":"cmlnaHQ="},"jingjing":{"children":{},"key":"jingjing","path":"/root/jingjing","type":"string","value":"d3Jvbmc="}},"key":"root","path":"/root"}},"termVoted":0}

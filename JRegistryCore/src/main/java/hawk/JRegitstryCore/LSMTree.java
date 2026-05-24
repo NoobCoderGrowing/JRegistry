@@ -26,4 +26,6 @@ public interface LSMTree {
 
     public BPlusNode getRoot();
 
+    public void rebuildParentLinks();
+
 }

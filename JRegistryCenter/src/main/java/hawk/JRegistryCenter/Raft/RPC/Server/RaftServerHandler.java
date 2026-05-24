@@ -93,7 +93,7 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
                 // log.info("server {} send reply: {}", raftNode.getId(), JSON.toJSONString(reply));
             }
         } catch (Exception e) {
-            log.error("server {} handle request error: {}", raftNode.getId(), e.getMessage());
+            log.error("server {} handle request error: {}, stack trace: {}", raftNode.getId(), e.getMessage(), e.getStackTrace());
         }
         
     }

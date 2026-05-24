@@ -299,7 +299,7 @@ public class LogService {
             raftRequest.setType("appendEntries");
             raftRequest.setId(raftNode.getId());
             raftRequest.setTerm(raftNode.getCurrentTerm());
-            raftRequest.setLeaderCommit(raftNode.getLeaderCommit());
+            raftRequest.setLeaderCommit(raftNode.getCommitIndex());
             raftRequest.setPrevLogIndex(-1);
             raftRequest.setPrevLogTerm(-1);
             raftRequest.setLog(currentLog);
@@ -474,6 +474,7 @@ public class LogService {
         if(commitableTerm != raftNode.getCurrentTerm()){
             return; // leader only commit logs of current term
         }
+        log.error("leader node {} commit logs to {} of term {}, current term is {}", raftNode.getId(), commitableIndex, commitableTerm, raftNode.getCurrentTerm());
 
         long currentCommitIndex = raftNode.getCommitIndex();
         int startIndex = 0;
@@ -481,16 +482,25 @@ public class LogService {
             startIndex = (int) (currentCommitIndex - logger.get(0).getIndex()) + 1;
         }
         while (currentCommitIndex < commitableIndex) {
+            log.info("currentCommitIndex: {}, commitableIndex: {}, startIndex: {}, logger size: {}", currentCommitIndex, commitableIndex, startIndex, logger.size());
+            
             if((startIndex < logger.size()) && startIndex >= 0){
                 LogEntry logEntry = logger.get(startIndex);
-                raftNode.getLsmTree().applyLog(logEntry);
+                try{
+                    raftNode.getLsmTree().applyLog(logEntry);
+                }catch (Exception e) {
+                    log.error("apply exception");
+                }
+                
                 raftNode.setCommitIndex(logEntry.getIndex());
                 startIndex++;
                 currentCommitIndex++;
+
                 if(autoPersist){
                     raftNode.persist();
                 }
             }
+
         }
         
         RaftRequest raftRequest = new RaftRequest();

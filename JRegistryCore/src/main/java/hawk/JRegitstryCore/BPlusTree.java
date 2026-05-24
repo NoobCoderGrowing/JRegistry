@@ -7,8 +7,10 @@ import com.alibaba.fastjson.JSON;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import lombok.extern.slf4j.Slf4j;
+import com.alibaba.fastjson.annotation.JSONType;
 
 @Slf4j
+@JSONType(typeName = "BPlusTree")
 public class BPlusTree implements LSMTree {
 
     private BPlusNode root;
@@ -167,6 +169,22 @@ public class BPlusTree implements LSMTree {
         }
         return current;
     }
+
+
+    public void rebuildParentLinks() {
+        rebuildParent(root, null);
+    }
+
+    private void rebuildParent(BPlusNode node, BPlusNode parent) {
+        if (node == null) return;
+        node.setParent(parent);
+        if (node.getChildren() != null) {
+            for (BPlusNode child : node.getChildren().values()) {
+                rebuildParent(child, node);
+            }
+        }
+    }
+
 
    
 public static void main(String[] args) {
