@@ -12,6 +12,7 @@ export interface NodeInfo {
   commitIndex: number | null;
   lastLogIndex: number | null;
   lastLogTerm: number | null;
+  logCount: number | null;
   leaderId: number | null;
   leaderHost: string | null;
   leaderPort: number | null;

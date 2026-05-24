@@ -52,6 +52,7 @@ public class AdminController {
         dto.setCommitIndex(raftNode.getCommitIndex());
         dto.setLastLogIndex(logService.getLastLogIndex());
         dto.setLastLogTerm(logService.getLastLogTerm());
+        dto.setLogCount(logService.getLogCount());
         dto.setLeaderId(raftNode.getLeaderId());
         dto.setLeaderHost(raftNode.getLeaderHost());
         dto.setLeaderPort(raftNode.getLeaderPort());

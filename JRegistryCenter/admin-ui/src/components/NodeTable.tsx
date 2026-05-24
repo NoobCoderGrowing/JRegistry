@@ -18,6 +18,11 @@ function fmt(v: number | null | undefined, fallback = '—') {
   return String(v);
 }
 
+function fmtCount(v: number | null | undefined, fallback = '—') {
+  if (v === null || v === undefined) return fallback;
+  return String(v);
+}
+
 export function NodeTable({ nodes, leaderId }: Props) {
   return (
     <section className="panel">
@@ -39,6 +44,7 @@ export function NodeTable({ nodes, leaderId }: Props) {
               <th>Commit index</th>
               <th>Last log index</th>
               <th>Last log term</th>
+              <th>总 Log 数</th>
               <th>活跃连接数</th>
             </tr>
           </thead>
@@ -75,6 +81,7 @@ export function NodeTable({ nodes, leaderId }: Props) {
                 <td>{fmt(node.commitIndex)}</td>
                 <td>{fmt(node.lastLogIndex)}</td>
                 <td>{fmt(node.lastLogTerm)}</td>
+                <td>{fmtCount(node.logCount)}</td>
                 <td>{fmt(node.activePeerConnections)}</td>
               </tr>
             ))}

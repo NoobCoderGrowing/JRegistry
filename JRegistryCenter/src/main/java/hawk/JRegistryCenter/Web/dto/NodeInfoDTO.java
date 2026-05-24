@@ -19,6 +19,7 @@ public class NodeInfoDTO {
     private Long commitIndex;
     private Long lastLogIndex;
     private Long lastLogTerm;
+    private Integer logCount;
     private Integer leaderId;
     private String leaderHost;
     private Integer leaderPort;

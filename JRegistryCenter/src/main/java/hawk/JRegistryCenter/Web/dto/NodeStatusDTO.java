@@ -13,6 +13,7 @@ public class NodeStatusDTO {
     private long commitIndex;
     private long lastLogIndex;
     private long lastLogTerm;
+    private int logCount;
     private int leaderId;
     private String leaderHost;
     private int leaderPort;

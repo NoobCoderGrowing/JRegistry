@@ -282,6 +282,10 @@ public class LogService {
         return logger.get(logger.size() - 1).getTerm();
     }
 
+    public int getLogCount(){
+        return logger.size();
+    }
+
 
     public void replicateLog( int id , Channel channel){
         long nextIndex = nextIndexMap.get(id);

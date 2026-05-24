@@ -148,6 +148,7 @@ public class AdminService {
                 .commitIndex(raftNode.getCommitIndex())
                 .lastLogIndex(logService.getLastLogIndex())
                 .lastLogTerm(logService.getLastLogTerm())
+                .logCount(logService.getLogCount())
                 .leaderId(raftNode.getLeaderId())
                 .leaderHost(raftNode.getLeaderHost())
                 .leaderPort(raftNode.getLeaderPort())
@@ -175,6 +176,7 @@ public class AdminService {
         Long commitIndex = null;
         Long lastLogIndex = null;
         Long lastLogTerm = null;
+        Integer logCount = null;
         Integer leaderId = null;
         String leaderHost = null;
         Integer leaderPort = null;
@@ -187,6 +189,7 @@ public class AdminService {
             commitIndex = remote.getCommitIndex();
             lastLogIndex = remote.getLastLogIndex();
             lastLogTerm = remote.getLastLogTerm();
+            logCount = remote.getLogCount();
             leaderId = remote.getLeaderId();
             leaderHost = remote.getLeaderHost();
             leaderPort = remote.getLeaderPort();
@@ -210,6 +213,7 @@ public class AdminService {
                 .commitIndex(commitIndex)
                 .lastLogIndex(lastLogIndex)
                 .lastLogTerm(lastLogTerm)
+                .logCount(logCount)
                 .leaderId(leaderId)
                 .leaderHost(leaderHost)
                 .leaderPort(leaderPort)
