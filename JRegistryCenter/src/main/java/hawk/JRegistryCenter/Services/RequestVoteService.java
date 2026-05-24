@@ -159,8 +159,8 @@ public class RequestVoteService {
                 request.setId(raftNode.getId());
                 request.setType("requestVote");
                 request.setTerm(raftNode.getCurrentTerm());
-                // request.setLastLogIndex(raftNode.getLastLogIndex());
-                // request.setLastLogTerm(raftNode.getLastLogTerm());
+                request.setLastLogIndex(logService.getLastLogIndex());
+                request.setLastLogTerm(logService.getLastLogTerm());
                 raftClientManager.sendToPeer(entry.getKey(), JSON.toJSONString(request));
                 log.info("Candidate {} send request vote to node {}", raftNode.getId(), entry.getKey());
             }
