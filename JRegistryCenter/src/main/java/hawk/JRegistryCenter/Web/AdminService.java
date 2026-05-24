@@ -142,7 +142,7 @@ public class AdminService {
                 .self(true)
                 .currentTerm(raftNode.getCurrentTerm())
                 .commitIndex(raftNode.getCommitIndex())
-                .lastLogIndex(raftNode.getLastLogIndex())
+                // .lastLogIndex(raftNode.getLastLogIndex())
                 .leaderId(raftNode.getLeaderId())
                 .leaderHost(raftNode.getLeaderHost())
                 .leaderPort(raftNode.getLeaderPort())

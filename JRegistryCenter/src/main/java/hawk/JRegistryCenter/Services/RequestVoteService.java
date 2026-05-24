@@ -57,11 +57,11 @@ public class RequestVoteService {
                 raftNode.turn2Follower(request);
             }
 
-            if(request.getLastLogTerm() < raftNode.getLastLogTerm()){ // 日志的term比自己旧，拒绝投票
+            if(request.getLastLogTerm() < logService.getLastLogTerm()){ // 日志的term比自己旧，拒绝投票
                 return rejectVoteRequest(request);
             }else{ // 日志的term>=自己的
-                if(request.getLastLogTerm() == raftNode.getLastLogTerm()){  // 日志的term=自己，比较index
-                    if(request.getLastLogIndex() < raftNode.getLastLogIndex()){ // 日志的index比自己旧，拒绝投票
+                if(request.getLastLogTerm() == logService.getLastLogTerm()){  // 日志的term=自己，比较index
+                    if(request.getLastLogIndex() < logService.getLastLogIndex()){ // 日志的index比自己旧，拒绝投票
                         return rejectVoteRequest(request);
                     }else{ // 日志的index>=自己的，接受投票
                         return acceptVoteRequest(request);
@@ -82,8 +82,8 @@ public class RequestVoteService {
         reply.setType("requestVote");
         reply.setId(raftNode.getId());
         reply.setTerm(raftNode.getCurrentTerm());
-        reply.setLastLogTerm(raftNode.getLastLogTerm());
-        reply.setLastLogIndex(raftNode.getLastLogIndex());
+        reply.setLastLogTerm(logService.getLastLogTerm());
+        reply.setLastLogIndex(logService.getLastLogIndex());
         reply.setVoteGranted(false);    
         log.info("server {} reject vote for node {}， node info {}, request info {}", raftNode.getId(), request.getId(), JSON.toJSONString(raftNode), JSON.toJSONString(request));
         return reply;
@@ -159,8 +159,8 @@ public class RequestVoteService {
                 request.setId(raftNode.getId());
                 request.setType("requestVote");
                 request.setTerm(raftNode.getCurrentTerm());
-                request.setLastLogIndex(raftNode.getLastLogIndex());
-                request.setLastLogTerm(raftNode.getLastLogTerm());
+                // request.setLastLogIndex(raftNode.getLastLogIndex());
+                // request.setLastLogTerm(raftNode.getLastLogTerm());
                 raftClientManager.sendToPeer(entry.getKey(), JSON.toJSONString(request));
                 log.info("Candidate {} send request vote to node {}", raftNode.getId(), entry.getKey());
             }

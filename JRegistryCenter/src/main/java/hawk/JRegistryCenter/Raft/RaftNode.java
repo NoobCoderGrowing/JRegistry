@@ -76,10 +76,11 @@ public class RaftNode {
     private long leaderCommit;
 
     //Request Vote part in raft paper
-    private long lastLogIndex;
+    // @JSONField(serialize = false)
+    // private long lastLogIndex;
 
-    @JSONField(serialize = false)
-    private long lastLogTerm;
+    // @JSONField(serialize = false)
+    // private long lastLogTerm;
 
     private LSMTree lsmTree;
 
@@ -114,8 +115,8 @@ public class RaftNode {
         this.leaderTerm = -1;
         this.termVoted = -1;
         this.voteReceived = new AtomicInteger(0);
-        this.lastLogIndex = -1;
-        this.lastLogTerm = -1;
+        // this.lastLogIndex = -1;
+        // this.lastLogTerm = -1;
         this.leaderId = -1;
         this.lsmTree = new BPlusTree();
     }
@@ -255,8 +256,8 @@ public class RaftNode {
             this.setCurrentTerm(nodeImage.getCurrentTerm());
             this.setCommitIndex(nodeImage.getCommitIndex());
             this.setLsmTree(nodeImage.getLsmTree());
-            this.setLastLogTerm(nodeImage.getLastLogTerm());
-            this.setLastLogIndex(nodeImage.getLastLogIndex());
+            // this.setLastLogTerm(nodeImage.getLastLogTerm());
+            // this.setLastLogIndex(nodeImage.getLastLogIndex());
 
             this.setLeaderId(-1);
             this.setLeaderHost(null);

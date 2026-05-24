@@ -70,7 +70,6 @@ public class AppendEntriesService {
         raftServerHandler.getRaftServer().getPeerChannels().put(request.getId(), channel);
         return null;
     }
-
    
 
     public RaftRequest handleInstallSnapshotRequest(RaftRequest request){
@@ -85,8 +84,8 @@ public class AppendEntriesService {
                 // }
             }
             raftNode.setLsmTree(request.getSnapshot());
-            raftNode.setLastLogIndex(request.getLastLogIndex());
-            raftNode.setLastLogTerm(request.getLastLogTerm());
+            // raftNode.setLastLogIndex(request.getLastLogIndex());
+            // raftNode.setLastLogTerm(request.getLastLogTerm());
             raftNode.setCommitIndex(request.getLeaderCommit());
             logService.installLogger(request);
             persistService.manualPersist();
@@ -136,7 +135,7 @@ public class AppendEntriesService {
             logService.updateMatchIndex(reply);
             Long nextIndex = reply.getLastLogIndex() + 1;
             logService.nextIndexMap.put(peerNodeId, nextIndex);
-            if(nextIndex <= raftNode.getLastLogIndex()){ // if last log not match
+            if(nextIndex <= logService.getLastLogIndex()){ // if last log not match
                 logService.replicateLog(peerNodeId, channel);
             }
         }

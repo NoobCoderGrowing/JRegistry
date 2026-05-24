@@ -157,14 +157,14 @@ public class LogService {
         }
         LogEntry logEntry = new LogEntry();
         logEntry.setTerm(raftNode.getCurrentTerm());
-        logEntry.setIndex(raftNode.getLastLogIndex() + 1);
+        logEntry.setIndex(prevLogIndex + 1);
         logEntry.setCommand(request.getCmd());
         logEntry.setKey(request.getKey());
         logEntry.setData(request.getData());
         logEntry.setDataType(request.getDataType());
         logger.add(logEntry);
-        raftNode.setLastLogIndex(logEntry.getIndex());
-        raftNode.setLastLogTerm(logEntry.getTerm());
+        // raftNode.setLastLogIndex(logEntry.getIndex());
+        // raftNode.setLastLogTerm(logEntry.getTerm());
         if(autoPersist){
             persistEntry(logEntry);
         }
@@ -183,11 +183,11 @@ public class LogService {
         }
         LogEntry logEntry = new LogEntry();
         logEntry.setTerm(raftNode.getCurrentTerm());
-        logEntry.setIndex(raftNode.getLastLogIndex() + 1);
+        logEntry.setIndex(prevLogIndex + 1);
         logEntry.setCommand("noOp");
         logger.add(logEntry);
-        raftNode.setLastLogIndex(logEntry.getIndex());
-        raftNode.setLastLogTerm(logEntry.getTerm());
+        // raftNode.setLastLogIndex(logEntry.getIndex());
+        // raftNode.setLastLogTerm(logEntry.getTerm());
         if(autoPersist){
             persistEntry(logEntry);
         }
@@ -205,14 +205,14 @@ public class LogService {
         }
         LogEntry logEntry = new LogEntry();
         logEntry.setTerm(raftNode.getCurrentTerm());
-        logEntry.setIndex(raftNode.getLastLogIndex() + 1);
+        logEntry.setIndex(prevLogIndex + 1);
         logEntry.setCommand(cliRequest.getType());
         logEntry.setKey(cliRequest.getKey());
         logEntry.setData(cliRequest.getData());
         logEntry.setDataType(cliRequest.getDataType());
         logger.add(logEntry);
-        raftNode.setLastLogIndex(logEntry.getIndex());
-        raftNode.setLastLogTerm(logEntry.getTerm());
+        // raftNode.setLastLogIndex(logEntry.getIndex());
+        // raftNode.setLastLogTerm(logEntry.getTerm());
         if(autoPersist){
             persistEntry(logEntry);
         }
@@ -268,10 +268,24 @@ public class LogService {
         });
     }
 
+    public long getLastLogIndex(){
+        if(logger.size() == 0){
+            return -1;
+        }
+        return logger.get(logger.size() - 1).getIndex();
+    }
+
+    public long getLastLogTerm(){
+        if(logger.size() == 0){
+            return -1;
+        }
+        return logger.get(logger.size() - 1).getTerm();
+    }
+
 
     public void replicateLog( int id , Channel channel){
         long nextIndex = nextIndexMap.get(id);
-        if(nextIndex > raftNode.getLastLogIndex()){
+        if(nextIndex > getLastLogIndex()){
             return;
         }
         
@@ -333,8 +347,8 @@ public class LogService {
 
     public void appendLog(LogEntry logEntry){
         logger.add(logEntry);
-        raftNode.setLastLogIndex(logger.get(logger.size() - 1).getIndex());
-        raftNode.setLastLogTerm(logger.get(logger.size() - 1).getTerm());
+        // raftNode.setLastLogIndex(logger.get(logger.size() - 1).getIndex());
+        // raftNode.setLastLogTerm(logger.get(logger.size() - 1).getTerm());
     }
 
     public boolean containLog(long logTerm, long logIndex){
@@ -380,8 +394,8 @@ public class LogService {
         raftRequest.setId(raftNode.getId());
         raftRequest.setTerm(raftNode.getCurrentTerm());
         raftRequest.setLeaderCommit(raftNode.getCommitIndex());
-        raftRequest.setLastLogIndex(raftNode.getLastLogIndex());
-        raftRequest.setLastLogTerm(raftNode.getLastLogTerm());
+        raftRequest.setLastLogIndex(getLastLogIndex());
+        raftRequest.setLastLogTerm(getLastLogTerm());
         raftRequest.setLeaderHost(raftNode.getLeaderHost());
         raftRequest.setLeaderPort(raftNode.getLeaderPort());
         raftRequest.setSnapshot(raftNode.getLsmTree());
@@ -396,8 +410,8 @@ public class LogService {
     public void installLogger(RaftRequest request){
         logger.clear();
         logger.addAll(request.getLogs());
-        raftNode.setLastLogIndex(logger.get(logger.size() - 1).getIndex());
-        raftNode.setLastLogTerm(logger.get(logger.size() - 1).getTerm());
+        // raftNode.setLastLogIndex(logger.get(logger.size() - 1).getIndex());
+        // raftNode.setLastLogTerm(logger.get(logger.size() - 1).getTerm());
     }
 
     public void updateMatchIndex(RaftRequest reply){
