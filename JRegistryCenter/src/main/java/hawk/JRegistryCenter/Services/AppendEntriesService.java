@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Value;
 import hawk.JRegitstryCore.Log.LogEntry;
 import hawk.JRegistryCenter.Raft.Log.LogService;
 import java.util.concurrent.ThreadPoolExecutor;
+import hawk.JRegistryCenter.Services.Persist.PersistService;
 
 
 
@@ -48,6 +49,9 @@ public class AppendEntriesService {
     @Value("${raft.auto-persist}")
     private boolean autoPersist;
 
+    @Autowired
+    private PersistService persistService;
+
 
     public void sendShakeHands(Channel channel, int peerNodeId){
         RaftRequest request = new RaftRequest();
@@ -73,17 +77,19 @@ public class AppendEntriesService {
         if(request.getTerm() >= raftNode.getCurrentTerm()){
             // followerElectionTimer.resetTimeout();
             timeoutService.resetTimeout();
+            long oldTerm = raftNode.getCurrentTerm();
             raftNode.acceptLeader(request);
-            if(request.getTerm() > raftNode.getCurrentTerm()){
-                if(autoPersist){
-                    raftNode.persist();
-                }
+            if(request.getTerm() > oldTerm){
+                // if(autoPersist){
+                //     raftNode.persist();
+                // }
             }
             raftNode.setLsmTree(request.getSnapshot());
             raftNode.setLastLogIndex(request.getLastLogIndex());
             raftNode.setLastLogTerm(request.getLastLogTerm());
             raftNode.setCommitIndex(request.getLeaderCommit());
             logService.installLogger(request);
+            persistService.manualPersist();
         }
         return null;
     }
@@ -147,8 +153,9 @@ public class AppendEntriesService {
             reply.setSuccess(false);
         }else{
             timeoutService.resetTimeout();
+            long oldTerm = raftNode.getCurrentTerm();
             raftNode.acceptLeader(request);
-            if(request.getTerm() > raftNode.getCurrentTerm()){
+            if(request.getTerm() > oldTerm){
                 if(autoPersist){
                     raftNode.persist();
                 }
@@ -167,6 +174,9 @@ public class AppendEntriesService {
                 reply.setSuccess(true);
                 logService.deleteLogs(request.getPrevLogIndex());
                 logService.appendLog(currentLog);
+                if(autoPersist){
+                    logService.persistEntry(currentLog);
+                }
                 reply.setLastLogIndex(currentLog.getIndex());
                 reply.setLastLogTerm(currentLog.getTerm());
             }else{// does not contain prevlog, reject append entries request
@@ -186,8 +196,9 @@ public class AppendEntriesService {
             //收到更高term或一样term的心跳包，承认对方leader，更新自己term
             // followerElectionTimer.resetTimeout();
             timeoutService.resetTimeout();
+            long oldTerm = raftNode.getCurrentTerm();
             raftNode.acceptHeartbeat(request);
-            if(request.getTerm() > raftNode.getCurrentTerm()){
+            if(request.getTerm() > oldTerm){
                 if(autoPersist){
                     raftNode.persist();
                 }

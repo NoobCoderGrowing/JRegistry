@@ -35,7 +35,7 @@ public class PersistService {
         recoverFromLocalImage();
     }
 
-    public boolean persist(){
+    public boolean manualPersist(){
         if(raftNode.persist() && logService.persist()){
             return true;
         }else{

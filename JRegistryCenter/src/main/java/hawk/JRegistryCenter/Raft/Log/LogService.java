@@ -335,9 +335,6 @@ public class LogService {
         logger.add(logEntry);
         raftNode.setLastLogIndex(logger.get(logger.size() - 1).getIndex());
         raftNode.setLastLogTerm(logger.get(logger.size() - 1).getTerm());
-        if(autoPersist){
-            persistEntry(logEntry);
-        }
     }
 
     public boolean containLog(long logTerm, long logIndex){
@@ -424,8 +421,9 @@ public class LogService {
             return null;
         }
         timeoutService.resetTimeout();
+        long oldTerm = raftNode.getCurrentTerm();
         raftNode.acceptLeader(request);
-        if(request.getTerm() > raftNode.getCurrentTerm()){
+        if(request.getTerm() > oldTerm){
             if(autoPersist){
                 raftNode.persist();
             }
