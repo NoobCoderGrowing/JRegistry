@@ -21,6 +21,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import hawk.JRegitstryCore.StateMachine;
 
 @Service
 @Data
@@ -42,6 +43,9 @@ public class SSHService {
     @Autowired
     private PersistService persistService;
 
+    @Autowired
+    private StateMachine stateMachine;
+
 
     public String handleGetRequest( SSHRequest cliRequest, AtomicReference<BPlusNode> sessionCurrent){
         String key = cliRequest.getKey();
@@ -55,7 +59,7 @@ public class SSHService {
             }
         }
 
-        Pair<String, byte[]> result = raftNode.getLsmTree().get(key);
+        Pair<String, byte[]> result = stateMachine.get(key);
         if(result != null){
             return JSON.toJSONString(result);
         }else{
@@ -108,7 +112,7 @@ public class SSHService {
     }
 
     public String handleCD(SSHRequest cliRequest, AtomicReference<BPlusNode> sessionCurrent){
-        BPlusNode temp = raftNode.getLsmTree().cd(cliRequest.getKey(), sessionCurrent.get());
+        BPlusNode temp = stateMachine.cd(cliRequest.getKey(), sessionCurrent.get());
         if(temp != null){
             sessionCurrent.set(temp);
             // return ">"+sessionCurrent.get().pwd();

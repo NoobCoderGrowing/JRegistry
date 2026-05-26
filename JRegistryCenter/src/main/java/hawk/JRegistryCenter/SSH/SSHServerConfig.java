@@ -27,6 +27,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import hawk.JRegistryCenter.Raft.RaftNode;
 import hawk.JRegitstryCore.BPlusNode;
 import java.util.concurrent.atomic.AtomicReference;
+import hawk.JRegitstryCore.StateMachine;
 
 @Slf4j
 @Configuration
@@ -51,6 +52,9 @@ public class SSHServerConfig {
 
     @Autowired
     private RaftNode raftNode;
+
+    @Autowired
+    private StateMachine stateMachine;
 
     @PostConstruct
     public void init() {
@@ -93,7 +97,7 @@ public class SSHServerConfig {
             @Override
             public void start(ChannelSession channelSession, Environment env) {
                 running = true;
-                AtomicReference<BPlusNode> sessionRoot = new AtomicReference<>(raftNode.getLsmTree().getRoot());
+                AtomicReference<BPlusNode> sessionRoot = new AtomicReference<>(stateMachine.getRoot());
                 worker = new Thread(() -> {
                     try (Terminal terminal = TerminalBuilder.builder()
                             .system(false)

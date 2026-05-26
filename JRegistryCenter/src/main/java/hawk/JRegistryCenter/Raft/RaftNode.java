@@ -5,8 +5,8 @@ import org.springframework.beans.factory.annotation.Value;
 import lombok.Data;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import hawk.JRegitstryCore.LSMTree;
-import hawk.JRegitstryCore.BPlusTree;
+// import hawk.JRegitstryCore.LSMTree;
+// import hawk.JRegitstryCore.BPlusTree;
 import lombok.extern.slf4j.Slf4j;
 import hawk.JRegitstryCore.RPC.RaftRequest;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -82,7 +82,7 @@ public class RaftNode {
     // @JSONField(serialize = false)
     // private long lastLogTerm;
 
-    private LSMTree lsmTree;
+    // private LSMTree lsmTree;
 
     @Value("${raft.auto-persist}")
     @JSONField(serialize = false)
@@ -118,7 +118,7 @@ public class RaftNode {
         // this.lastLogIndex = -1;
         // this.lastLogTerm = -1;
         this.leaderId = -1;
-        this.lsmTree = new BPlusTree();
+        // this.lsmTree = new BPlusTree();
     }
 
 
@@ -155,14 +155,14 @@ public class RaftNode {
     }
 
 
-    public void setLsmTree(LSMTree lsmTree){
-        this.lsmTree = lsmTree;
-    }
+    // public void setLsmTree(LSMTree lsmTree){
+    //     this.lsmTree = lsmTree;
+    // }
 
-    public LSMTree getLsmTree(){
-        return this.lsmTree;
+    // public LSMTree getLsmTree(){
+    //     return this.lsmTree;
         
-    }
+    // }
 
     public void turn2Candidate(){
         log.info("server {} turn to candidate term {}", this.getId(), this.getCurrentTerm() + 1);
@@ -255,8 +255,8 @@ public class RaftNode {
             RaftNode nodeImage = JSON.parseObject( nodejson,RaftNode.class);
             this.setCurrentTerm(nodeImage.getCurrentTerm());
             this.setCommitIndex(nodeImage.getCommitIndex());
-            this.setLsmTree(nodeImage.getLsmTree());
-            this.getLsmTree().rebuildParentLinks();
+            // this.setLsmTree(nodeImage.getLsmTree());
+            // this.getLsmTree().rebuildParentLinks();
             // this.setLastLogTerm(nodeImage.getLastLogTerm());
             // this.setLastLogIndex(nodeImage.getLastLogIndex());
 

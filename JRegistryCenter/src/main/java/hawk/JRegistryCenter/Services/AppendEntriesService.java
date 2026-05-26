@@ -83,7 +83,7 @@ public class AppendEntriesService {
                 //     raftNode.persist();
                 // }
             }
-            raftNode.setLsmTree(request.getSnapshot());
+            // raftNode.setLsmTree(request.getSnapshot());
             // raftNode.setLastLogIndex(request.getLastLogIndex());
             // raftNode.setLastLogTerm(request.getLastLogTerm());
             raftNode.setCommitIndex(request.getLeaderCommit());

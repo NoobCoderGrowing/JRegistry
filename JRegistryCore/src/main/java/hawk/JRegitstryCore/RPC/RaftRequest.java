@@ -2,7 +2,8 @@ package hawk.JRegitstryCore.RPC;
 
 import lombok.Data;
 import hawk.JRegitstryCore.Log.LogEntry;
-import hawk.JRegitstryCore.LSMTree;
+// import hawk.JRegitstryCore.LSMTree;
+import hawk.JRegitstryCore.StateMachine;
 import java.util.UUID;
 import java.util.List;
 
@@ -32,7 +33,8 @@ public class RaftRequest {
     
     private LogEntry log;
     private List<LogEntry> logs;
-    private LSMTree snapshot;
+    // private LSMTree snapshot;
+    private StateMachine snapshot;
 
     private String cmd;
     private String key;

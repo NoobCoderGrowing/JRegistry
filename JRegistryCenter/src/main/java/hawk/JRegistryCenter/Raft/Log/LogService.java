@@ -35,6 +35,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.StandardOpenOption;
 import java.io.BufferedReader;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import hawk.JRegitstryCore.StateMachine;
 
 
 @Service
@@ -85,6 +86,9 @@ public class LogService {
     private ThreadPoolExecutor persistThread;
 
     private ReentrantReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+
+    @Autowired
+    private StateMachine stateMachine;
 
     @PostConstruct
     public void initIndexMap(){
@@ -402,7 +406,7 @@ public class LogService {
         raftRequest.setLastLogTerm(getLastLogTerm());
         raftRequest.setLeaderHost(raftNode.getLeaderHost());
         raftRequest.setLeaderPort(raftNode.getLeaderPort());
-        raftRequest.setSnapshot(raftNode.getLsmTree());
+        raftRequest.setSnapshot(stateMachine);
         raftRequest.setLogs(logger);
         writePool.execute(() -> {
             channel.writeAndFlush(JSON.toJSONString(raftRequest) + "\n");
@@ -456,7 +460,7 @@ public class LogService {
         while (currentCommitIndex < commitableIndex) {
             if((startIndex < logger.size()) && startIndex >= 0){
                 LogEntry logEntry = logger.get(startIndex);
-                raftNode.getLsmTree().applyLog(logEntry);
+                stateMachine.applyLog(logEntry);
                 raftNode.setCommitIndex(logEntry.getIndex());
                 startIndex++;
                 currentCommitIndex++;
@@ -487,7 +491,7 @@ public class LogService {
             if((startIndex < logger.size()) && startIndex >= 0){
                 LogEntry logEntry = logger.get(startIndex);
                 try{
-                    raftNode.getLsmTree().applyLog(logEntry);
+                    stateMachine.applyLog(logEntry);
                 }catch (Exception e) {
                     log.error("apply exception");
                 }
