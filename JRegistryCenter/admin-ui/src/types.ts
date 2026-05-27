@@ -1,3 +1,18 @@
+export interface TreeNode {
+  key: string;
+  path: string;
+  type: string | null;
+  value: string | null;
+  leaf: boolean;
+  children: TreeNode[];
+}
+
+export interface StateMachineTree {
+  nodeId: number;
+  commitIndex: number;
+  root: TreeNode;
+}
+
 export interface NodeInfo {
   nodeId: number;
   host: string;

@@ -7,6 +7,9 @@ import hawk.JRegitstryCore.Raft.RaftNode;
 import hawk.JRegistryCenter.Web.dto.ClusterStatusDTO;
 import hawk.JRegistryCenter.Web.dto.NodeInfoDTO;
 import hawk.JRegistryCenter.Web.dto.NodeStatusDTO;
+import hawk.JRegistryCenter.Web.dto.StateMachineTreeDTO;
+import hawk.JRegistryCenter.Web.dto.TreeNodeDTO;
+import hawk.JRegitstryCore.BPlusNode;
 import io.netty.channel.Channel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -97,6 +100,40 @@ public class AdminService {
 
     public NodeInfoDTO getSelfStatus() {
         return buildSelfNode();
+    }
+
+    public StateMachineTreeDTO getStateMachineTree(int nodeId) {
+        if (nodeId == localNodeId) {
+            return buildLocalStateMachineTree();
+        }
+        return fetchPeerStateMachineTree(nodeId);
+    }
+
+    private StateMachineTreeDTO buildLocalStateMachineTree() {
+        stateMachine.getReadWriteLock().readLock().lock();
+        try {
+            BPlusNode root = stateMachine.getRoot();
+            TreeNodeDTO rootDto = StateMachineTreeMapper.toTreeNode(root);
+            return StateMachineTreeDTO.builder()
+                    .nodeId(localNodeId)
+                    .commitIndex(stateMachine.getCommitIndex())
+                    .root(rootDto)
+                    .build();
+        } finally {
+            stateMachine.getReadWriteLock().readLock().unlock();
+        }
+    }
+
+    private StateMachineTreeDTO fetchPeerStateMachineTree(int nodeId) {
+        if (peerHttpPorts == null || !peerHttpPorts.containsKey(nodeId)) {
+            throw new IllegalArgumentException("Unknown node id: " + nodeId);
+        }
+        String url = "http://127.0.0.1:" + peerHttpPorts.get(nodeId) + "/api/admin/state-machine";
+        StateMachineTreeDTO tree = restTemplate.getForObject(url, StateMachineTreeDTO.class);
+        if (tree == null) {
+            throw new IllegalStateException("Peer node " + nodeId + " returned empty state machine tree");
+        }
+        return tree;
     }
 
     private Map<Integer, NodeStatusDTO> fetchPeerStatuses() {

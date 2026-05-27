@@ -5,10 +5,14 @@ import hawk.JRegitstryCore.Raft.RaftNode;
 import hawk.JRegistryCenter.Web.dto.ClusterStatusDTO;
 import hawk.JRegistryCenter.Web.dto.NodeInfoDTO;
 import hawk.JRegistryCenter.Web.dto.NodeStatusDTO;
+import hawk.JRegistryCenter.Web.dto.StateMachineTreeDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import hawk.JRegitstryCore.StateMachine;
 
@@ -78,5 +82,18 @@ public class AdminController {
     @GetMapping("/self")
     public NodeInfoDTO self() {
         return adminService.getSelfStatus();
+    }
+
+    @GetMapping("/state-machine")
+    public ResponseEntity<?> stateMachine(@RequestParam(required = false) Integer nodeId) {
+        int targetNodeId = nodeId != null ? nodeId : localNodeId;
+        try {
+            return ResponseEntity.ok(adminService.getStateMachineTree(targetNodeId));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body("Failed to fetch state machine tree for node " + targetNodeId);
+        }
     }
 }
