@@ -1,9 +1,0 @@
-{"command":"set","data":"aGFuZHNvbWU=","dataType":"string","index":22,"key":"wenjun","term":16}
-{"command":"noOp","index":23,"term":17}
-{"command":"noOp","index":24,"term":18}
-{"command":"set","data":"YmVuYmVu","dataType":"string","index":25,"key":"wenjun","term":18}
-{"command":"set","data":"R0c=","dataType":"string","index":26,"key":"wenjun.JJ","term":18}
-{"command":"noOp","index":27,"term":19}
-{"command":"noOp","index":28,"term":20}
-{"command":"noOp","index":29,"term":21}
-{"command":"delete","index":30,"key":"jingjing","term":21}

@@ -32,6 +32,10 @@ function buildNodeRoles(
       case 'ELECTION_START':
         roles.set(ev.nodeId, 'CANDIDATE');
         break;
+      case 'REQUEST_VOTE':
+      case 'GRANT_VOTE':
+        // 仅展示投票动画，不改变节点身份
+        break;
       case 'BECOME_LEADER':
         roles.set(ev.nodeId, 'LEADER');
         break;
@@ -92,6 +96,10 @@ export function ElectionAnimationPanel({ timeline, onClose }: Props) {
   const nodeRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
   const currentEvent = events[step] ?? null;
+  const leaderRevealed = useMemo(
+    () => events.slice(0, step + 1).some((e) => e.eventType === 'BECOME_LEADER'),
+    [events, step],
+  );
   const nodeRoles = useMemo(
     () => buildNodeRoles(events, step, clusterSize),
     [events, step, clusterSize],
@@ -180,7 +188,9 @@ export function ElectionAnimationPanel({ timeline, onClose }: Props) {
             <h3>选主流程</h3>
             <p className="modal-subtitle">
               基于开机日志 · 共 {events.length} 步
-              {finalLeaderId > 0 && ` · 最终 Leader: 节点 ${finalLeaderId} (term ${finalTerm})`}
+              {leaderRevealed && finalLeaderId > 0
+                ? ` · Leader: 节点 ${finalLeaderId} (term ${finalTerm})`
+                : ''}
             </p>
           </div>
           <button type="button" className="btn btn-ghost" onClick={onClose}>
