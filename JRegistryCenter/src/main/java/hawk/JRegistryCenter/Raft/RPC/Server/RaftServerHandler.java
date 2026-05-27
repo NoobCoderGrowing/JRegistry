@@ -7,7 +7,7 @@ import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.timeout.IdleStateEvent;
 
 import hawk.JRegitstryCore.RPC.RaftRequest;
-import hawk.JRegistryCenter.Raft.RaftNode;
+import hawk.JRegitstryCore.Raft.RaftNode;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import hawk.JRegistryCenter.Raft.Log.LogService;

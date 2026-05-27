@@ -2,7 +2,7 @@ package hawk.JRegistryCenter.Raft.Log;
 
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
-import hawk.JRegistryCenter.Raft.RaftNode;
+import hawk.JRegitstryCore.Raft.RaftNode;
 import hawk.JRegistryCenter.Raft.RPC.Client.RaftClientManager;
 import hawk.JRegistryCenter.Services.Timer.TimeoutService;
 import hawk.JRegitstryCore.Log.LogEntry;
@@ -140,7 +140,7 @@ public class LogService {
 
    @PostConstruct
    public void registerCommitWatcher(){
-        this.commitWatcher = new CommitWatcher(this, raftNode, nodeCount);
+        this.commitWatcher = new CommitWatcher(this, nodeCount, stateMachine);
    }
 
    public RaftRequest handleWriteRequest(RaftRequest request){
@@ -303,7 +303,7 @@ public class LogService {
             raftRequest.setType("appendEntries");
             raftRequest.setId(raftNode.getId());
             raftRequest.setTerm(raftNode.getCurrentTerm());
-            raftRequest.setLeaderCommit(raftNode.getCommitIndex());
+            raftRequest.setLeaderCommit(stateMachine.getCommitIndex());
             raftRequest.setPrevLogIndex(-1);
             raftRequest.setPrevLogTerm(-1);
             raftRequest.setLog(currentLog);
@@ -325,7 +325,7 @@ public class LogService {
         raftRequest.setType("appendEntries");
         raftRequest.setId(raftNode.getId());
         raftRequest.setTerm(raftNode.getCurrentTerm());
-        raftRequest.setLeaderCommit(raftNode.getLeaderCommit());
+        raftRequest.setLeaderCommit(stateMachine.getCommitIndex());
         raftRequest.setPrevLogIndex(prevLog.getIndex());
         raftRequest.setPrevLogTerm(prevLog.getTerm());
         raftRequest.setLog(currentLog);
@@ -401,7 +401,7 @@ public class LogService {
         raftRequest.setType("installSnapshot");
         raftRequest.setId(raftNode.getId());
         raftRequest.setTerm(raftNode.getCurrentTerm());
-        raftRequest.setLeaderCommit(raftNode.getCommitIndex());
+        raftRequest.setLeaderCommit(stateMachine.getCommitIndex());
         raftRequest.setLastLogIndex(getLastLogIndex());
         raftRequest.setLastLogTerm(getLastLogTerm());
         raftRequest.setLeaderHost(raftNode.getLeaderHost());
@@ -452,7 +452,7 @@ public class LogService {
         }
         // 找到起始index,逐个提交到要求的index
         long commitableIndex = request.getLeaderCommit();
-        long currentCommitIndex = raftNode.getCommitIndex();
+        long currentCommitIndex = stateMachine.getCommitIndex();
         int startIndex = 0;
         if(logger.size() > 0){
             startIndex = (int) (currentCommitIndex - logger.get(0).getIndex()) + 1;
@@ -461,7 +461,7 @@ public class LogService {
             if((startIndex < logger.size()) && startIndex >= 0){
                 LogEntry logEntry = logger.get(startIndex);
                 stateMachine.applyLog(logEntry);
-                raftNode.setCommitIndex(logEntry.getIndex());
+                stateMachine.setCommitIndex(logEntry.getIndex());
                 startIndex++;
                 currentCommitIndex++;
                 if(autoPersist){
@@ -480,7 +480,7 @@ public class LogService {
         }
         log.error("leader node {} commit logs to {} of term {}, current term is {}", raftNode.getId(), commitableIndex, commitableTerm, raftNode.getCurrentTerm());
 
-        long currentCommitIndex = raftNode.getCommitIndex();
+        long currentCommitIndex = stateMachine.getCommitIndex();
         int startIndex = 0;
         if(logger.size() > 0){
             startIndex = (int) (currentCommitIndex - logger.get(0).getIndex()) + 1;
@@ -496,7 +496,7 @@ public class LogService {
                     log.error("apply exception");
                 }
                 
-                raftNode.setCommitIndex(logEntry.getIndex());
+                stateMachine.setCommitIndex(logEntry.getIndex());
                 startIndex++;
                 currentCommitIndex++;
 
@@ -511,7 +511,7 @@ public class LogService {
         raftRequest.setType("commitLogs");
         raftRequest.setId(raftNode.getId());
         raftRequest.setTerm(raftNode.getCurrentTerm());
-        raftRequest.setLeaderCommit(raftNode.getCommitIndex());
+        raftRequest.setLeaderCommit(stateMachine.getCommitIndex());
         raftRequest.setLeaderHost(raftNode.getLeaderHost());
         raftRequest.setLeaderPort(raftNode.getLeaderPort());
 

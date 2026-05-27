@@ -3,20 +3,62 @@ package hawk.JRegitstryCore;
 import java.util.Arrays;
 import hawk.JRegitstryCore.Log.LogEntry;
 import java.util.concurrent.ThreadPoolExecutor;
+import org.springframework.stereotype.Component;
 import com.alibaba.fastjson.JSON;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import lombok.extern.slf4j.Slf4j;
+import lombok.Data;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import java.nio.file.Path;
+import hawk.JRegitstryCore.Raft.RaftNode;
+import java.nio.file.Files;
+import java.nio.file.StandardOpenOption;
+import java.nio.charset.StandardCharsets;
+import java.io.BufferedWriter;
+import javax.annotation.PostConstruct;
+import com.alibaba.fastjson.annotation.JSONField;
 
 
 @Slf4j
+@Data
+@Component
 public class StateMachine {
 
     private BPlusNode root;
 
+    private volatile long commitIndex;
+
+    @JSONField(serialize = false)
+    private volatile long leaderCommit;
+
+    @Value("${raft.image-path}")
+    private String imagePath;
+
+    @Autowired
+    private RaftNode raftNode;
+
+    @Autowired
+    private ThreadPoolExecutor persistThread;
+
+    private ReentrantReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+
+    private volatile Path SMFilePath;
+
+    private volatile BufferedWriter SMWriter;
 
     public StateMachine() {
         this.root = new BPlusNode("root", "/root" );
+        this.commitIndex = -1;
+        this.leaderCommit = -1;
+    }
+
+    @PostConstruct
+    public void initLogWriter(){
+        SMFilePath = Path.of(imagePath+"stateMachine"+raftNode.getId()+".json");
+        openLogWriter();
     }
 
     public boolean putIfAbsent(String key, byte[] value, String type){
@@ -181,6 +223,75 @@ public class StateMachine {
             for (BPlusNode child : node.getChildren().values()) {
                 rebuildParent(child, node);
             }
+        }
+    }
+
+    
+
+    public boolean persist(){
+        String serializedStateMachine = JSON.toJSONString(this);
+        persistThread.execute(() -> {
+            readWriteLock.writeLock().lock();
+            try {
+                closeLogWriterQuietly();
+                BufferedWriter writer = Files.newBufferedWriter(
+                SMFilePath,
+                StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.TRUNCATE_EXISTING);
+                writer.write(serializedStateMachine);
+                writer.flush();
+                writer.close();
+            }catch (IOException e) {
+                log.error("node {} persist log failed", raftNode.getId());
+            }finally{
+                readWriteLock.writeLock().unlock();
+            }
+        });
+        return true;
+    }
+
+    public void recoverFromLocalImage(){
+        try {
+            readWriteLock.readLock().lock();
+            String nodejson = Files.readString(SMFilePath, StandardCharsets.UTF_8);
+            if(nodejson.isBlank()){
+                return;
+            }
+            StateMachine stateMachineImage = JSON.parseObject( nodejson,StateMachine.class);
+            this.setRoot(stateMachineImage.getRoot());
+            this.setCommitIndex(stateMachineImage.getCommitIndex());
+            this.rebuildParentLinks();
+        } catch (IOException e) {
+            log.error("node {} recover from image failed", raftNode.getId());
+        }finally{
+            readWriteLock.readLock().unlock();
+        }
+    }
+
+    private void openLogWriter(){
+        try {
+        closeLogWriterQuietly();
+        Files.createDirectories(SMFilePath.getParent());
+        SMWriter = Files.newBufferedWriter(
+            SMFilePath,
+            StandardCharsets.UTF_8,
+            StandardOpenOption.CREATE,
+            StandardOpenOption.APPEND
+        );
+        } catch (IOException e) {
+            log.error("node {} open log writer failed", raftNode.getId());
+        }
+    }
+
+    private void closeLogWriterQuietly() {
+        if (SMWriter != null) {
+            try {
+                SMWriter.close();
+            } catch (IOException e) {
+                log.error("node {} close log writer failed", raftNode.getId());
+            }
+            SMWriter = null;
         }
     }
 

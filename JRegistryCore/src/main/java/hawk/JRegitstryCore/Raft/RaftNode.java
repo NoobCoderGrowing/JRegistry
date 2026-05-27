@@ -1,4 +1,4 @@
-package hawk.JRegistryCenter.Raft;
+package hawk.JRegitstryCore.Raft;
 
 import org.springframework.stereotype.Component;
 import org.springframework.beans.factory.annotation.Value;
@@ -55,16 +55,16 @@ public class RaftNode {
     @JSONField(serialize = false)
     private int leaderPort;
 
-    private volatile long termVoted;
+    
     
     @JSONField(serialize = false)
     private AtomicInteger voteReceived;
 
-
+    private volatile long termVoted;
     //State part in raft paper
     private volatile long currentTerm;
 
-    private long commitIndex;
+    // private long commitIndex;
 
     //Append Entries part in raft paper
     @JSONField(serialize = false)
@@ -72,8 +72,8 @@ public class RaftNode {
     @JSONField(serialize = false)
     private volatile int leaderId;
     // private String[] entries;
-    @JSONField(serialize = false)
-    private long leaderCommit;
+    // @JSONField(serialize = false)
+    // private long leaderCommit;
 
     //Request Vote part in raft paper
     // @JSONField(serialize = false)
@@ -109,7 +109,7 @@ public class RaftNode {
         this.isLeader = new AtomicBoolean(false);
         this.isCandidate = new AtomicBoolean(true); // candidate by default
         this.currentTerm = -1;
-        this.commitIndex = -1;
+        // this.commitIndex = -1;
         // this.nextIndex = new long[10];
         // this.matchIndex = new long[10];
         this.leaderTerm = -1;
@@ -254,12 +254,6 @@ public class RaftNode {
             }
             RaftNode nodeImage = JSON.parseObject( nodejson,RaftNode.class);
             this.setCurrentTerm(nodeImage.getCurrentTerm());
-            this.setCommitIndex(nodeImage.getCommitIndex());
-            // this.setLsmTree(nodeImage.getLsmTree());
-            // this.getLsmTree().rebuildParentLinks();
-            // this.setLastLogTerm(nodeImage.getLastLogTerm());
-            // this.setLastLogIndex(nodeImage.getLastLogIndex());
-
             this.setLeaderId(-1);
             this.setLeaderHost(null);
             this.setLeaderPort(-1);

@@ -3,7 +3,7 @@ package hawk.JRegistryCenter.Web;
 import hawk.JRegistryCenter.Raft.Log.LogService;
 import hawk.JRegistryCenter.Raft.RPC.Client.RaftClientManager;
 import hawk.JRegistryCenter.Raft.RPC.Server.RaftServerManager;
-import hawk.JRegistryCenter.Raft.RaftNode;
+import hawk.JRegitstryCore.Raft.RaftNode;
 import hawk.JRegistryCenter.Web.dto.ClusterStatusDTO;
 import hawk.JRegistryCenter.Web.dto.NodeInfoDTO;
 import hawk.JRegistryCenter.Web.dto.NodeStatusDTO;
@@ -13,7 +13,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
-
+import hawk.JRegitstryCore.StateMachine;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -35,6 +35,9 @@ public class AdminService {
 
     @Autowired
     private RaftClientManager raftClientManager;
+
+    @Autowired
+    private StateMachine stateMachine;
 
     @Value("${raft.node-id}")
     private int localNodeId;
@@ -145,7 +148,7 @@ public class AdminService {
                 .connected(true)
                 .self(true)
                 .currentTerm(raftNode.getCurrentTerm())
-                .commitIndex(raftNode.getCommitIndex())
+                .commitIndex(stateMachine.getCommitIndex())
                 .lastLogIndex(logService.getLastLogIndex())
                 .lastLogTerm(logService.getLastLogTerm())
                 .logCount(logService.getLogCount())

@@ -7,7 +7,7 @@ import org.springframework.stereotype.Service;
 import com.alibaba.fastjson.JSON;
 import java.util.Map;
 import io.netty.channel.Channel;
-import hawk.JRegistryCenter.Raft.RaftNode;
+import hawk.JRegitstryCore.Raft.RaftNode;
 import hawk.JRegistryCenter.Raft.RPC.Client.RaftClientManager;
 import hawk.JRegistryCenter.Services.Timer.TimeoutService;
 import hawk.JRegitstryCore.RPC.RaftRequest;

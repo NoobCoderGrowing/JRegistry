@@ -1,6 +1,5 @@
 package hawk.JRegistryCenter.Services.Timer;
 
-import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 
 import org.springframework.beans.factory.ObjectProvider;
@@ -14,7 +13,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.beans.factory.annotation.Autowired;
-import hawk.JRegistryCenter.Raft.RaftNode;
+import hawk.JRegitstryCore.Raft.RaftNode;
 import hawk.JRegistryCenter.Raft.RPC.Client.RaftClientManager;
 import hawk.JRegistryCenter.Services.RequestVoteService;
 

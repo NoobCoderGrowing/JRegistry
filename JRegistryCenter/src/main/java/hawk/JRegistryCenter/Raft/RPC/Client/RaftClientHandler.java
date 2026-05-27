@@ -6,7 +6,7 @@ import io.netty.handler.timeout.IdleStateEvent;
 import hawk.JRegitstryCore.RPC.RaftRequest;
 
 import com.alibaba.fastjson.JSON;
-import hawk.JRegistryCenter.Raft.RaftNode;
+import hawk.JRegitstryCore.Raft.RaftNode;
 import hawk.JRegistryCenter.Services.AppendEntriesService;
 import hawk.JRegistryCenter.Services.RequestVoteService;
 import lombok.extern.slf4j.Slf4j;

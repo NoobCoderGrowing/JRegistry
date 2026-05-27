@@ -4,7 +4,7 @@ package hawk.JRegistryCenter.Services;
 import org.springframework.stereotype.Service;
 
 import com.alibaba.fastjson.JSON;
-import hawk.JRegistryCenter.Raft.RaftNode;
+import hawk.JRegitstryCore.Raft.RaftNode;
 import org.springframework.beans.factory.annotation.Autowired;
 import io.netty.channel.Channel;
 import java.util.Map;
@@ -18,6 +18,7 @@ import hawk.JRegitstryCore.Log.LogEntry;
 import hawk.JRegistryCenter.Raft.Log.LogService;
 import java.util.concurrent.ThreadPoolExecutor;
 import hawk.JRegistryCenter.Services.Persist.PersistService;
+import hawk.JRegitstryCore.StateMachine;
 
 
 
@@ -36,6 +37,9 @@ public class AppendEntriesService {
 
     @Autowired
     private LogService logService;
+
+    @Autowired
+    private StateMachine stateMachine;
 
 
     @Autowired
@@ -86,7 +90,7 @@ public class AppendEntriesService {
             // raftNode.setLsmTree(request.getSnapshot());
             // raftNode.setLastLogIndex(request.getLastLogIndex());
             // raftNode.setLastLogTerm(request.getLastLogTerm());
-            raftNode.setCommitIndex(request.getLeaderCommit());
+            stateMachine.setCommitIndex(request.getLeaderCommit());
             logService.installLogger(request);
             persistService.manualPersist();
         }

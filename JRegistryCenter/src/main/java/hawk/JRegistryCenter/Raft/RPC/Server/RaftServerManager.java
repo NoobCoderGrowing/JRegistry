@@ -10,7 +10,6 @@ import io.netty.handler.codec.string.StringEncoder;
 import io.netty.handler.timeout.IdleStateHandler;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
@@ -21,7 +20,7 @@ import java.util.Random;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 
-import hawk.JRegistryCenter.Raft.RaftNode;
+import hawk.JRegitstryCore.Raft.RaftNode;
 import hawk.JRegistryCenter.Raft.Log.LogService;
 import hawk.JRegistryCenter.Services.AppendEntriesService;
 import hawk.JRegistryCenter.Services.RequestVoteService;

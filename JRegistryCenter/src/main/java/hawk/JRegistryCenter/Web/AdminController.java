@@ -1,7 +1,7 @@
 package hawk.JRegistryCenter.Web;
 
 import hawk.JRegistryCenter.Raft.Log.LogService;
-import hawk.JRegistryCenter.Raft.RaftNode;
+import hawk.JRegitstryCore.Raft.RaftNode;
 import hawk.JRegistryCenter.Web.dto.ClusterStatusDTO;
 import hawk.JRegistryCenter.Web.dto.NodeInfoDTO;
 import hawk.JRegistryCenter.Web.dto.NodeStatusDTO;
@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import hawk.JRegitstryCore.StateMachine;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -23,6 +24,9 @@ public class AdminController {
 
     @Autowired
     private LogService logService;
+
+    @Autowired
+    private StateMachine stateMachine;
 
     @Value("${raft.node-id}")
     private int localNodeId;
@@ -49,7 +53,7 @@ public class AdminController {
         dto.setHttpPort(httpPort);
         dto.setRaftPort(raftPort);
         dto.setCurrentTerm(raftNode.getCurrentTerm());
-        dto.setCommitIndex(raftNode.getCommitIndex());
+        dto.setCommitIndex(stateMachine.getCommitIndex());
         dto.setLastLogIndex(logService.getLastLogIndex());
         dto.setLastLogTerm(logService.getLastLogTerm());
         dto.setLogCount(logService.getLogCount());

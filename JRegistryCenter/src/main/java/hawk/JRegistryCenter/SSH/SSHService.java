@@ -3,7 +3,7 @@ package hawk.JRegistryCenter.SSH;
 import org.springframework.stereotype.Service;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
-import hawk.JRegistryCenter.Raft.RaftNode;
+import hawk.JRegitstryCore.Raft.RaftNode;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.alibaba.fastjson.JSON;
 import hawk.JRegistryCenter.Raft.Log.LogService;

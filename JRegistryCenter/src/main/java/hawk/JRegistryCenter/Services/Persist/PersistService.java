@@ -1,7 +1,7 @@
 package hawk.JRegistryCenter.Services.Persist;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import hawk.JRegistryCenter.Raft.RaftNode;
+import hawk.JRegitstryCore.Raft.RaftNode;
 import hawk.JRegistryCenter.Raft.Log.LogService;
 import hawk.JRegistryCenter.Raft.RPC.Client.RaftClientManager;
 import org.springframework.stereotype.Service;
@@ -13,6 +13,7 @@ import java.io.File;
 import io.netty.channel.EventLoopGroup;
 import javax.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
+import hawk.JRegitstryCore.StateMachine;
 
 @Service
 @Data
@@ -25,7 +26,8 @@ public class PersistService {
     @Autowired
     private LogService logService;
 
-  
+    @Autowired
+    private StateMachine stateMachine;
 
     @Value("${raft.image-path}")
     private String imagePath;
@@ -36,7 +38,7 @@ public class PersistService {
     }
 
     public boolean manualPersist(){
-        if(raftNode.persist() && logService.persist()){
+        if(raftNode.persist() && logService.persist() && stateMachine.persist()){
             return true;
         }else{
             return false;

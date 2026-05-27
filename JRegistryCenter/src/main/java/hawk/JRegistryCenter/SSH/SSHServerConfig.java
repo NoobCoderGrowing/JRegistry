@@ -24,7 +24,7 @@ import java.io.OutputStream;
 import java.nio.file.Paths;
 import lombok.Data;
 import org.springframework.beans.factory.annotation.Autowired;
-import hawk.JRegistryCenter.Raft.RaftNode;
+import hawk.JRegitstryCore.Raft.RaftNode;
 import hawk.JRegitstryCore.BPlusNode;
 import java.util.concurrent.atomic.AtomicReference;
 import hawk.JRegitstryCore.StateMachine;
