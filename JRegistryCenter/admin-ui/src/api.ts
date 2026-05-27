@@ -3,6 +3,7 @@ import type {
   StateMachineTree,
   StateMachineWriteRequest,
   StateMachineWriteResult,
+  ElectionTimeline,
 } from './types';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
@@ -50,4 +51,13 @@ export function deleteStateMachineKey(
   key: string,
 ): Promise<StateMachineWriteResult> {
   return postStateMachineWrite('delete', { key });
+}
+
+export async function fetchElectionTimeline(): Promise<ElectionTimeline> {
+  const res = await fetch(`${API_BASE}/api/admin/election-timeline`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `请求失败: ${res.status} ${res.statusText}`);
+  }
+  return res.json();
 }

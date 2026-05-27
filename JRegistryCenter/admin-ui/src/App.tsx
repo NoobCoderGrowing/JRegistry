@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { fetchClusterStatus } from './api';
+import { fetchClusterStatus, fetchElectionTimeline } from './api';
 import { ClusterSummary } from './components/ClusterSummary';
 import { NodeTable } from './components/NodeTable';
-import type { ClusterStatus } from './types';
+import { ElectionAnimationPanel } from './components/ElectionAnimationPanel';
+import type { ClusterStatus, ElectionTimeline } from './types';
 
 const REFRESH_MS = 5000;
 
@@ -11,6 +12,27 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [electionTimeline, setElectionTimeline] = useState<ElectionTimeline | null>(null);
+  const [electionLoading, setElectionLoading] = useState(false);
+  const [electionError, setElectionError] = useState<string | null>(null);
+
+  async function handleShowElection() {
+    setElectionLoading(true);
+    setElectionError(null);
+    try {
+      const timeline = await fetchElectionTimeline();
+      setElectionTimeline(timeline);
+      if (timeline.events.length === 0) {
+        setElectionError('日志中未解析到选主相关事件，请先重启集群后再试');
+        setElectionTimeline(null);
+      }
+    } catch (e) {
+      setElectionError(e instanceof Error ? e.message : '加载选主日志失败');
+      setElectionTimeline(null);
+    } finally {
+      setElectionLoading(false);
+    }
+  }
 
   const load = useCallback(async () => {
     try {
@@ -34,9 +56,25 @@ export default function App() {
   return (
     <>
       <header>
-        <h1>JRegistry Center</h1>
-        <p>Raft 集群节点管理后台 · 每 {REFRESH_MS / 1000}s 自动刷新</p>
+        <div className="header-row">
+          <div>
+            <h1>JRegistry Center</h1>
+            <p>Raft 集群节点管理后台 · 每 {REFRESH_MS / 1000}s 自动刷新</p>
+          </div>
+          <button
+            type="button"
+            className="btn"
+            disabled={electionLoading}
+            onClick={handleShowElection}
+          >
+            {electionLoading ? '加载中…' : '选主流程'}
+          </button>
+        </div>
       </header>
+
+      {electionError && (
+        <div className="error-banner">{electionError}</div>
+      )}
 
       {error && (
         <div className="error-banner">
@@ -62,6 +100,13 @@ export default function App() {
             isLeader={data.localRole === 'LEADER'}
           />
         </>
+      )}
+
+      {electionTimeline && (
+        <ElectionAnimationPanel
+          timeline={electionTimeline}
+          onClose={() => setElectionTimeline(null)}
+        />
       )}
     </>
   );

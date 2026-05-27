@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import hawk.JRegitstryCore.StateMachine;
+import java.io.IOException;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -29,6 +30,9 @@ public class AdminController {
 
     @Autowired
     private AdminStateMachineWriteService adminStateMachineWriteService;
+
+    @Autowired
+    private ElectionLogService electionLogService;
 
     @Autowired
     private RaftNode raftNode;
@@ -101,6 +105,15 @@ public class AdminController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                     .body("Failed to fetch state machine tree for node " + targetNodeId);
+        }
+    }
+
+    @GetMapping("/election-timeline")
+    public ResponseEntity<?> electionTimeline() {
+        try {
+            return ResponseEntity.ok(electionLogService.parseStartupElectionTimeline());
+        } catch (IOException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         }
     }
 

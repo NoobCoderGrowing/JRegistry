@@ -59,3 +59,22 @@ export interface ClusterStatus {
   quorum: number;
   nodes: NodeInfo[];
 }
+
+export interface ElectionEvent {
+  sequence: number;
+  timestamp: string;
+  eventType: string;
+  nodeId: number;
+  targetNodeId: number;
+  term: number;
+  votesReceived: number;
+  message: string;
+}
+
+export interface ElectionTimeline {
+  clusterSize: number;
+  finalLeaderId: number;
+  finalTerm: number;
+  logPath: string;
+  events: ElectionEvent[];
+}
