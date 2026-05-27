@@ -3,7 +3,6 @@ package hawk.JRegitstryCore;
 import java.util.Arrays;
 import hawk.JRegitstryCore.Log.LogEntry;
 import java.util.concurrent.ThreadPoolExecutor;
-import org.springframework.stereotype.Component;
 import com.alibaba.fastjson.JSON;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -13,7 +12,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import java.nio.file.Path;
-import hawk.JRegitstryCore.Raft.RaftNode;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.nio.charset.StandardCharsets;
@@ -36,16 +34,22 @@ public class StateMachine {
     @Value("${raft.image-path}")
     private String imagePath;
 
-    @Autowired
-    private RaftNode raftNode;
+
+    @Value("${raft.node-id}")
+    @JSONField(serialize = false)
+    private int id;
 
     @Autowired
+    @JSONField(serialize = false)
     private ThreadPoolExecutor persistThread;
 
+    @JSONField(serialize = false)
     private ReentrantReadWriteLock readWriteLock = new ReentrantReadWriteLock();
 
+    @JSONField(serialize = false)
     private volatile Path SMFilePath;
 
+    @JSONField(serialize = false)
     private volatile BufferedWriter SMWriter;
 
     public StateMachine() {
@@ -56,7 +60,7 @@ public class StateMachine {
 
     @PostConstruct
     public void initLogWriter(){
-        SMFilePath = Path.of(imagePath+"stateMachine"+raftNode.getId()+".json");
+        SMFilePath = Path.of(imagePath+"stateMachine"+ id +".json");
         openLogWriter();
     }
 
@@ -241,7 +245,7 @@ public class StateMachine {
                 writer.flush();
                 writer.close();
             }catch (IOException e) {
-                log.error("node {} persist log failed", raftNode.getId());
+                log.error("node {} persist log failed", id);
             }finally{
                 readWriteLock.writeLock().unlock();
             }
@@ -262,7 +266,7 @@ public class StateMachine {
             this.rebuildParentLinks();
             log.info("state machine recover from local image success");
         } catch (IOException e) {
-            log.error("node {} recover from image failed", raftNode.getId());
+            log.error("node {} recover from image failed", id);
         }finally{
             readWriteLock.readLock().unlock();
         }
@@ -279,7 +283,7 @@ public class StateMachine {
             StandardOpenOption.APPEND
         );
         } catch (IOException e) {
-            log.error("node {} open log writer failed", raftNode.getId());
+            log.error("node {} open log writer failed", id);
         }
     }
 
@@ -288,7 +292,7 @@ public class StateMachine {
             try {
                 SMWriter.close();
             } catch (IOException e) {
-                log.error("node {} close log writer failed", raftNode.getId());
+                log.error("node {} close log writer failed", id);
             }
             SMWriter = null;
         }

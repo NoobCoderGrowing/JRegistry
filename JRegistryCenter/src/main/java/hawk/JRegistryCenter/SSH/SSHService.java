@@ -191,7 +191,7 @@ public class SSHService {
             return "invalid cmd";
         }
         if(!cmd[0].equals("show")&&!cmd[0].equals("set")&&!cmd[0].equals("delete")&&!cmd[0].equals("ls")
-            &&!cmd[0].equals("pwd")&&!cmd[0].equals("cd")&&!cmd[0].equals("get")){
+            &&!cmd[0].equals("pwd")&&!cmd[0].equals("cd")&&!cmd[0].equals("get")&&!cmd[0].equals("persist")){
             log.info("invalid cmd");
             return "invalid cmd";
         }
