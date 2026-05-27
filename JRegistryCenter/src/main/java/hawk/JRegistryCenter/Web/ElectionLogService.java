@@ -60,14 +60,23 @@ public class ElectionLogService {
             ElectionEventDTO event = parseLine(timestamp, message, ++sequence);
             if (event != null) {
                 events.add(event);
-                if ("BECOME_LEADER".equals(event.getEventType())) {
-                    finalLeaderId = event.getNodeId();
-                    finalTerm = event.getTerm();
-                }
             }
         }
 
         events.sort(Comparator.comparing(ElectionEventDTO::getTimestamp));
+
+        int leaderIndex = -1;
+        for (int i = 0; i < events.size(); i++) {
+            if ("BECOME_LEADER".equals(events.get(i).getEventType())) {
+                leaderIndex = i;
+                finalLeaderId = events.get(i).getNodeId();
+                finalTerm = events.get(i).getTerm();
+                break;
+            }
+        }
+        if (leaderIndex >= 0) {
+            events = new ArrayList<>(events.subList(0, leaderIndex + 1));
+        }
 
         for (int i = 0; i < events.size(); i++) {
             events.get(i).setSequence(i + 1);
