@@ -225,8 +225,7 @@ public class StateMachine {
             }
         }
     }
-
-    
+ 
 
     public boolean persist(){
         String serializedStateMachine = JSON.toJSONString(this);

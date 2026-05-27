@@ -20,8 +20,6 @@ import java.util.concurrent.ThreadPoolExecutor;
 import org.springframework.stereotype.Service;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
-// import org.springframework.context.event.ContextRefreshedEvent;
-// import org.springframework.context.event.EventListener;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.Map;
 
@@ -36,7 +34,6 @@ import java.nio.file.StandardOpenOption;
 import java.io.BufferedReader;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import hawk.JRegitstryCore.StateMachine;
-
 
 @Service
 @Data
@@ -89,6 +86,7 @@ public class LogService {
 
     @Autowired
     private StateMachine stateMachine;
+
 
     @PostConstruct
     public void initIndexMap(){
@@ -393,15 +391,31 @@ public class LogService {
         raftRequest.setId(raftNode.getId());
         raftRequest.setTerm(raftNode.getCurrentTerm());
         raftRequest.setLeaderCommit(stateMachine.getCommitIndex());
-        raftRequest.setLastLogIndex(getLastLogIndex());
-        raftRequest.setLastLogTerm(getLastLogTerm());
-        raftRequest.setLeaderHost(raftNode.getLeaderHost());
-        raftRequest.setLeaderPort(raftNode.getLeaderPort());
-        raftRequest.setSnapshot(stateMachine);
-        raftRequest.setLogs(logger);
+        raftRequest.setStateMachine(stateMachine);
+        raftRequest.setLogs(this.getLogger());
         writePool.execute(() -> {
             channel.writeAndFlush(JSON.toJSONString(raftRequest) + "\n");
         });
+        stateMachine.persist();
+    }
+
+    public RaftRequest handleInstallSnapshotRequest(RaftRequest request){
+        if(request.getTerm() >= raftNode.getCurrentTerm()){
+            timeoutService.resetTimeout();
+            long oldTerm = raftNode.getCurrentTerm();
+            raftNode.acceptLeader(request);
+            if(request.getTerm() > oldTerm){
+                if(autoPersist){
+                    raftNode.persist();
+                }
+            }
+            stateMachine.setCommitIndex(request.getLeaderCommit());
+            stateMachine.setRoot(request.getStateMachine().getRoot());
+            stateMachine.rebuildParentLinks();
+            installLogger(request);
+            stateMachine.persist();
+        }
+        return null;
     }
 
     
@@ -409,8 +423,6 @@ public class LogService {
     public void installLogger(RaftRequest request){
         logger.clear();
         logger.addAll(request.getLogs());
-        // raftNode.setLastLogIndex(logger.get(logger.size() - 1).getIndex());
-        // raftNode.setLastLogTerm(logger.get(logger.size() - 1).getTerm());
     }
 
     public void updateMatchIndex(RaftRequest reply){

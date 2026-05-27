@@ -76,26 +76,7 @@ public class AppendEntriesService {
     }
    
 
-    public RaftRequest handleInstallSnapshotRequest(RaftRequest request){
-        if(request.getTerm() >= raftNode.getCurrentTerm()){
-            // followerElectionTimer.resetTimeout();
-            timeoutService.resetTimeout();
-            long oldTerm = raftNode.getCurrentTerm();
-            raftNode.acceptLeader(request);
-            if(request.getTerm() > oldTerm){
-                // if(autoPersist){
-                //     raftNode.persist();
-                // }
-            }
-            // raftNode.setLsmTree(request.getSnapshot());
-            // raftNode.setLastLogIndex(request.getLastLogIndex());
-            // raftNode.setLastLogTerm(request.getLastLogTerm());
-            stateMachine.setCommitIndex(request.getLeaderCommit());
-            logService.installLogger(request);
-            persistService.manualPersist();
-        }
-        return null;
-    }
+    
 
     //leader to follower (active)
     public void sendHeartBeat(Channel channel, int peerNodeId){
