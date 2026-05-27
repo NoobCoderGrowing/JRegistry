@@ -3,6 +3,7 @@ package hawk.JRegistryCenter.Services.Persist;
 import org.springframework.beans.factory.annotation.Autowired;
 import hawk.JRegitstryCore.Raft.RaftNode;
 import hawk.JRegistryCenter.Raft.Log.LogService;
+import org.springframework.beans.factory.ObjectProvider;
 import hawk.JRegistryCenter.Raft.RPC.Client.RaftClientManager;
 import org.springframework.stereotype.Service;
 import lombok.Data;
@@ -28,6 +29,9 @@ public class PersistService {
 
     @Autowired
     private StateMachine stateMachine;
+
+    @Autowired
+    private ObjectProvider<RaftClientManager> raftClientManagerProvider;
 
     @Value("${raft.image-path}")
     private String imagePath;
@@ -95,6 +99,22 @@ public class PersistService {
         log.info("node {} send compact request to all nodes", raftNode.getId());
         raftClientManager.sendToAllPeers(JSON.toJSONString(raftRequest));
         logCompaction();
+    }
+
+    public void receivePersistRequest(){
+        if(raftNode.getIsLeader().get()){
+            sendPersistRequest2All(raftClientManagerProvider.getObject());
+        }else{
+            manualPersist();
+        }
+    }
+
+    public void receiveCompactRequest(){
+        if(raftNode.getIsLeader().get()){
+            sendCompactRequest2All(raftClientManagerProvider.getObject());
+        }else{
+            logCompaction();
+        }
     }
     
 }
