@@ -75,13 +75,9 @@ export function StateMachineTreePanel({ nodeId, commitIndex, root, onClose }: Pr
           </button>
         </div>
         <div className="tree-container">
-          {root.children.length === 0 && !root.leaf ? (
-            <p className="tree-empty">该节点 StateMachine 为空</p>
-          ) : (
-            <ul className="tree-root">
-              <TreeNodeItem node={root} />
-            </ul>
-          )}
+          <ul className="tree-root">
+            <TreeNodeItem node={root} />
+          </ul>
         </div>
       </div>
     </div>

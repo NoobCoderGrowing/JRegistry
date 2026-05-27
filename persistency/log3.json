@@ -1,7 +1,2 @@
-{"command":"noOp","index":0,"term":0}
-{"command":"noOp","index":1,"term":1}
-{"command":"noOp","index":2,"term":2}
-{"command":"noOp","index":3,"term":3}
-{"command":"noOp","index":4,"term":4}
-{"command":"set","data":"d3Jvbmc=","dataType":"string","index":5,"key":"wenjun","term":4}
-{"command":"delete","index":6,"key":"wenjun","term":4}
+{"command":"set","data":"cmlnaHQ=","dataType":"string","index":10,"key":"mimi","term":5}
+{"command":"set","data":"cmlnaHQ=","dataType":"string","index":11,"key":"wenjun.JJ","term":5}
