@@ -80,10 +80,10 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
                     reply = logService.handleWriteRequest(request);
                     break;
                 case "persist":
-                    persistService.receivePersistRequest();
+                    persistService.handlePersistRequest();
                     break;
                 case "compact":
-                    persistService.receiveCompactRequest();
+                    persistService.handleCompactRequest();
                     break;
                 default:
                     break;

@@ -101,7 +101,7 @@ public class PersistService {
         logCompaction();
     }
 
-    public void receivePersistRequest(){
+    public void handlePersistRequest(){
         if(raftNode.getIsLeader().get()){
             sendPersistRequest2All(raftClientManagerProvider.getObject());
         }else{
@@ -109,7 +109,7 @@ public class PersistService {
         }
     }
 
-    public void receiveCompactRequest(){
+    public void handleCompactRequest(){
         if(raftNode.getIsLeader().get()){
             sendCompactRequest2All(raftClientManagerProvider.getObject());
         }else{
