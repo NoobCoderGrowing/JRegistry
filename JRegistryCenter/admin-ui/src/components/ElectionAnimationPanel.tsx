@@ -33,14 +33,13 @@ function buildNodeRoles(
         roles.set(ev.nodeId, 'CANDIDATE');
         break;
       case 'BECOME_LEADER':
-        for (let i = 1; i <= clusterSize; i++) {
-          if (roles.get(i) !== 'OFFLINE') {
-            roles.set(i, 'FOLLOWER');
-          }
-        }
         roles.set(ev.nodeId, 'LEADER');
         break;
       case 'BECOME_FOLLOWER':
+        if (roles.get(ev.nodeId) !== 'OFFLINE') {
+          roles.set(ev.nodeId, 'FOLLOWER');
+        }
+        break;
       case 'ACCEPT_LEADER':
         if (roles.get(ev.nodeId) !== 'OFFLINE') {
           roles.set(ev.nodeId, 'FOLLOWER');
