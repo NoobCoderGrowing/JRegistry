@@ -203,7 +203,7 @@ public class ElectionLogService {
                     .targetNodeId(leaderId)
                     .term(term)
                     .votesReceived(-1)
-                    .message("节点 " + nodeId + " 发现更高 term " + term + "，退为 Follower")
+                    .message("节点 " + nodeId + " 退为 Follower（发现 term " + term + "，来自节点 " + leaderId + "）")
                     .build();
         }
 
