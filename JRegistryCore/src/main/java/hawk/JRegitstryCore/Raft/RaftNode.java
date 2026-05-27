@@ -181,10 +181,7 @@ public class RaftNode {
     }
 
     public void turn2Follower(RaftRequest request){
-        if(autoPersist){
-            this.persist();
-        }
-
+        
         log.info("server {} turn to follower from higher term {} node {}", this.getId(), request.getTerm(), request.getId());
         this.getIsCandidate().compareAndSet(true, false);
         this.getIsLeader().compareAndSet(true, false); // 放弃leader身份
@@ -194,6 +191,9 @@ public class RaftNode {
         this.setLeaderPort(-1);
         this.setTermVoted(-1);
         this.getVoteReceived().set(0);
+        if(autoPersist){
+            this.persist();
+        }
     }
 
     public void turn2Leader(){

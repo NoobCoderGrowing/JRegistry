@@ -179,19 +179,15 @@ public class LogService {
 
     public void generateNoOpLog(){
         long prevLogIndex = -1;
-        long prevLogTerm = -1;
         
         if(logger.size() != 0){ // always keep last log in logger
             prevLogIndex = logger.get(logger.size() - 1).getIndex();
-            prevLogTerm = logger.get(logger.size() - 1).getTerm();    
         }
         LogEntry logEntry = new LogEntry();
         logEntry.setTerm(raftNode.getCurrentTerm());
         logEntry.setIndex(prevLogIndex + 1);
         logEntry.setCommand("noOp");
         logger.add(logEntry);
-        // raftNode.setLastLogIndex(logEntry.getIndex());
-        // raftNode.setLastLogTerm(logEntry.getTerm());
         if(autoPersist){
             persistEntry(logEntry);
         }
@@ -201,11 +197,8 @@ public class LogService {
 
     public void generateLogEntry(SSHRequest cliRequest){
         long prevLogIndex = -1;
-        long prevLogTerm = -1;
-        
         if(logger.size() != 0){ // always keep last log in logger
             prevLogIndex = logger.get(logger.size() - 1).getIndex();
-            prevLogTerm = logger.get(logger.size() - 1).getTerm();    
         }
         LogEntry logEntry = new LogEntry();
         logEntry.setTerm(raftNode.getCurrentTerm());
@@ -215,8 +208,6 @@ public class LogService {
         logEntry.setData(cliRequest.getData());
         logEntry.setDataType(cliRequest.getDataType());
         logger.add(logEntry);
-        // raftNode.setLastLogIndex(logEntry.getIndex());
-        // raftNode.setLastLogTerm(logEntry.getTerm());
         if(autoPersist){
             persistEntry(logEntry);
         }
