@@ -23,7 +23,6 @@ import javax.annotation.PostConstruct;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 @Slf4j
-@Component
 @Data
 public class RaftNode {
 
@@ -261,6 +260,7 @@ public class RaftNode {
             this.getVoteReceived().set(0);
             this.getIsLeader().compareAndSet(true, false);
             this.getIsCandidate().compareAndSet(true, false);
+            log.info("node {} recover from image success", this.getId());
         } catch (IOException e) {
             log.error("node {} recover from image failed", this.getId());
         }finally{

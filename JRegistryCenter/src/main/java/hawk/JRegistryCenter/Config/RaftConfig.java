@@ -9,6 +9,8 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import org.springframework.beans.factory.annotation.Value;
+import hawk.JRegitstryCore.Raft.RaftNode;
+import hawk.JRegitstryCore.StateMachine;
 
 @Configuration
 public class RaftConfig {
@@ -31,10 +33,6 @@ public class RaftConfig {
         return new NioEventLoopGroup(1);
     }
 
-    // @Bean("reconnectGroup")
-    // public EventLoopGroup reconnectGroup() {
-    //     return new NioEventLoopGroup(reconnectThreads);
-    // }
 
     @Bean("writePool")
     public ThreadPoolExecutor writePool() {
@@ -44,6 +42,16 @@ public class RaftConfig {
     @Bean("persistThread")
     public ThreadPoolExecutor persistThread() {
         return new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>());
+    }
+
+    @Bean("raftNode")
+    public RaftNode raftNode() {
+        return new RaftNode();
+    }
+
+    @Bean("stateMachine")
+    public StateMachine stateMachine() {
+        return new StateMachine();
     }
 
 }

@@ -24,7 +24,6 @@ import com.alibaba.fastjson.annotation.JSONField;
 
 @Slf4j
 @Data
-@Component
 public class StateMachine {
 
     private BPlusNode root;
@@ -261,6 +260,7 @@ public class StateMachine {
             this.setRoot(stateMachineImage.getRoot());
             this.setCommitIndex(stateMachineImage.getCommitIndex());
             this.rebuildParentLinks();
+            log.info("state machine recover from local image success");
         } catch (IOException e) {
             log.error("node {} recover from image failed", raftNode.getId());
         }finally{

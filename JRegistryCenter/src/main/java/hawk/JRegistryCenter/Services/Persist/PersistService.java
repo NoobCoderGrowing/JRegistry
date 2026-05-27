@@ -68,12 +68,10 @@ public class PersistService {
         if(nodeFile.exists() && logFile.exists()){
             raftNode.recoverFromImage();
             logService.recoverFromLocalImage();
-            log.info("raft node and log recover from local image success");
         }
         File stateMachineFile = new File(imagePath + "stateMachine" + raftNode.getId() + ".json");
         if(stateMachineFile.exists()){
             stateMachine.recoverFromLocalImage();
-            log.info("state machine recover from local image success");
         }
     }
     
