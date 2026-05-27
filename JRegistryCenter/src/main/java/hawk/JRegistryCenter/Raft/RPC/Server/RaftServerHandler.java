@@ -5,16 +5,19 @@ import com.alibaba.fastjson.JSON;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.timeout.IdleStateEvent;
-import org.springframework.stereotype.Component;
-import hawk.JRegistryCenter.Raft.RPC.Server.Services.AppendEntriesService;
-import hawk.JRegistryCenter.Raft.RPC.Server.Services.RequestVoteService;
+
 import hawk.JRegitstryCore.RPC.RaftRequest;
-import hawk.JRegistryCenter.Raft.RaftNode;
+import hawk.JRegitstryCore.Raft.RaftNode;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import hawk.JRegistryCenter.Raft.Log.LogService;
+import hawk.JRegistryCenter.Services.AppendEntriesService;
+import hawk.JRegistryCenter.Services.RequestVoteService;
+import hawk.JRegistryCenter.Services.Persist.PersistService;
+
+import java.util.concurrent.ThreadPoolExecutor;
 
 @Slf4j
-@Component
 @Data
 public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
 
@@ -30,11 +33,22 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
 
     private RaftNode raftNode;
 
-    public RaftServerHandler(RaftServerManager raftServer, AppendEntriesService appendEntriesService, RequestVoteService requestVoteService, RaftNode raftNode) {
+    private LogService logService;
+
+    private ThreadPoolExecutor writePool;
+
+    private PersistService persistService;
+
+    public RaftServerHandler(RaftServerManager raftServer, AppendEntriesService appendEntriesService, 
+        RequestVoteService requestVoteService, RaftNode raftNode, LogService logService, 
+        ThreadPoolExecutor writePool, PersistService persistService) {
         this.raftServer = raftServer;
         this.appendEntriesService = appendEntriesService;
         this.requestVoteService = requestVoteService;
         this.raftNode = raftNode;
+        this.logService = logService;
+        this.writePool = writePool;
+        this.persistService = persistService;
     }
 
     @Override
@@ -57,18 +71,32 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
                     reply = appendEntriesService.handleShakeHandsRequest(request, this, ctx.channel());
                     break;
                 case "installSnapshot":
-                    reply = appendEntriesService.handleInstallSnapshotRequest(request);
+                    reply = logService.handleInstallSnapshotRequest(request);
+                    break;
+                case "commitLogs":
+                    reply = logService.followerCommitLogs(request);
+                    break;
+                case "writeRequest":
+                    reply = logService.handleWriteRequest(request);
+                    break;
+                case "persist":
+                    persistService.handlePersistRequest();
+                    break;
+                case "compact":
+                    persistService.handleCompactRequest();
                     break;
                 default:
                     break;
             }
             if(reply != null){
-                ctx.writeAndFlush(JSON.toJSONString(reply) + "\n");
+                final RaftRequest finalReply = reply;
+                writePool.execute(() -> {
+                    ctx.writeAndFlush(JSON.toJSONString(finalReply) + "\n");
+                });
                 // log.info("server {} send reply: {}", raftNode.getId(), JSON.toJSONString(reply));
             }
         } catch (Exception e) {
-            log.error("server {} handle request error: {}", raftNode.getId(), e.getMessage());
-            // ctx.writeAndFlush("{\"error\":\"" + e.getMessage() + "\"}\n");
+            log.error("server {} handle request error: {}, stack trace: {}", raftNode.getId(), e.getMessage(), e.getStackTrace());
         }
         
     }

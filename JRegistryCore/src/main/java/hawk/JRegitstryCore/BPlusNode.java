@@ -3,19 +3,36 @@ import lombok.Data;
 
 import java.util.HashMap;
 import java.util.Set;
+import com.alibaba.fastjson.JSON;
+import lombok.extern.slf4j.Slf4j;
+import com.alibaba.fastjson.annotation.JSONField;
 
 @Data
+@Slf4j
 public class BPlusNode {
 
-    private String key;
+    @JSONField(serialize = false)
+    private BPlusNode parent;
 
     private String path;
 
-    private HashMap<String, BPlusNode> children;
-
-    private byte[] value;
+    private String key;
 
     private String type;
+
+    private byte[] value;
+    
+    private HashMap<String, BPlusNode> children;
+
+
+    public BPlusNode() {
+    }
+    
+
+    public BPlusNode(String key) {
+        this.key = key;
+        this.children = new HashMap<>();
+    }
 
     public BPlusNode(String key, String path) {
         this.key = key;
@@ -31,13 +48,21 @@ public class BPlusNode {
     }
 
 
-    public boolean addNode(BPlusNode newNode) {
-        if (children.containsKey(newNode.getKey())) {
+    public boolean addNodeIfAbsent(BPlusNode newNode) {
+        if (!children.containsKey(newNode.getKey())) {
             newNode.setPath(path+'/'+newNode.getKey());
             children.put(newNode.getKey(), newNode);
+            newNode.setParent(this);
             return true;
         }
         return false;
+    }
+
+    public boolean addNode(BPlusNode newNode) {
+        newNode.setPath(path+'/'+newNode.getKey());
+        children.put(newNode.getKey(), newNode);
+        newNode.setParent(this);
+        return true;
     }
 
     public boolean deleteNode(String key){
@@ -61,6 +86,14 @@ public class BPlusNode {
 
     public String pwd(){
         return path;
+    }
+
+    public String show(){
+         return JSON.toJSONString(this);
+    }
+
+    public Pair<String, byte[]> get(){
+        return new Pair<String, byte[]>(this.type, this.value);
     }
 
 

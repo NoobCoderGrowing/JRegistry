@@ -2,8 +2,22 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 APP_JAR="$SCRIPT_DIR/target/JRegistryCenter-1.0-SNAPSHOT.jar"
 LOG_DIR="$SCRIPT_DIR/logs"
+ADMIN_UI_DIR="$SCRIPT_DIR/admin-ui"
+
+# 1. 构建前端（输出到 src/main/resources/static）
+if [ ! -d "$ADMIN_UI_DIR/node_modules" ]; then
+  echo "Installing admin-ui dependencies..."
+  npm --prefix "$ADMIN_UI_DIR" install
+fi
+echo "Building admin-ui..."
+npm --prefix "$ADMIN_UI_DIR" run build
+
+# 2. 构建后端 jar（包含最新 static 资源）
+echo "Building JRegistryCenter..."
+mvn -f "$ROOT_DIR/pom.xml" clean package -pl JRegistryCenter -am -DskipTests
 
 mkdir -p "$LOG_DIR"
 
@@ -13,7 +27,9 @@ sleep 1
 
 rm -rf "$LOG_DIR"/*
 
-# 启动 3 个节点（使用不同配置）
+# 3. 在项目根目录启动，保证 persistency/ 相对路径正确
+cd "$ROOT_DIR"
+
 nohup java -jar "$APP_JAR" --spring.config.location=classpath:/application.yaml \
   > /dev/null 2>&1 &
 echo $! > "$LOG_DIR/node1.pid"

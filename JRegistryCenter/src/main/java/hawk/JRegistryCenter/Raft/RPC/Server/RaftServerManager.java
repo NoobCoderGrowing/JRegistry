@@ -2,7 +2,6 @@ package hawk.JRegistryCenter.Raft.RPC.Server;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.*;
-import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.LineBasedFrameDecoder;
@@ -11,7 +10,6 @@ import io.netty.handler.codec.string.StringEncoder;
 import io.netty.handler.timeout.IdleStateHandler;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
@@ -21,9 +19,14 @@ import lombok.Data;
 import java.util.Random;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import hawk.JRegistryCenter.Raft.RPC.Server.Services.AppendEntriesService;
-import hawk.JRegistryCenter.Raft.RPC.Server.Services.RequestVoteService;
-import hawk.JRegistryCenter.Raft.RaftNode;
+
+import hawk.JRegitstryCore.Raft.RaftNode;
+import hawk.JRegistryCenter.Raft.Log.LogService;
+import hawk.JRegistryCenter.Services.AppendEntriesService;
+import hawk.JRegistryCenter.Services.RequestVoteService;
+import hawk.JRegistryCenter.Services.Persist.PersistService;
+
+import java.util.concurrent.ThreadPoolExecutor;
 
 @Component
 @Slf4j
@@ -45,9 +48,18 @@ public class RaftServerManager {
     @Autowired
     private RaftNode raftNode;
 
+    @Autowired
+    private LogService logService;
 
-    private EventLoopGroup bossGroup;
-    private EventLoopGroup workerGroup;
+    @Autowired
+    private PersistService persistService;
+
+    @Autowired
+    private EventLoopGroup singleGroup;
+
+    @Autowired
+    private ThreadPoolExecutor writePool;
+
     private Channel channel;
 
     private Random random = new Random();
@@ -63,17 +75,12 @@ public class RaftServerManager {
         }
     }
 
-
-    @PostConstruct
     public void start() throws InterruptedException {
         initPeers(peers);
-
-        bossGroup = new NioEventLoopGroup(1);
-        workerGroup = new NioEventLoopGroup();
         
         try {
             ServerBootstrap b = new ServerBootstrap();
-            b.group(bossGroup, workerGroup)
+            b.group(singleGroup)
              .channel(NioServerSocketChannel.class)
              .option(ChannelOption.SO_BACKLOG, 128)
              .childOption(ChannelOption.SO_KEEPALIVE, true)
@@ -88,7 +95,8 @@ public class RaftServerManager {
                      p.addLast(new LineBasedFrameDecoder(8192));
                      p.addLast(new StringDecoder(StandardCharsets.UTF_8));
                      p.addLast(new StringEncoder(StandardCharsets.UTF_8));
-                     p.addLast(new RaftServerHandler(RaftServerManager.this, appendEntriesService, requestVoteService, raftNode));
+                     p.addLast(new RaftServerHandler(RaftServerManager.this, appendEntriesService, requestVoteService, raftNode, 
+                        logService, writePool, persistService));
                  }
              });
             
@@ -104,8 +112,6 @@ public class RaftServerManager {
             // f.channel().closeFuture().sync();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-        }finally{
-            // shutdown();
         }
     }
     
@@ -114,11 +120,8 @@ public class RaftServerManager {
         if (channel != null) {
             channel.close();
         }
-        if (bossGroup != null) {
-            bossGroup.shutdownGracefully();
-        }
-        if (workerGroup != null) {
-            workerGroup.shutdownGracefully();
+        if (singleGroup != null) {
+            singleGroup.shutdownGracefully();
         }
         log.info("Raft server {} shutdown gracefully", id);
     }
@@ -127,7 +130,9 @@ public class RaftServerManager {
     public void sendToPeer(int nodeId, String message) {
         Channel channel = peerChannels.get(nodeId);
         if (channel != null && channel.isActive()) {
-            channel.writeAndFlush(message + "\n");
+            writePool.execute(() -> {
+                channel.writeAndFlush(message + "\n");
+            });
         } 
     }
 

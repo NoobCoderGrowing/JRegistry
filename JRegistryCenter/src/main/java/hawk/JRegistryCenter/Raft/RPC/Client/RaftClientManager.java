@@ -2,7 +2,6 @@ package hawk.JRegistryCenter.Raft.RPC.Client;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.*;
-import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.LineBasedFrameDecoder;
@@ -16,18 +15,18 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Bean;
-
-import javax.annotation.PostConstruct;
 import lombok.Data;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
 import javax.annotation.PreDestroy;
 import java.lang.Thread;
 import org.springframework.beans.factory.annotation.Autowired;
-import hawk.JRegistryCenter.Raft.RPC.Server.Services.AppendEntriesService;
-import hawk.JRegistryCenter.Raft.RPC.Server.Services.RequestVoteService;
-import hawk.JRegistryCenter.Raft.RaftNode;
+
+import hawk.JRegitstryCore.Raft.RaftNode;
+import hawk.JRegistryCenter.Services.AppendEntriesService;
+import hawk.JRegistryCenter.Services.RequestVoteService;
+
+import java.util.concurrent.ThreadPoolExecutor;
 import hawk.JRegistryCenter.Raft.Log.LogService;
 
 @Slf4j
@@ -38,7 +37,9 @@ public class RaftClientManager {
     private final ConcurrentHashMap<Integer, Channel> peerChannels = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, String> peerAddresses = new ConcurrentHashMap<>();
     private ConcurrentHashMap<Integer, AtomicBoolean> reconnectLock = new ConcurrentHashMap<>();
-    private EventLoopGroup group;
+
+    @Autowired
+    private EventLoopGroup singleGroup;
 
     @Value("#{${raft.peers:{}}}")
     private Map<Integer, String> peers;
@@ -55,11 +56,16 @@ public class RaftClientManager {
     @Autowired
     private RaftNode raftNode;
 
+    @Autowired
     private LogService logService;
 
-    @PostConstruct
-    public void init(){
-        group = new NioEventLoopGroup();
+    @Autowired
+    private ThreadPoolExecutor writePool;
+
+    // @Autowired
+    // private EventLoopGroup reconnectGroup;
+    public void start(){
+        // singleGroup = new NioEventLoopGroup(1);
         initPeers(peers);
         connectAllPeers();
         try{
@@ -69,12 +75,7 @@ public class RaftClientManager {
         }
    }
 
-   @Bean
-   public LogService initLogService(){
-        LogService logService = new LogService(this);
-        this.logService = logService;
-        return logService;
-   }
+   
     // 初始化：配置所有 peer 节点的地址
     public void initPeers(Map<Integer, String> peers) {
         peerAddresses.putAll(peers);
@@ -96,7 +97,7 @@ public class RaftClientManager {
         }
 
         Bootstrap b = new Bootstrap();
-        b.group(group)
+        b.group(singleGroup)
          .channel(NioSocketChannel.class) //使用NIO Socket通道
          .option(ChannelOption.TCP_NODELAY, true)  // 禁用 Nagle 算法，降低延迟
          .option(ChannelOption.SO_KEEPALIVE, true)  // 开启 TCP keepalive
@@ -106,11 +107,11 @@ public class RaftClientManager {
              protected void initChannel(SocketChannel ch) {
                  ChannelPipeline p = ch.pipeline();
                  // 30秒无读写则触发ideleStateEvent
-                 p.addLast(new IdleStateHandler(0, 10000, 0, TimeUnit.MILLISECONDS)); 
+                 p.addLast(new IdleStateHandler(0, 5000, 0, TimeUnit.MILLISECONDS)); 
                  p.addLast(new LineBasedFrameDecoder(8192)); //使用行分隔符解码器，每行一个消息
                  p.addLast(new StringDecoder(StandardCharsets.UTF_8)); //使用字符串解码器，将字符串解码为消息
                  p.addLast(new StringEncoder(StandardCharsets.UTF_8)); //使用字符串编码器，将消息编码为字符串
-                 p.addLast(new RaftClientHandler(nodeId, appendEntriesService, requestVoteService, raftNode, RaftClientManager.this)); //使用RaftClientHandler处理消息
+                 p.addLast(new RaftClientHandler(nodeId, appendEntriesService, requestVoteService, raftNode, RaftClientManager.this, writePool, logService)); //使用RaftClientHandler处理消息
              }
          });
         
@@ -140,7 +141,9 @@ public class RaftClientManager {
     public void sendToPeer(int nodeId, String message) {
         Channel channel = peerChannels.get(nodeId);
         if (channel != null && channel.isActive()) {
-            channel.writeAndFlush(message + "\n");
+            writePool.execute(() -> {
+                channel.writeAndFlush(message + "\n");
+            });
         } else {
             // 连接断开，触发重连
             String addr = peerAddresses.get(nodeId);
@@ -159,7 +162,7 @@ public class RaftClientManager {
     
     // 延迟重连
     public void scheduleReconnect(int nodeId, String host, int port) {
-        group.schedule(() -> {
+        singleGroup.schedule(() -> {
             if (!peerChannels.containsKey(nodeId) || 
                 !peerChannels.get(nodeId).isActive()) {
                 connectToPeer(nodeId, host, port);
@@ -174,6 +177,8 @@ public class RaftClientManager {
             connectToPeer(nodeId, parts[0], Integer.parseInt(parts[1]));
         });
     }
+
+
 
     public int getActivePeers() {
         int activePeers = 0;
@@ -196,8 +201,8 @@ public class RaftClientManager {
         peerChannels.clear();
 
         // 关闭 Netty 线程组
-        if (group != null) {
-            group.shutdownGracefully();
+        if (singleGroup != null) {
+            singleGroup.shutdownGracefully();
         }
 
         log.info("RaftClientManager {} shutdown gracefully", id);

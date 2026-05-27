@@ -3,13 +3,15 @@ package hawk.JRegistryCenter.Raft.RPC.Client;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.timeout.IdleStateEvent;
-import hawk.JRegistryCenter.Raft.RPC.Server.Services.AppendEntriesService;
-import hawk.JRegistryCenter.Raft.RPC.Server.Services.RequestVoteService;
 import hawk.JRegitstryCore.RPC.RaftRequest;
 
 import com.alibaba.fastjson.JSON;
-import hawk.JRegistryCenter.Raft.RaftNode;
+import hawk.JRegitstryCore.Raft.RaftNode;
+import hawk.JRegistryCenter.Services.AppendEntriesService;
+import hawk.JRegistryCenter.Services.RequestVoteService;
 import lombok.extern.slf4j.Slf4j;
+import java.util.concurrent.ThreadPoolExecutor;
+import hawk.JRegistryCenter.Raft.Log.LogService;
 
 @Slf4j
 public class RaftClientHandler extends SimpleChannelInboundHandler<String> {
@@ -27,16 +29,22 @@ public class RaftClientHandler extends SimpleChannelInboundHandler<String> {
     
     private RaftNode raftNode;
 
+    private LogService logService;
+
     
     private RaftClientManager raftClientManager;
 
+    private ThreadPoolExecutor writePool;
 
-    public RaftClientHandler(int peerNodeId, AppendEntriesService appendEntriesService, RequestVoteService requestVoteService, RaftNode raftNode, RaftClientManager raftClientManager) {
+    public RaftClientHandler(int peerNodeId, AppendEntriesService appendEntriesService, 
+        RequestVoteService requestVoteService, RaftNode raftNode, RaftClientManager raftClientManager, ThreadPoolExecutor writePool, LogService logService) {
         this.peerNodeId = peerNodeId;
         this.appendEntriesService = appendEntriesService;
         this.requestVoteService = requestVoteService;
         this.raftNode = raftNode;
         this.raftClientManager = raftClientManager;
+        this.writePool = writePool;
+        this.logService = logService;
     }
     
     @Override
@@ -57,11 +65,17 @@ public class RaftClientHandler extends SimpleChannelInboundHandler<String> {
             case "requestVote":
                 request = requestVoteService.clientHandleRequestVoteRequest(reply, raftClientManager);
                 break;
+            case "installSnapshot":
+                logService.clientHandleInstallSnapshotResponse(reply);
+                break;
             default:
                     break;
             }
             if(request != null){
-                ctx.writeAndFlush(JSON.toJSONString(request) + "\n");
+                RaftRequest finalRequest = request;
+                writePool.execute(() -> {
+                    ctx.writeAndFlush(JSON.toJSONString(finalRequest) + "\n");
+                });
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -72,7 +86,7 @@ public class RaftClientHandler extends SimpleChannelInboundHandler<String> {
     @Override
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) {
         if (evt instanceof IdleStateEvent) {
-            if(raftNode.getLeaderId() == raftNode.getId()){ // 如果自己是leader，发送心跳
+            if(raftNode.getIsLeader().get()){ // 如果自己是leader，发送心跳
                 appendEntriesService.sendHeartBeat(ctx.channel(), peerNodeId);
             }
         }
