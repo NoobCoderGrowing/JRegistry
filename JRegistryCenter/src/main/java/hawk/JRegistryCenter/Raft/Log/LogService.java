@@ -455,9 +455,6 @@ public class LogService {
                 stateMachine.setCommitIndex(logEntry.getIndex());
                 startIndex++;
                 currentCommitIndex++;
-                if(autoPersist){
-                    raftNode.persist();
-                }
             }
         }
         log.info("follower node {} commit logs to {}", raftNode.getId(), commitableIndex);
@@ -490,10 +487,6 @@ public class LogService {
                 stateMachine.setCommitIndex(logEntry.getIndex());
                 startIndex++;
                 currentCommitIndex++;
-
-                if(autoPersist){
-                    raftNode.persist();
-                }
             }
 
         }
