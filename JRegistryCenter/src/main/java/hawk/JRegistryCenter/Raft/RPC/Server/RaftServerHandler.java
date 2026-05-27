@@ -82,6 +82,9 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
                 case "persist":
                     persistService.manualPersist();
                     break;
+                case "compact":
+                    persistService.logCompaction();
+                    break;
                 default:
                     break;
             }

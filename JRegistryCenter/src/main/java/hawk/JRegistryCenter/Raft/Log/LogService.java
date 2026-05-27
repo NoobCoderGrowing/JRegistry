@@ -569,6 +569,7 @@ public class LogService {
         }
     }
 
+
     public static void main(String[] args) {
         ArrayList<LogEntry> log = new ArrayList<>();
         System.out.println(log.get(0).getIndex());

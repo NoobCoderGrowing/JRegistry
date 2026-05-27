@@ -10,10 +10,10 @@ import lombok.extern.slf4j.Slf4j;
 import hawk.JRegitstryCore.RPC.RaftRequest;
 import com.alibaba.fastjson.JSON;
 import java.io.File;
-import io.netty.channel.EventLoopGroup;
-import javax.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import hawk.JRegitstryCore.StateMachine;
+import hawk.JRegitstryCore.Log.LogEntry;
+
 
 @Service
 @Data
@@ -73,6 +73,28 @@ public class PersistService {
         if(stateMachineFile.exists()){
             stateMachine.recoverFromLocalImage();
         }
+    }
+
+    public void logCompaction(){
+        long commitIndex = stateMachine.getCommitIndex();
+        LogEntry prevEntry = logService.getLog(commitIndex-1);
+        if(prevEntry == null){
+            return;
+        }
+        int firstLogIndex = logService.getLogger().indexOf(prevEntry);
+        logService.getLogger().subList(0, firstLogIndex).clear();
+        raftNode.persist();
+        logService.persist();
+        stateMachine.persist();
+    }
+
+    public void sendCompactRequest2All(RaftClientManager raftClientManager){
+        RaftRequest raftRequest = new RaftRequest();
+        raftRequest.setType("compact");
+        raftRequest.setId(raftNode.getId());
+        log.info("node {} send compact request to all nodes", raftNode.getId());
+        raftClientManager.sendToAllPeers(JSON.toJSONString(raftRequest));
+        logCompaction();
     }
     
 }

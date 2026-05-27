@@ -13,12 +13,20 @@ public class BPlusNode {
 
     @JSONField(serialize = false)
     private BPlusNode parent;
+
     private String path;
+
     private String key;
+
     private String type;
+
     private byte[] value;
+    
     private HashMap<String, BPlusNode> children;
 
+
+    public BPlusNode() {
+    }
     
 
     public BPlusNode(String key) {

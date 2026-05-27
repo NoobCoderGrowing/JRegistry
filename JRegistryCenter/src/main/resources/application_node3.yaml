@@ -13,6 +13,7 @@ raft:
   count: 3
   auto-persist: true
   image-path: "persistency/"
+  log-compaction-interval: 14400
 
 
 admin:

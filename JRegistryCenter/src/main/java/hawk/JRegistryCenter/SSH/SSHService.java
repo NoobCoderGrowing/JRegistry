@@ -94,6 +94,9 @@ public class SSHService {
             case "persist":
                 response = handlePersist();
                 break;
+            case "compact":
+                response = handleCompact();
+                break;
             default:
                 response = "invalid cmd";
                 break;
@@ -133,6 +136,13 @@ public class SSHService {
         persistService.sendPersistRequest2All(raftClientManager);
         return "persisit cmd received";
     }
+
+    public String handleCompact(){
+        persistService.sendCompactRequest2All(raftClientManager);
+        return "compact cmd received";
+    }
+
+
 
     public String redirectCMD2Leader(SSHRequest cliRequest){
         String cmd = cliRequest.getType();
@@ -191,7 +201,8 @@ public class SSHService {
             return "invalid cmd";
         }
         if(!cmd[0].equals("show")&&!cmd[0].equals("set")&&!cmd[0].equals("delete")&&!cmd[0].equals("ls")
-            &&!cmd[0].equals("pwd")&&!cmd[0].equals("cd")&&!cmd[0].equals("get")&&!cmd[0].equals("persist")){
+            &&!cmd[0].equals("pwd")&&!cmd[0].equals("cd")&&!cmd[0].equals("get")&&!cmd[0].equals("persist")
+            &&!cmd[0].equals("compact")){
             log.info("invalid cmd");
             return "invalid cmd";
         }

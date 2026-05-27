@@ -14,6 +14,7 @@ raft:
   count: 3
   auto-persist: true
   image-path: "persistency/"
+  log-compaction-interval: 14400
 
 admin:
   peer-http-ports: "{1:6101, 2:6102, 3:6103}"

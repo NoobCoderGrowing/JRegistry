@@ -262,6 +262,7 @@ public class StateMachine {
             }
             StateMachine stateMachineImage = JSON.parseObject( nodejson,StateMachine.class);
             this.setRoot(stateMachineImage.getRoot());
+            log.info("state machine root path {}", this.getRoot().getPath());
             this.setCommitIndex(stateMachineImage.getCommitIndex());
             this.rebuildParentLinks();
             log.info("state machine recover from local image success");
