@@ -56,7 +56,11 @@ export default function App() {
                 : ''}
             </p>
           </section>
-          <NodeTable nodes={data.nodes} leaderId={data.leaderId} />
+          <NodeTable
+            nodes={data.nodes}
+            leaderId={data.leaderId}
+            isLeader={data.localRole === 'LEADER'}
+          />
         </>
       )}
     </>

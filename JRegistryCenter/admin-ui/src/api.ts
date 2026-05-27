@@ -1,4 +1,9 @@
-import type { ClusterStatus, StateMachineTree } from './types';
+import type {
+  ClusterStatus,
+  StateMachineTree,
+  StateMachineWriteRequest,
+  StateMachineWriteResult,
+} from './types';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 
@@ -17,4 +22,32 @@ export async function fetchStateMachineTree(nodeId: number): Promise<StateMachin
     throw new Error(text || `请求失败: ${res.status} ${res.statusText}`);
   }
   return res.json();
+}
+
+async function postStateMachineWrite(
+  path: 'set' | 'delete',
+  body: StateMachineWriteRequest,
+): Promise<StateMachineWriteResult> {
+  const res = await fetch(`${API_BASE}/api/admin/state-machine/${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `请求失败: ${res.status} ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export function setStateMachineKey(
+  body: StateMachineWriteRequest,
+): Promise<StateMachineWriteResult> {
+  return postStateMachineWrite('set', body);
+}
+
+export function deleteStateMachineKey(
+  key: string,
+): Promise<StateMachineWriteResult> {
+  return postStateMachineWrite('delete', { key });
 }

@@ -370,6 +370,90 @@ tr.self-row td {
   white-space: nowrap;
 }
 
+.sm-write-panel {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.sm-write-panel h4 {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.sm-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto auto;
+  gap: 0.5rem;
+  align-items: end;
+}
+
+.sm-form-delete {
+  grid-template-columns: 1fr auto;
+}
+
+.sm-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.sm-input {
+  padding: 0.4rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.8rem;
+}
+
+.sm-readonly-hint {
+  padding: 0.75rem 1.25rem;
+  font-size: 0.8rem;
+  color: var(--warning);
+  border-bottom: 1px solid var(--border);
+  background: #f59e0b11;
+}
+
+.sm-msg {
+  margin: 0 1.25rem;
+  font-size: 0.8rem;
+  padding: 0.35rem 0;
+}
+
+.sm-msg.success {
+  color: var(--success);
+}
+
+.sm-msg.error {
+  color: #fca5a5;
+}
+
+.btn-danger {
+  border-color: #ef444466;
+  color: #fecaca;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #7f1d1d55;
+  border-color: var(--danger);
+}
+
+@media (max-width: 768px) {
+  .sm-form {
+    grid-template-columns: 1fr;
+  }
+
+  .sm-form-delete {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 768px) {
   .table-wrap {
     overflow-x: auto;

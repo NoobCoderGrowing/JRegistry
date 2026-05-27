@@ -1,10 +1,22 @@
 export interface TreeNode {
   key: string;
   path: string;
+  dotKey: string;
   type: string | null;
   value: string | null;
   leaf: boolean;
   children: TreeNode[];
+}
+
+export interface StateMachineWriteRequest {
+  key: string;
+  value?: string;
+  dataType?: string;
+}
+
+export interface StateMachineWriteResult {
+  success: boolean;
+  message: string;
 }
 
 export interface StateMachineTree {

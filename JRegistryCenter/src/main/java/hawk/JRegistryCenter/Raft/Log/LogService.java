@@ -150,12 +150,9 @@ public class LogService {
    
 
     public void generateLogEntry(RaftRequest request){
-        long prevLogIndex = -1;
-        long prevLogTerm = -1;
-        
+        long prevLogIndex = -1;        
         if(logger.size() != 0){ // always keep last log in logger
             prevLogIndex = logger.get(logger.size() - 1).getIndex();
-            prevLogTerm = logger.get(logger.size() - 1).getTerm();    
         }
         LogEntry logEntry = new LogEntry();
         logEntry.setTerm(raftNode.getCurrentTerm());
@@ -198,6 +195,7 @@ public class LogService {
         if(logger.size() != 0){ // always keep last log in logger
             prevLogIndex = logger.get(logger.size() - 1).getIndex();
         }
+        log.info("prev log index is {}", String.valueOf(prevLogIndex));
         LogEntry logEntry = new LogEntry();
         logEntry.setTerm(raftNode.getCurrentTerm());
         logEntry.setIndex(prevLogIndex + 1);
@@ -285,16 +283,31 @@ public class LogService {
         if(nextIndex > getLastLogIndex()){
             return;
         }
+
+        log.info("nextIndexMap: {}", nextIndexMap);
         
         if(nextIndex == 0){
             LogEntry currentLog = getLog(nextIndex);
+            if(currentLog == null){
+                log.info("current log is null, send snapshot");
+                sendSnapshot(channel);
+                return;
+            }
+
+            LogEntry prevLog = getLog(nextIndex - 1);
+            if(prevLog == null){
+                log.info("prev log is null, send snapshot");
+                sendSnapshot(channel);
+                return;
+            }
+
             RaftRequest raftRequest = new RaftRequest();
             raftRequest.setType("appendEntries");
             raftRequest.setId(raftNode.getId());
             raftRequest.setTerm(raftNode.getCurrentTerm());
             raftRequest.setLeaderCommit(stateMachine.getCommitIndex());
-            raftRequest.setPrevLogIndex(-1);
-            raftRequest.setPrevLogTerm(-1);
+            raftRequest.setPrevLogIndex(prevLog.getIndex());
+            raftRequest.setPrevLogTerm(prevLog.getTerm());
             raftRequest.setLog(currentLog);
             raftRequest.setLeaderHost(raftNode.getLeaderHost());
             raftRequest.setLeaderPort(raftNode.getLeaderPort());
@@ -396,11 +409,12 @@ public class LogService {
         writePool.execute(() -> {
             channel.writeAndFlush(JSON.toJSONString(raftRequest) + "\n");
         });
-        stateMachine.persist();
+        // stateMachine.persist();
     }
 
     public RaftRequest handleInstallSnapshotRequest(RaftRequest request){
         if(request.getTerm() >= raftNode.getCurrentTerm()){
+            log.info("server {} handle install snapshot request: {}", raftNode.getId(), JSON.toJSONString(request));
             timeoutService.resetTimeout();
             long oldTerm = raftNode.getCurrentTerm();
             raftNode.acceptLeader(request);
@@ -413,9 +427,41 @@ public class LogService {
             stateMachine.setRoot(request.getStateMachine().getRoot());
             stateMachine.rebuildParentLinks();
             installLogger(request);
+
+
+            RaftRequest reply = new RaftRequest();
+            reply.setType("installSnapshot");
+            reply.setId(raftNode.getId());
+            reply.setTerm(raftNode.getCurrentTerm());
+            reply.setLeaderCommit(stateMachine.getCommitIndex());
+            reply.setLeaderHost(raftNode.getLeaderHost());
+            reply.setLeaderPort(raftNode.getLeaderPort());
+            reply.setLastLogIndex(getLastLogIndex());
+            reply.setSuccess(true);
+
+            // rewrite local history
             stateMachine.persist();
+            persist();
+            log.info("server {} install snapshot request success", raftNode.getId());
+            return reply;
         }
         return null;
+    }
+
+    public void clientHandleInstallSnapshotResponse(RaftRequest reply){
+        if(reply.getTerm() >= raftNode.getCurrentTerm()){
+            if(reply.getTerm() > raftNode.getCurrentTerm()){
+                timeoutService.resetTimeout();
+                raftNode.turn2Follower(reply);
+                return;
+            }
+            if(reply.isSuccess()){
+                nextIndexMap.put(reply.getId(), reply.getLastLogIndex() + 1);
+                updateMatchIndex(reply);
+            }
+            log.info("match index map {}", JSON.toJSONString(matchIndexMap));
+            log.info("next index map {}", JSON.toJSONString(nextIndexMap));
+        }
     }
 
     
@@ -568,6 +614,8 @@ public class LogService {
             readWriteLock.readLock().unlock();
         }
     }
+
+    
 
 
     public static void main(String[] args) {

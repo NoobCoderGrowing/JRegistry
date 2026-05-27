@@ -27,6 +27,7 @@ import hawk.JRegistryCenter.Services.AppendEntriesService;
 import hawk.JRegistryCenter.Services.RequestVoteService;
 
 import java.util.concurrent.ThreadPoolExecutor;
+import hawk.JRegistryCenter.Raft.Log.LogService;
 
 @Slf4j
 @Component
@@ -54,6 +55,9 @@ public class RaftClientManager {
 
     @Autowired
     private RaftNode raftNode;
+
+    @Autowired
+    private LogService logService;
 
     @Autowired
     private ThreadPoolExecutor writePool;
@@ -107,7 +111,7 @@ public class RaftClientManager {
                  p.addLast(new LineBasedFrameDecoder(8192)); //使用行分隔符解码器，每行一个消息
                  p.addLast(new StringDecoder(StandardCharsets.UTF_8)); //使用字符串解码器，将字符串解码为消息
                  p.addLast(new StringEncoder(StandardCharsets.UTF_8)); //使用字符串编码器，将消息编码为字符串
-                 p.addLast(new RaftClientHandler(nodeId, appendEntriesService, requestVoteService, raftNode, RaftClientManager.this, writePool)); //使用RaftClientHandler处理消息
+                 p.addLast(new RaftClientHandler(nodeId, appendEntriesService, requestVoteService, raftNode, RaftClientManager.this, writePool, logService)); //使用RaftClientHandler处理消息
              }
          });
         

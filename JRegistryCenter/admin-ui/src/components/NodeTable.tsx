@@ -6,6 +6,7 @@ import { StateMachineTreePanel } from './StateMachineTreePanel';
 interface Props {
   nodes: NodeInfo[];
   leaderId: number;
+  isLeader: boolean;
 }
 
 function roleBadge(role: string) {
@@ -26,22 +27,32 @@ function fmtCount(v: number | null | undefined, fallback = '—') {
   return String(v);
 }
 
-export function NodeTable({ nodes, leaderId }: Props) {
+export function NodeTable({ nodes, leaderId, isLeader }: Props) {
   const [loadingNodeId, setLoadingNodeId] = useState<number | null>(null);
   const [treeData, setTreeData] = useState<Awaited<ReturnType<typeof fetchStateMachineTree>> | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  async function loadTree(nodeId: number) {
+    const data = await fetchStateMachineTree(nodeId);
+    setTreeData(data);
+    return data;
+  }
 
   async function handleShowTree(nodeId: number) {
     setLoadingNodeId(nodeId);
     setError(null);
     try {
-      const data = await fetchStateMachineTree(nodeId);
-      setTreeData(data);
+      await loadTree(nodeId);
     } catch (e) {
       setError(e instanceof Error ? e.message : '获取 StateMachine 失败');
     } finally {
       setLoadingNodeId(null);
     }
+  }
+
+  async function refreshTree() {
+    if (!treeData) return;
+    await loadTree(treeData.nodeId);
   }
 
   return (
@@ -127,7 +138,9 @@ export function NodeTable({ nodes, leaderId }: Props) {
           nodeId={treeData.nodeId}
           commitIndex={treeData.commitIndex}
           root={treeData.root}
+          isLeader={isLeader}
           onClose={() => setTreeData(null)}
+          onRefresh={refreshTree}
         />
       )}
     </>

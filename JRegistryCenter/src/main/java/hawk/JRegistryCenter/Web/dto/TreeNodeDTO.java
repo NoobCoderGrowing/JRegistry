@@ -9,6 +9,7 @@ import java.util.List;
 public class TreeNodeDTO {
     private String key;
     private String path;
+    private String dotKey;
     private String type;
     private String value;
     private boolean leaf;

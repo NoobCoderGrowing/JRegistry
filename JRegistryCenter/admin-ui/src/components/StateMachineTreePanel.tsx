@@ -1,14 +1,19 @@
 import { useState } from 'react';
 import type { TreeNode } from '../types';
+import { deleteStateMachineKey, setStateMachineKey } from '../api';
 
 interface TreeNodeItemProps {
   node: TreeNode;
   depth?: number;
+  isLeader: boolean;
+  onDelete: (dotKey: string) => void;
+  deletingKey: string | null;
 }
 
-function TreeNodeItem({ node, depth = 0 }: TreeNodeItemProps) {
+function TreeNodeItem({ node, depth = 0, isLeader, onDelete, deletingKey }: TreeNodeItemProps) {
   const hasChildren = node.children.length > 0;
   const [expanded, setExpanded] = useState(depth < 2);
+  const canDelete = isLeader && node.leaf && node.dotKey;
 
   return (
     <li className="tree-node">
@@ -37,11 +42,28 @@ function TreeNodeItem({ node, depth = 0 }: TreeNodeItemProps) {
         {!node.leaf && (
           <span className="tree-path mono">{node.path}</span>
         )}
+        {canDelete && (
+          <button
+            type="button"
+            className="btn btn-sm btn-danger"
+            disabled={deletingKey === node.dotKey}
+            onClick={() => onDelete(node.dotKey)}
+          >
+            {deletingKey === node.dotKey ? '删除中…' : '删除'}
+          </button>
+        )}
       </div>
       {hasChildren && expanded && (
         <ul className="tree-children">
           {node.children.map((child) => (
-            <TreeNodeItem key={child.path} node={child} depth={depth + 1} />
+            <TreeNodeItem
+              key={child.path}
+              node={child}
+              depth={depth + 1}
+              isLeader={isLeader}
+              onDelete={onDelete}
+              deletingKey={deletingKey}
+            />
           ))}
         </ul>
       )}
@@ -53,10 +75,71 @@ interface Props {
   nodeId: number;
   commitIndex: number;
   root: TreeNode;
+  isLeader: boolean;
   onClose: () => void;
+  onRefresh: () => Promise<void>;
 }
 
-export function StateMachineTreePanel({ nodeId, commitIndex, root, onClose }: Props) {
+export function StateMachineTreePanel({
+  nodeId,
+  commitIndex,
+  root,
+  isLeader,
+  onClose,
+  onRefresh,
+}: Props) {
+  const [setKey, setSetKey] = useState('');
+  const [setValue, setSetValue] = useState('');
+  const [setType, setSetType] = useState('string');
+  const [deleteKey, setDeleteKey] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [deletingKey, setDeletingKey] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function runWrite(action: () => Promise<unknown>) {
+    setBusy(true);
+    setErr(null);
+    setMsg(null);
+    try {
+      await action();
+      await onRefresh();
+      setMsg('操作已提交，树已刷新');
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '操作失败');
+    } finally {
+      setBusy(false);
+      setDeletingKey(null);
+    }
+  }
+
+  async function handleSet(e: React.FormEvent) {
+    e.preventDefault();
+    if (!setKey.trim() || !setValue.trim()) return;
+    await runWrite(() =>
+      setStateMachineKey({
+        key: setKey.trim(),
+        value: setValue,
+        dataType: setType,
+      }),
+    );
+    setSetKey('');
+    setSetValue('');
+  }
+
+  async function handleDelete(e: React.FormEvent) {
+    e.preventDefault();
+    if (!deleteKey.trim()) return;
+    await runWrite(() => deleteStateMachineKey(deleteKey.trim()));
+    setDeleteKey('');
+  }
+
+  async function handleTreeDelete(dotKey: string) {
+    if (!window.confirm(`确认删除键 "${dotKey}"？`)) return;
+    setDeletingKey(dotKey);
+    await runWrite(() => deleteStateMachineKey(dotKey));
+  }
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div
@@ -74,9 +157,79 @@ export function StateMachineTreePanel({ nodeId, commitIndex, root, onClose }: Pr
             关闭
           </button>
         </div>
+
+        {isLeader ? (
+          <div className="sm-write-panel">
+            <h4>增删（仅 Leader）</h4>
+            <form className="sm-form" onSubmit={handleSet}>
+              <label>
+                <span>新增 / 更新 (set)</span>
+                <input
+                  className="sm-input mono"
+                  placeholder="键，如 app.config.timeout"
+                  value={setKey}
+                  onChange={(e) => setSetKey(e.target.value)}
+                  disabled={busy}
+                />
+              </label>
+              <label>
+                <span>值</span>
+                <input
+                  className="sm-input mono"
+                  placeholder="值"
+                  value={setValue}
+                  onChange={(e) => setSetValue(e.target.value)}
+                  disabled={busy}
+                />
+              </label>
+              <label>
+                <span>类型</span>
+                <select
+                  className="sm-input"
+                  value={setType}
+                  onChange={(e) => setSetType(e.target.value)}
+                  disabled={busy}
+                >
+                  <option value="string">string</option>
+                </select>
+              </label>
+              <button type="submit" className="btn btn-sm" disabled={busy}>
+                {busy ? '提交中…' : 'Set'}
+              </button>
+            </form>
+            <form className="sm-form sm-form-delete" onSubmit={handleDelete}>
+              <label>
+                <span>删除 (delete)</span>
+                <input
+                  className="sm-input mono"
+                  placeholder="键，如 app.config.timeout"
+                  value={deleteKey}
+                  onChange={(e) => setDeleteKey(e.target.value)}
+                  disabled={busy}
+                />
+              </label>
+              <button type="submit" className="btn btn-sm btn-danger" disabled={busy}>
+                Delete
+              </button>
+            </form>
+          </div>
+        ) : (
+          <p className="sm-readonly-hint">
+            仅 Leader 节点可增删。请通过 Leader 的 HTTP 端口访问管理页后操作。
+          </p>
+        )}
+
+        {msg && <p className="sm-msg success">{msg}</p>}
+        {err && <p className="sm-msg error">{err}</p>}
+
         <div className="tree-container">
           <ul className="tree-root">
-            <TreeNodeItem node={root} />
+            <TreeNodeItem
+              node={root}
+              isLeader={isLeader}
+              onDelete={handleTreeDelete}
+              deletingKey={deletingKey}
+            />
           </ul>
         </div>
       </div>

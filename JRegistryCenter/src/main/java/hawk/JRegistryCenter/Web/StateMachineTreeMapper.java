@@ -30,11 +30,23 @@ final class StateMachineTreeMapper {
         return TreeNodeDTO.builder()
                 .key(node.getKey())
                 .path(node.getPath())
+                .dotKey(toDotKey(node))
                 .type(node.getType())
                 .value(decodeValue(node.getValue()))
                 .leaf(leaf)
                 .children(children)
                 .build();
+    }
+
+    private static String toDotKey(BPlusNode node) {
+        String path = node.getPath();
+        if (path == null || "/root".equals(path)) {
+            return "";
+        }
+        if (path.startsWith("/root/")) {
+            return path.substring("/root/".length()).replace('/', '.');
+        }
+        return path.replace('/', '.');
     }
 
     private static String decodeValue(byte[] value) {

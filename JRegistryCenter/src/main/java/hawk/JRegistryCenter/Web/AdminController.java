@@ -6,11 +6,15 @@ import hawk.JRegistryCenter.Web.dto.ClusterStatusDTO;
 import hawk.JRegistryCenter.Web.dto.NodeInfoDTO;
 import hawk.JRegistryCenter.Web.dto.NodeStatusDTO;
 import hawk.JRegistryCenter.Web.dto.StateMachineTreeDTO;
+import hawk.JRegistryCenter.Web.dto.StateMachineWriteRequestDTO;
+import hawk.JRegistryCenter.Web.dto.StateMachineWriteResultDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -22,6 +26,9 @@ public class AdminController {
 
     @Autowired
     private AdminService adminService;
+
+    @Autowired
+    private AdminStateMachineWriteService adminStateMachineWriteService;
 
     @Autowired
     private RaftNode raftNode;
@@ -94,6 +101,30 @@ public class AdminController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                     .body("Failed to fetch state machine tree for node " + targetNodeId);
+        }
+    }
+
+    @PostMapping("/state-machine/set")
+    public ResponseEntity<?> setStateMachine(@RequestBody StateMachineWriteRequestDTO body) {
+        return handleWrite(() -> adminStateMachineWriteService.set(
+                body.getKey(), body.getValue(), body.getDataType()));
+    }
+
+    @PostMapping("/state-machine/delete")
+    public ResponseEntity<?> deleteStateMachine(@RequestBody StateMachineWriteRequestDTO body) {
+        return handleWrite(() -> adminStateMachineWriteService.delete(body.getKey()));
+    }
+
+    private ResponseEntity<?> handleWrite(java.util.function.Supplier<StateMachineWriteResultDTO> action) {
+        try {
+            return ResponseEntity.ok(action.get());
+        } catch (AdminStateMachineWriteService.NotLeaderException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("State machine write failed");
         }
     }
 }

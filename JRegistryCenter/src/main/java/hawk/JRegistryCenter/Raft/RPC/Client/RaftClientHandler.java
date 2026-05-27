@@ -11,6 +11,7 @@ import hawk.JRegistryCenter.Services.AppendEntriesService;
 import hawk.JRegistryCenter.Services.RequestVoteService;
 import lombok.extern.slf4j.Slf4j;
 import java.util.concurrent.ThreadPoolExecutor;
+import hawk.JRegistryCenter.Raft.Log.LogService;
 
 @Slf4j
 public class RaftClientHandler extends SimpleChannelInboundHandler<String> {
@@ -28,19 +29,22 @@ public class RaftClientHandler extends SimpleChannelInboundHandler<String> {
     
     private RaftNode raftNode;
 
+    private LogService logService;
+
     
     private RaftClientManager raftClientManager;
 
     private ThreadPoolExecutor writePool;
 
     public RaftClientHandler(int peerNodeId, AppendEntriesService appendEntriesService, 
-        RequestVoteService requestVoteService, RaftNode raftNode, RaftClientManager raftClientManager, ThreadPoolExecutor writePool) {
+        RequestVoteService requestVoteService, RaftNode raftNode, RaftClientManager raftClientManager, ThreadPoolExecutor writePool, LogService logService) {
         this.peerNodeId = peerNodeId;
         this.appendEntriesService = appendEntriesService;
         this.requestVoteService = requestVoteService;
         this.raftNode = raftNode;
         this.raftClientManager = raftClientManager;
         this.writePool = writePool;
+        this.logService = logService;
     }
     
     @Override
@@ -60,6 +64,9 @@ public class RaftClientHandler extends SimpleChannelInboundHandler<String> {
                 break;
             case "requestVote":
                 request = requestVoteService.clientHandleRequestVoteRequest(reply, raftClientManager);
+                break;
+            case "installSnapshot":
+                logService.clientHandleInstallSnapshotResponse(reply);
                 break;
             default:
                     break;
