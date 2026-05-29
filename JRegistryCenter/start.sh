@@ -7,7 +7,33 @@ APP_JAR="$SCRIPT_DIR/target/JRegistryCenter-1.0-SNAPSHOT.jar"
 LOG_DIR="$SCRIPT_DIR/logs"
 ADMIN_UI_DIR="$SCRIPT_DIR/admin-ui"
 
+ensure_node_npm() {
+  if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
+    echo "Node.js $(node -v), npm $(npm -v) already installed"
+    return 0
+  fi
+
+  echo "Node.js/npm not found, installing..."
+
+  if command -v apt-get >/dev/null 2>&1; then
+    sudo apt-get update
+    sudo apt-get install -y nodejs npm
+  else
+    echo "Error: cannot auto-install nodejs/npm (apt-get not found)."
+    echo "Please install Node.js manually: https://nodejs.org/"
+    exit 1
+  fi
+
+  if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
+    echo "Error: nodejs/npm installation failed."
+    exit 1
+  fi
+
+  echo "Installed Node.js $(node -v), npm $(npm -v)"
+}
+
 # 1. 构建前端（输出到 src/main/resources/static）
+ensure_node_npm
 if [ ! -d "$ADMIN_UI_DIR/node_modules" ]; then
   echo "Installing admin-ui dependencies..."
   npm --prefix "$ADMIN_UI_DIR" install
