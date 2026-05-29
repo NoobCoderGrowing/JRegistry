@@ -4,6 +4,7 @@ import type {
   StateMachineWriteRequest,
   StateMachineWriteResult,
   ElectionTimeline,
+  ElectionRounds,
 } from './types';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
@@ -53,8 +54,18 @@ export function deleteStateMachineKey(
   return postStateMachineWrite('delete', { key });
 }
 
-export async function fetchElectionTimeline(): Promise<ElectionTimeline> {
-  const res = await fetch(`${API_BASE}/api/admin/election-timeline`);
+export async function fetchElectionTimeline(round?: number): Promise<ElectionTimeline> {
+  const query = round != null ? `?round=${round}` : '';
+  const res = await fetch(`${API_BASE}/api/admin/election-timeline${query}`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `请求失败: ${res.status} ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function fetchElectionRounds(): Promise<ElectionRounds> {
+  const res = await fetch(`${API_BASE}/api/admin/election-rounds`);
   if (!res.ok) {
     const text = await res.text();
     throw new Error(text || `请求失败: ${res.status} ${res.statusText}`);

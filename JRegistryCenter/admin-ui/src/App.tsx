@@ -1,11 +1,19 @@
-import { useCallback, useEffect, useState } from 'react';
-import { fetchClusterStatus, fetchElectionTimeline } from './api';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { fetchClusterStatus, fetchElectionRounds, fetchElectionTimeline } from './api';
 import { ClusterSummary } from './components/ClusterSummary';
 import { NodeTable } from './components/NodeTable';
 import { ElectionAnimationPanel } from './components/ElectionAnimationPanel';
-import type { ClusterStatus, ElectionTimeline } from './types';
+import { ElectionHistoryPanel } from './components/ElectionHistoryPanel';
+import type { ClusterStatus, ElectionRoundSummary, ElectionTimeline } from './types';
 
 const REFRESH_MS = 5000;
+
+function buildElectionSignature(round: ElectionRoundSummary | null): string {
+  if (!round || round.finalLeaderId <= 0) {
+    return '';
+  }
+  return `${round.finalTerm}:${round.finalLeaderId}:${round.endedAt}`;
+}
 
 export default function App() {
   const [data, setData] = useState<ClusterStatus | null>(null);
@@ -13,26 +21,69 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [electionTimeline, setElectionTimeline] = useState<ElectionTimeline | null>(null);
+  const [latestElectionRound, setLatestElectionRound] = useState<ElectionRoundSummary | null>(null);
   const [electionLoading, setElectionLoading] = useState(false);
   const [electionError, setElectionError] = useState<string | null>(null);
+  const [activeRoundIndex, setActiveRoundIndex] = useState<number | null>(null);
+  const [animationSessionKey, setAnimationSessionKey] = useState(0);
+  const [autoPlayElection, setAutoPlayElection] = useState(false);
 
-  async function handleShowElection() {
+  const electionInitializedRef = useRef(false);
+  const lastElectionSignatureRef = useRef('');
+
+  const openLatestElectionTimeline = useCallback(async (options?: { autoPlay?: boolean }) => {
     setElectionLoading(true);
     setElectionError(null);
     try {
-      const timeline = await fetchElectionTimeline();
-      setElectionTimeline(timeline);
-      if (timeline.events.length === 0) {
-        setElectionError('日志中未解析到选主相关事件，请先重启集群后再试');
+      const timeline = await fetchElectionTimeline(1);
+      if (timeline.events.length === 0 || timeline.finalLeaderId <= 0) {
+        setElectionError('暂无成功选主记录');
         setElectionTimeline(null);
+        setActiveRoundIndex(null);
+        return;
       }
+      setElectionTimeline(timeline);
+      setActiveRoundIndex(1);
+      setAutoPlayElection(options?.autoPlay ?? false);
+      setAnimationSessionKey((key) => key + 1);
     } catch (e) {
       setElectionError(e instanceof Error ? e.message : '加载选主日志失败');
       setElectionTimeline(null);
+      setActiveRoundIndex(null);
     } finally {
       setElectionLoading(false);
     }
-  }
+  }, []);
+
+  const refreshLatestElection = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      setElectionLoading(true);
+    }
+    setElectionError(null);
+    try {
+      const roundsData = await fetchElectionRounds();
+      const latestRound = roundsData.rounds[0] ?? null;
+      setLatestElectionRound(latestRound);
+
+      const signature = buildElectionSignature(latestRound);
+      if (!electionInitializedRef.current) {
+        lastElectionSignatureRef.current = signature;
+        electionInitializedRef.current = true;
+        return;
+      }
+
+      if (signature && signature !== lastElectionSignatureRef.current) {
+        lastElectionSignatureRef.current = signature;
+        await openLatestElectionTimeline({ autoPlay: true });
+      }
+    } catch (e) {
+      setElectionError(e instanceof Error ? e.message : '加载选主记录失败');
+    } finally {
+      if (!options?.silent) {
+        setElectionLoading(false);
+      }
+    }
+  }, [openLatestElectionTimeline]);
 
   const load = useCallback(async () => {
     try {
@@ -49,9 +100,13 @@ export default function App() {
 
   useEffect(() => {
     load();
-    const timer = window.setInterval(load, REFRESH_MS);
+    refreshLatestElection({ silent: true });
+    const timer = window.setInterval(() => {
+      load();
+      refreshLatestElection({ silent: true });
+    }, REFRESH_MS);
     return () => window.clearInterval(timer);
-  }, [load]);
+  }, [load, refreshLatestElection]);
 
   return (
     <>
@@ -59,15 +114,17 @@ export default function App() {
         <div className="header-row">
           <div>
             <h1>JRegistry Center</h1>
-            <p>Raft 集群节点管理后台 · 每 {REFRESH_MS / 1000}s 自动刷新</p>
+            <p>Raft 集群节点管理后台 · 每 {REFRESH_MS / 1000}s 自动刷新 · 重选主后自动播放动画</p>
           </div>
           <button
             type="button"
             className="btn"
-            disabled={electionLoading}
-            onClick={handleShowElection}
+            disabled={electionLoading || !latestElectionRound}
+            onClick={() => {
+              void openLatestElectionTimeline({ autoPlay: true });
+            }}
           >
-            {electionLoading ? '加载中…' : '选主流程'}
+            {electionLoading ? '加载中…' : '播放最新选主'}
           </button>
         </div>
       </header>
@@ -94,6 +151,17 @@ export default function App() {
                 : ''}
             </p>
           </section>
+          <ElectionHistoryPanel
+            latestRound={latestElectionRound}
+            activeRoundIndex={activeRoundIndex}
+            loading={electionLoading}
+            onReplay={() => {
+              void openLatestElectionTimeline({ autoPlay: true });
+            }}
+            onRefresh={() => {
+              void refreshLatestElection();
+            }}
+          />
           <NodeTable
             nodes={data.nodes}
             leaderId={data.leaderId}
@@ -104,8 +172,15 @@ export default function App() {
 
       {electionTimeline && (
         <ElectionAnimationPanel
+          key={animationSessionKey}
           timeline={electionTimeline}
-          onClose={() => setElectionTimeline(null)}
+          sessionKey={animationSessionKey}
+          autoPlay={autoPlayElection}
+          onClose={() => {
+            setElectionTimeline(null);
+            setActiveRoundIndex(null);
+            setAutoPlayElection(false);
+          }}
         />
       )}
     </>

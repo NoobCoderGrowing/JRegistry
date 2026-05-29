@@ -2,17 +2,14 @@ package hawk.JRegistryCenter.Web.dto;
 
 import lombok.Builder;
 import lombok.Data;
-import java.util.List;
 
 @Data
 @Builder
-public class ElectionTimelineDTO {
+public class ElectionRoundSummaryDTO {
     private int roundIndex;
-    private int clusterSize;
     private int finalLeaderId;
     private long finalTerm;
+    private int eventCount;
     private String startedAt;
     private String endedAt;
-    private String logPath;
-    private List<ElectionEventDTO> events;
 }

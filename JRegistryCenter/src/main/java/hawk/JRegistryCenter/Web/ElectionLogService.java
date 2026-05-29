@@ -1,12 +1,15 @@
 package hawk.JRegistryCenter.Web;
 
 import hawk.JRegistryCenter.Web.dto.ElectionEventDTO;
+import hawk.JRegistryCenter.Web.dto.ElectionRoundSummaryDTO;
+import hawk.JRegistryCenter.Web.dto.ElectionRoundsDTO;
 import hawk.JRegistryCenter.Web.dto.ElectionTimelineDTO;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -38,7 +41,65 @@ public class ElectionLogService {
     private String electionLogPath;
 
     public ElectionTimelineDTO parseStartupElectionTimeline() throws IOException {
-        Path path = Path.of(electionLogPath);
+        return parseLatestSuccessfulElectionTimeline();
+    }
+
+    public ElectionTimelineDTO parseLatestElectionTimeline() throws IOException {
+        return parseLatestSuccessfulElectionTimeline();
+    }
+
+    public ElectionTimelineDTO parseElectionTimeline(int roundIndex) throws IOException {
+        if (roundIndex != 1) {
+            throw new IOException("Only the latest successful election is available");
+        }
+        return parseLatestSuccessfulElectionTimeline();
+    }
+
+    public ElectionRoundsDTO parseElectionRounds() throws IOException {
+        Path path = resolveLogPath();
+        ElectionTimelineDTO latest = parseLatestSuccessfulElectionTimeline();
+        List<ElectionRoundSummaryDTO> summaries = new ArrayList<>();
+        if (latest.getFinalLeaderId() > 0 && !latest.getEvents().isEmpty()) {
+            summaries.add(ElectionRoundSummaryDTO.builder()
+                    .roundIndex(1)
+                    .finalLeaderId(latest.getFinalLeaderId())
+                    .finalTerm(latest.getFinalTerm())
+                    .eventCount(latest.getEvents().size())
+                    .startedAt(latest.getStartedAt())
+                    .endedAt(latest.getEndedAt())
+                    .build());
+        }
+        return ElectionRoundsDTO.builder()
+                .clusterSize(clusterSize)
+                .logPath(path.toAbsolutePath().toString())
+                .totalRounds(summaries.size())
+                .rounds(summaries)
+                .build();
+    }
+
+    public ElectionTimelineDTO parseLatestSuccessfulElectionTimeline() throws IOException {
+        List<ElectionTimelineDTO> successfulRounds = parseSuccessfulElectionTimelines();
+        if (successfulRounds.isEmpty()) {
+            return emptyTimeline(resolveLogPath());
+        }
+        ElectionTimelineDTO latest = successfulRounds.get(successfulRounds.size() - 1);
+        latest.setRoundIndex(1);
+        return latest;
+    }
+
+    private List<ElectionTimelineDTO> parseSuccessfulElectionTimelines() throws IOException {
+        List<ElectionTimelineDTO> timelines = parseAllElectionTimelines();
+        List<ElectionTimelineDTO> successful = new ArrayList<>();
+        for (ElectionTimelineDTO timeline : timelines) {
+            if (timeline.getFinalLeaderId() > 0) {
+                successful.add(timeline);
+            }
+        }
+        return successful;
+    }
+
+    public List<ElectionTimelineDTO> parseAllElectionTimelines() throws IOException {
+        Path path = resolveLogPath();
         if (!Files.exists(path)) {
             throw new IOException("Log file not found: " + path.toAbsolutePath());
         }
@@ -46,8 +107,6 @@ public class ElectionLogService {
         List<String> lines = Files.readAllLines(path, StandardCharsets.UTF_8);
         List<ElectionEventDTO> events = new ArrayList<>();
         long sequence = 0;
-        int finalLeaderId = -1;
-        long finalTerm = -1;
 
         for (String line : lines) {
             Matcher prefix = LINE_PREFIX.matcher(line);
@@ -64,30 +123,90 @@ public class ElectionLogService {
         }
 
         events.sort(Comparator.comparing(ElectionEventDTO::getTimestamp));
+        List<List<ElectionEventDTO>> groupedRounds = splitIntoRounds(events);
 
-        int leaderIndex = -1;
-        for (int i = 0; i < events.size(); i++) {
-            if ("BECOME_LEADER".equals(events.get(i).getEventType())) {
-                leaderIndex = i;
-                finalLeaderId = events.get(i).getNodeId();
-                finalTerm = events.get(i).getTerm();
-                break;
+        List<ElectionTimelineDTO> timelines = new ArrayList<>();
+        for (int i = 0; i < groupedRounds.size(); i++) {
+            List<ElectionEventDTO> roundEvents = new ArrayList<>(groupedRounds.get(i));
+            resequence(roundEvents);
+
+            int finalLeaderId = -1;
+            long finalTerm = -1;
+            for (ElectionEventDTO event : roundEvents) {
+                if ("BECOME_LEADER".equals(event.getEventType())) {
+                    finalLeaderId = event.getNodeId();
+                    finalTerm = event.getTerm();
+                }
+            }
+
+            String startedAt = roundEvents.isEmpty() ? "" : roundEvents.get(0).getTimestamp();
+            String endedAt = roundEvents.isEmpty() ? "" : roundEvents.get(roundEvents.size() - 1).getTimestamp();
+
+            timelines.add(ElectionTimelineDTO.builder()
+                    .roundIndex(i + 1)
+                    .clusterSize(clusterSize)
+                    .finalLeaderId(finalLeaderId)
+                    .finalTerm(finalTerm)
+                    .startedAt(startedAt)
+                    .endedAt(endedAt)
+                    .logPath(path.toAbsolutePath().toString())
+                    .events(roundEvents)
+                    .build());
+        }
+        return timelines;
+    }
+
+    private Path resolveLogPath() {
+        return Path.of(electionLogPath);
+    }
+
+    private List<List<ElectionEventDTO>> splitIntoRounds(List<ElectionEventDTO> events) {
+        List<List<ElectionEventDTO>> rounds = new ArrayList<>();
+        List<ElectionEventDTO> pendingStartups = new ArrayList<>();
+        List<ElectionEventDTO> current = null;
+
+        for (ElectionEventDTO event : events) {
+            if ("STARTUP".equals(event.getEventType())) {
+                if (current == null) {
+                    pendingStartups.add(event);
+                }
+                continue;
+            }
+
+            if ("CANDIDATE".equals(event.getEventType()) || "ELECTION_START".equals(event.getEventType())) {
+                current = new ArrayList<>(pendingStartups);
+                pendingStartups.clear();
+                current.add(event);
+                continue;
+            }
+
+            if (current != null) {
+                current.add(event);
+                if ("BECOME_LEADER".equals(event.getEventType())) {
+                    rounds.add(current);
+                    current = null;
+                }
             }
         }
-        if (leaderIndex >= 0) {
-            events = new ArrayList<>(events.subList(0, leaderIndex + 1));
-        }
+        return rounds;
+    }
 
+    private void resequence(List<ElectionEventDTO> events) {
         for (int i = 0; i < events.size(); i++) {
             events.get(i).setSequence(i + 1);
         }
+    }
 
+    private ElectionTimelineDTO emptyTimeline(Path path) {
         return ElectionTimelineDTO.builder()
+                .roundIndex(0)
                 .clusterSize(clusterSize)
-                .finalLeaderId(finalLeaderId)
-                .finalTerm(finalTerm)
+                .finalLeaderId(-1)
+                .finalTerm(-1)
+                .startedAt("")
+                .endedAt("")
                 .logPath(path.toAbsolutePath().toString())
-                .events(events)
+                .events(Collections.emptyList())
                 .build();
     }
 

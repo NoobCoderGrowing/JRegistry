@@ -72,9 +72,28 @@ export interface ElectionEvent {
 }
 
 export interface ElectionTimeline {
+  roundIndex: number;
   clusterSize: number;
   finalLeaderId: number;
   finalTerm: number;
+  startedAt: string;
+  endedAt: string;
   logPath: string;
   events: ElectionEvent[];
+}
+
+export interface ElectionRoundSummary {
+  roundIndex: number;
+  finalLeaderId: number;
+  finalTerm: number;
+  eventCount: number;
+  startedAt: string;
+  endedAt: string;
+}
+
+export interface ElectionRounds {
+  clusterSize: number;
+  logPath: string;
+  totalRounds: number;
+  rounds: ElectionRoundSummary[];
 }

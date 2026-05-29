@@ -3,6 +3,43 @@ import type { ElectionEvent, ElectionTimeline } from '../types';
 
 type NodeRole = 'FOLLOWER' | 'CANDIDATE' | 'LEADER' | 'OFFLINE';
 
+const ELECTION_FLOW_EVENTS = new Set([
+  'STARTUP',
+  'CANDIDATE',
+  'ELECTION_START',
+  'REQUEST_VOTE',
+  'GRANT_VOTE',
+  'BECOME_FOLLOWER',
+  'BECOME_LEADER',
+]);
+
+function collectParticipatingNodes(events: ElectionEvent[]): Set<number> {
+  const nodes = new Set<number>();
+  for (const event of events) {
+    if (!ELECTION_FLOW_EVENTS.has(event.eventType)) {
+      continue;
+    }
+    if (event.nodeId > 0) {
+      nodes.add(event.nodeId);
+    }
+    if (event.targetNodeId > 0) {
+      nodes.add(event.targetNodeId);
+    }
+  }
+  return nodes;
+}
+
+function setRoleIfOnline(
+  roles: Map<number, NodeRole>,
+  participatingNodes: Set<number>,
+  nodeId: number,
+  role: NodeRole,
+) {
+  if (participatingNodes.has(nodeId)) {
+    roles.set(nodeId, role);
+  }
+}
+
 interface Point {
   x: number;
   y: number;
@@ -10,6 +47,8 @@ interface Point {
 
 interface Props {
   timeline: ElectionTimeline;
+  sessionKey: number;
+  autoPlay?: boolean;
   onClose: () => void;
 }
 
@@ -18,39 +57,47 @@ function buildNodeRoles(
   step: number,
   clusterSize: number,
 ): Map<number, NodeRole> {
+  const participatingNodes = collectParticipatingNodes(events);
+  const hasStartup = events.some((event) => event.eventType === 'STARTUP');
+
   const roles = new Map<number, NodeRole>();
   for (let i = 1; i <= clusterSize; i++) {
-    roles.set(i, 'OFFLINE');
+    if (!participatingNodes.has(i)) {
+      roles.set(i, 'OFFLINE');
+    } else if (hasStartup) {
+      roles.set(i, 'OFFLINE');
+    } else {
+      roles.set(i, 'FOLLOWER');
+    }
   }
+
   const visible = events.slice(0, step + 1);
   for (const ev of visible) {
     switch (ev.eventType) {
       case 'STARTUP':
-        roles.set(ev.nodeId, 'FOLLOWER');
+        setRoleIfOnline(roles, participatingNodes, ev.nodeId, 'FOLLOWER');
         break;
       case 'CANDIDATE':
       case 'ELECTION_START':
-        roles.set(ev.nodeId, 'CANDIDATE');
+        setRoleIfOnline(roles, participatingNodes, ev.nodeId, 'CANDIDATE');
         break;
       case 'REQUEST_VOTE':
       case 'GRANT_VOTE':
         // 仅展示投票动画，不改变节点身份
         break;
       case 'BECOME_LEADER':
-        roles.set(ev.nodeId, 'LEADER');
+        setRoleIfOnline(roles, participatingNodes, ev.nodeId, 'LEADER');
+        for (let i = 1; i <= clusterSize; i++) {
+          if (i !== ev.nodeId && roles.get(i) === 'CANDIDATE') {
+            setRoleIfOnline(roles, participatingNodes, i, 'FOLLOWER');
+          }
+        }
         break;
       case 'BECOME_FOLLOWER':
-        if (roles.get(ev.nodeId) !== 'OFFLINE') {
-          roles.set(ev.nodeId, 'FOLLOWER');
-        }
+        setRoleIfOnline(roles, participatingNodes, ev.nodeId, 'FOLLOWER');
         break;
       case 'ACCEPT_LEADER':
-        if (roles.get(ev.nodeId) !== 'OFFLINE') {
-          roles.set(ev.nodeId, 'FOLLOWER');
-        }
-        if (ev.targetNodeId > 0 && roles.get(ev.targetNodeId) !== 'OFFLINE') {
-          roles.set(ev.targetNodeId, 'LEADER');
-        }
+        setRoleIfOnline(roles, participatingNodes, ev.nodeId, 'FOLLOWER');
         break;
       default:
         break;
@@ -70,7 +117,7 @@ function roleLabel(role: NodeRole) {
   if (role === 'LEADER') return 'Leader';
   if (role === 'CANDIDATE') return 'Candidate';
   if (role === 'FOLLOWER') return 'Follower';
-  return '未启动';
+  return '离线';
 }
 
 function shortenLine(from: Point, to: Point, margin: number): { start: Point; end: Point } {
@@ -85,10 +132,10 @@ function shortenLine(from: Point, to: Point, margin: number): { start: Point; en
   };
 }
 
-export function ElectionAnimationPanel({ timeline, onClose }: Props) {
-  const { events, clusterSize, finalLeaderId, finalTerm } = timeline;
+export function ElectionAnimationPanel({ timeline, sessionKey, autoPlay = false, onClose }: Props) {
+  const { events, clusterSize, finalLeaderId, finalTerm, roundIndex } = timeline;
   const [step, setStep] = useState(0);
-  const [playing, setPlaying] = useState(false);
+  const [playing, setPlaying] = useState(autoPlay);
   const [nodeCenters, setNodeCenters] = useState<Map<number, Point>>(new Map());
   const [stageSize, setStageSize] = useState({ w: 0, h: 0 });
 
@@ -125,7 +172,12 @@ export function ElectionAnimationPanel({ timeline, onClose }: Props) {
     measureNodes();
     window.addEventListener('resize', measureNodes);
     return () => window.removeEventListener('resize', measureNodes);
-  }, [measureNodes, step, clusterSize]);
+  }, [measureNodes, step, clusterSize, sessionKey]);
+
+  useEffect(() => {
+    setStep(0);
+    setPlaying(autoPlay);
+  }, [sessionKey, autoPlay, roundIndex]);
 
   const flow = useMemo(() => {
     if (!currentEvent) return null;
@@ -187,7 +239,7 @@ export function ElectionAnimationPanel({ timeline, onClose }: Props) {
           <div>
             <h3>选主流程</h3>
             <p className="modal-subtitle">
-              基于开机日志 · 共 {events.length} 步
+              最近成功选主 · 共 {events.length} 步
               {leaderRevealed && finalLeaderId > 0
                 ? ` · Leader: 节点 ${finalLeaderId} (term ${finalTerm})`
                 : ''}

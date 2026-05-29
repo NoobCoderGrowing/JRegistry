@@ -108,10 +108,22 @@ public class AdminController {
         }
     }
 
-    @GetMapping("/election-timeline")
-    public ResponseEntity<?> electionTimeline() {
+    @GetMapping("/election-rounds")
+    public ResponseEntity<?> electionRounds() {
         try {
-            return ResponseEntity.ok(electionLogService.parseStartupElectionTimeline());
+            return ResponseEntity.ok(electionLogService.parseElectionRounds());
+        } catch (IOException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        }
+    }
+
+    @GetMapping("/election-timeline")
+    public ResponseEntity<?> electionTimeline(@RequestParam(required = false) Integer round) {
+        try {
+            if (round == null) {
+                return ResponseEntity.ok(electionLogService.parseLatestElectionTimeline());
+            }
+            return ResponseEntity.ok(electionLogService.parseElectionTimeline(round));
         } catch (IOException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         }
