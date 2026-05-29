@@ -3,7 +3,6 @@ import { fetchClusterStatus, fetchElectionRounds, fetchElectionTimeline } from '
 import { ClusterSummary } from './components/ClusterSummary';
 import { NodeTable } from './components/NodeTable';
 import { ElectionAnimationPanel } from './components/ElectionAnimationPanel';
-import { ElectionHistoryPanel } from './components/ElectionHistoryPanel';
 import type { ClusterStatus, ElectionRoundSummary, ElectionTimeline } from './types';
 
 const REFRESH_MS = 5000;
@@ -24,7 +23,6 @@ export default function App() {
   const [latestElectionRound, setLatestElectionRound] = useState<ElectionRoundSummary | null>(null);
   const [electionLoading, setElectionLoading] = useState(false);
   const [electionError, setElectionError] = useState<string | null>(null);
-  const [activeRoundIndex, setActiveRoundIndex] = useState<number | null>(null);
   const [animationSessionKey, setAnimationSessionKey] = useState(0);
   const [autoPlayElection, setAutoPlayElection] = useState(false);
 
@@ -39,17 +37,14 @@ export default function App() {
       if (timeline.events.length === 0 || timeline.finalLeaderId <= 0) {
         setElectionError('暂无成功选主记录');
         setElectionTimeline(null);
-        setActiveRoundIndex(null);
         return;
       }
       setElectionTimeline(timeline);
-      setActiveRoundIndex(1);
       setAutoPlayElection(options?.autoPlay ?? false);
       setAnimationSessionKey((key) => key + 1);
     } catch (e) {
       setElectionError(e instanceof Error ? e.message : '加载选主日志失败');
       setElectionTimeline(null);
-      setActiveRoundIndex(null);
     } finally {
       setElectionLoading(false);
     }
@@ -124,7 +119,7 @@ export default function App() {
               void openLatestElectionTimeline({ autoPlay: true });
             }}
           >
-            {electionLoading ? '加载中…' : '播放最新选主'}
+            {electionLoading ? '加载中…' : '最新选主流程'}
           </button>
         </div>
       </header>
@@ -151,17 +146,6 @@ export default function App() {
                 : ''}
             </p>
           </section>
-          <ElectionHistoryPanel
-            latestRound={latestElectionRound}
-            activeRoundIndex={activeRoundIndex}
-            loading={electionLoading}
-            onReplay={() => {
-              void openLatestElectionTimeline({ autoPlay: true });
-            }}
-            onRefresh={() => {
-              void refreshLatestElection();
-            }}
-          />
           <NodeTable
             nodes={data.nodes}
             leaderId={data.leaderId}
@@ -178,7 +162,6 @@ export default function App() {
           autoPlay={autoPlayElection}
           onClose={() => {
             setElectionTimeline(null);
-            setActiveRoundIndex(null);
             setAutoPlayElection(false);
           }}
         />
