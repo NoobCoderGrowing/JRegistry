@@ -215,7 +215,6 @@ export default function App() {
           <NodeTable
             nodes={data.nodes}
             leaderId={data.leaderId}
-            isLeader={data.localRole === 'LEADER'}
           />
         </>
       )}

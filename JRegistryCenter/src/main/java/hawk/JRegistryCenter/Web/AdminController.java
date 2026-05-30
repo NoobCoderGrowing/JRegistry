@@ -159,8 +159,6 @@ public class AdminController {
     private ResponseEntity<?> handleWrite(java.util.function.Supplier<StateMachineWriteResultDTO> action) {
         try {
             return ResponseEntity.ok(action.get());
-        } catch (AdminStateMachineWriteService.NotLeaderException e) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         } catch (IllegalStateException e) {

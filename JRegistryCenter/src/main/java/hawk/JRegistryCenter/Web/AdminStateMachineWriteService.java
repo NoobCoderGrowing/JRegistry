@@ -1,6 +1,7 @@
 package hawk.JRegistryCenter.Web;
 
-import hawk.JRegitstryCore.RPC.SSH.SSHRequest;
+import com.github.f4b6a3.uuid.UuidCreator;
+import hawk.JRegitstryCore.RPC.RaftRequest;
 import hawk.JRegitstryCore.Raft.RaftNode;
 import hawk.JRegistryCenter.Raft.Log.LogService;
 import hawk.JRegistryCenter.Web.dto.StateMachineWriteResultDTO;
@@ -43,21 +44,23 @@ public class AdminStateMachineWriteService {
     }
 
     private StateMachineWriteResultDTO submitWrite(String type, String key, String value, String dataType) {
-        if (raftNode.getIsLeader() == null || !raftNode.getIsLeader().get()) {
-            throw new NotLeaderException("Only leader can modify state machine");
+        if (raftNode.getLeaderId() == -1) {
+            throw new IllegalStateException("No leader found, write failed");
         }
 
-        SSHRequest request = new SSHRequest();
-        request.setType(type);
+        RaftRequest request = new RaftRequest();
+        request.setType("writeRequest");
+        request.setCmd(type);
         request.setKey(key);
         if (value != null) {
             request.setData(value.getBytes(StandardCharsets.UTF_8));
             request.setDataType(dataType != null && !dataType.isEmpty() ? dataType : "string");
         }
+        request.setUuid(UuidCreator.getTimeOrderedEpoch());
 
         try {
             CompletableFuture<Void> future = CompletableFuture.runAsync(
-                    () -> logService.generateLogEntry(request),
+                    () -> logService.handleWriteRequest(request),
                     singleGroup
             );
             future.get(WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -85,12 +88,6 @@ public class AdminStateMachineWriteService {
         }
         if (!key.matches("[A-Za-z0-9.]+")) {
             throw new IllegalArgumentException("invalid key format");
-        }
-    }
-
-    static class NotLeaderException extends RuntimeException {
-        NotLeaderException(String message) {
-            super(message);
         }
     }
 }

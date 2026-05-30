@@ -6,7 +6,6 @@ import { StateMachineTreePanel } from './StateMachineTreePanel';
 interface Props {
   nodes: NodeInfo[];
   leaderId: number;
-  isLeader: boolean;
 }
 
 function roleBadge(role: string) {
@@ -27,7 +26,7 @@ function fmtCount(v: number | null | undefined, fallback = '—') {
   return String(v);
 }
 
-export function NodeTable({ nodes, leaderId, isLeader }: Props) {
+export function NodeTable({ nodes, leaderId }: Props) {
   const [loadingNodeId, setLoadingNodeId] = useState<number | null>(null);
   const [treeData, setTreeData] = useState<Awaited<ReturnType<typeof fetchStateMachineTree>> | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -138,7 +137,6 @@ export function NodeTable({ nodes, leaderId, isLeader }: Props) {
           nodeId={treeData.nodeId}
           commitIndex={treeData.commitIndex}
           root={treeData.root}
-          isLeader={isLeader}
           onClose={() => setTreeData(null)}
           onRefresh={refreshTree}
         />

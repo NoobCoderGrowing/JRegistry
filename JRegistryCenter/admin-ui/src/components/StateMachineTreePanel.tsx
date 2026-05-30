@@ -5,15 +5,14 @@ import { deleteStateMachineKey, setStateMachineKey } from '../api';
 interface TreeNodeItemProps {
   node: TreeNode;
   depth?: number;
-  isLeader: boolean;
   onDelete: (dotKey: string) => void;
   deletingKey: string | null;
 }
 
-function TreeNodeItem({ node, depth = 0, isLeader, onDelete, deletingKey }: TreeNodeItemProps) {
+function TreeNodeItem({ node, depth = 0, onDelete, deletingKey }: TreeNodeItemProps) {
   const hasChildren = node.children.length > 0;
   const [expanded, setExpanded] = useState(depth < 2);
-  const canDelete = isLeader && node.leaf && node.dotKey;
+  const canDelete = node.leaf && node.dotKey;
 
   return (
     <li className="tree-node">
@@ -60,7 +59,6 @@ function TreeNodeItem({ node, depth = 0, isLeader, onDelete, deletingKey }: Tree
               key={child.path}
               node={child}
               depth={depth + 1}
-              isLeader={isLeader}
               onDelete={onDelete}
               deletingKey={deletingKey}
             />
@@ -75,7 +73,6 @@ interface Props {
   nodeId: number;
   commitIndex: number;
   root: TreeNode;
-  isLeader: boolean;
   onClose: () => void;
   onRefresh: () => Promise<void>;
 }
@@ -84,7 +81,6 @@ export function StateMachineTreePanel({
   nodeId,
   commitIndex,
   root,
-  isLeader,
   onClose,
   onRefresh,
 }: Props) {
@@ -158,66 +154,60 @@ export function StateMachineTreePanel({
           </button>
         </div>
 
-        {isLeader ? (
-          <div className="sm-write-panel">
-            <h4>增删（仅 Leader）</h4>
-            <form className="sm-form" onSubmit={handleSet}>
-              <label>
-                <span>新增 / 更新 (set)</span>
-                <input
-                  className="sm-input mono"
-                  placeholder="键，如 app.config.timeout"
-                  value={setKey}
-                  onChange={(e) => setSetKey(e.target.value)}
-                  disabled={busy}
-                />
-              </label>
-              <label>
-                <span>值</span>
-                <input
-                  className="sm-input mono"
-                  placeholder="值"
-                  value={setValue}
-                  onChange={(e) => setSetValue(e.target.value)}
-                  disabled={busy}
-                />
-              </label>
-              <label>
-                <span>类型</span>
-                <select
-                  className="sm-input"
-                  value={setType}
-                  onChange={(e) => setSetType(e.target.value)}
-                  disabled={busy}
-                >
-                  <option value="string">string</option>
-                </select>
-              </label>
-              <button type="submit" className="btn btn-sm" disabled={busy}>
-                {busy ? '提交中…' : 'Set'}
-              </button>
-            </form>
-            <form className="sm-form sm-form-delete" onSubmit={handleDelete}>
-              <label>
-                <span>删除 (delete)</span>
-                <input
-                  className="sm-input mono"
-                  placeholder="键，如 app.config.timeout"
-                  value={deleteKey}
-                  onChange={(e) => setDeleteKey(e.target.value)}
-                  disabled={busy}
-                />
-              </label>
-              <button type="submit" className="btn btn-sm btn-danger" disabled={busy}>
-                Delete
-              </button>
-            </form>
-          </div>
-        ) : (
-          <p className="sm-readonly-hint">
-            仅 Leader 节点可增删。请通过 Leader 的 HTTP 端口访问管理页后操作。
-          </p>
-        )}
+        <div className="sm-write-panel">
+          <h4>增删</h4>
+          <form className="sm-form" onSubmit={handleSet}>
+            <label>
+              <span>新增 / 更新 (set)</span>
+              <input
+                className="sm-input mono"
+                placeholder="键，如 app.config.timeout"
+                value={setKey}
+                onChange={(e) => setSetKey(e.target.value)}
+                disabled={busy}
+              />
+            </label>
+            <label>
+              <span>值</span>
+              <input
+                className="sm-input mono"
+                placeholder="值"
+                value={setValue}
+                onChange={(e) => setSetValue(e.target.value)}
+                disabled={busy}
+              />
+            </label>
+            <label>
+              <span>类型</span>
+              <select
+                className="sm-input"
+                value={setType}
+                onChange={(e) => setSetType(e.target.value)}
+                disabled={busy}
+              >
+                <option value="string">string</option>
+              </select>
+            </label>
+            <button type="submit" className="btn btn-sm" disabled={busy}>
+              {busy ? '提交中…' : 'Set'}
+            </button>
+          </form>
+          <form className="sm-form sm-form-delete" onSubmit={handleDelete}>
+            <label>
+              <span>删除 (delete)</span>
+              <input
+                className="sm-input mono"
+                placeholder="键，如 app.config.timeout"
+                value={deleteKey}
+                onChange={(e) => setDeleteKey(e.target.value)}
+                disabled={busy}
+              />
+            </label>
+            <button type="submit" className="btn btn-sm btn-danger" disabled={busy}>
+              Delete
+            </button>
+          </form>
+        </div>
 
         {msg && <p className="sm-msg success">{msg}</p>}
         {err && <p className="sm-msg error">{err}</p>}
@@ -226,7 +216,6 @@ export function StateMachineTreePanel({
           <ul className="tree-root">
             <TreeNodeItem
               node={root}
-              isLeader={isLeader}
               onDelete={handleTreeDelete}
               deletingKey={deletingKey}
             />

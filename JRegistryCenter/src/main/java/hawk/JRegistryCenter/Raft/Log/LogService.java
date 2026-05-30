@@ -141,12 +141,6 @@ public class LogService {
         this.commitWatcher = new CommitWatcher(this, nodeCount, stateMachine);
    }
 
-//    public RaftRequest handleWriteRequest(RaftRequest request){
-//         log.info("node {} handle write request: {}", raftNode.getId(), JSON.toJSONString(request));
-//         generateLogEntry(request);
-//         return null;
-//    }
-
    public RaftRequest handleWriteRequest(RaftRequest request){
         if(!raftNode.getIsLeader().get()){
             redirectWriteRequest2Leader(request);
