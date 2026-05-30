@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { fetchClusterStatus, fetchElectionRounds, fetchElectionTimeline, triggerPersist } from './api';
+import { fetchClusterStatus, fetchElectionRounds, fetchElectionTimeline, triggerCompact, triggerPersist } from './api';
 import { ClusterSummary } from './components/ClusterSummary';
 import { NodeTable } from './components/NodeTable';
 import { ElectionAnimationPanel } from './components/ElectionAnimationPanel';
@@ -28,6 +28,9 @@ export default function App() {
   const [persistLoading, setPersistLoading] = useState(false);
   const [persistMessage, setPersistMessage] = useState<string | null>(null);
   const [persistIsError, setPersistIsError] = useState(false);
+  const [compactLoading, setCompactLoading] = useState(false);
+  const [compactMessage, setCompactMessage] = useState<string | null>(null);
+  const [compactIsError, setCompactIsError] = useState(false);
 
   const electionInitializedRef = useRef(false);
   const lastElectionSignatureRef = useRef('');
@@ -98,6 +101,21 @@ export default function App() {
     }
   }
 
+  async function handleCompact() {
+    setCompactLoading(true);
+    setCompactMessage(null);
+    setCompactIsError(false);
+    try {
+      const result = await triggerCompact();
+      setCompactMessage(result.message || '日志压缩已触发');
+    } catch (e) {
+      setCompactIsError(true);
+      setCompactMessage(e instanceof Error ? e.message : '日志压缩失败');
+    } finally {
+      setCompactLoading(false);
+    }
+  }
+
   const load = useCallback(async () => {
     try {
       const status = await fetchClusterStatus();
@@ -143,6 +161,16 @@ export default function App() {
             <button
               type="button"
               className="btn"
+              disabled={compactLoading}
+              onClick={() => {
+                void handleCompact();
+              }}
+            >
+              {compactLoading ? '压缩中…' : '日志压缩'}
+            </button>
+            <button
+              type="button"
+              className="btn"
               disabled={electionLoading || !latestElectionRound}
               onClick={() => {
                 void openLatestElectionTimeline({ autoPlay: true });
@@ -156,6 +184,10 @@ export default function App() {
 
       {persistMessage && (
         <div className={persistIsError ? 'error-banner' : 'info-banner'}>{persistMessage}</div>
+      )}
+
+      {compactMessage && (
+        <div className={compactIsError ? 'error-banner' : 'info-banner'}>{compactMessage}</div>
       )}
 
       {electionError && (

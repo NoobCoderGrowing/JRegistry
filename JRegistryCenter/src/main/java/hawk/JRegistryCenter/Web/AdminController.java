@@ -35,6 +35,9 @@ public class AdminController {
     private AdminPersistService adminPersistService;
 
     @Autowired
+    private AdminCompactService adminCompactService;
+
+    @Autowired
     private ElectionLogService electionLogService;
 
     @Autowired
@@ -146,6 +149,11 @@ public class AdminController {
     @PostMapping("/persist")
     public ResponseEntity<?> persist() {
         return handleWrite(() -> adminPersistService.triggerPersist());
+    }
+
+    @PostMapping("/compact")
+    public ResponseEntity<?> compact() {
+        return handleWrite(() -> adminCompactService.triggerCompact());
     }
 
     private ResponseEntity<?> handleWrite(java.util.function.Supplier<StateMachineWriteResultDTO> action) {

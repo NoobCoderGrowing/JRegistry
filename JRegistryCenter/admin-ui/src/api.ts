@@ -83,3 +83,14 @@ export async function triggerPersist(): Promise<StateMachineWriteResult> {
   }
   return res.json();
 }
+
+export async function triggerCompact(): Promise<StateMachineWriteResult> {
+  const res = await fetch(`${API_BASE}/api/admin/compact`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `请求失败: ${res.status} ${res.statusText}`);
+  }
+  return res.json();
+}
