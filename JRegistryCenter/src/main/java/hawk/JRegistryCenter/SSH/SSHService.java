@@ -77,10 +77,10 @@ public class SSHService {
                 response = handleGetRequest(cliRequest, sessionCurrent);
                 break;
             case "set":
-                response = chekcIsLeader(cliRequest);
+                response = handleWriteRequest(cliRequest);
                 break;
             case "delete":
-                response = chekcIsLeader(cliRequest);
+                response = handleWriteRequest(cliRequest);
                 break;
             case "cd":
                 response = handleCD(cliRequest, sessionCurrent);
@@ -125,12 +125,12 @@ public class SSHService {
         }
     }
 
-    public String handleWriteRequest(SSHRequest cliRequest){
-        String cmd = cliRequest.getType();
-        String message = cmd + " received";
-        logService.generateLogEntry(cliRequest);
-        return message;
-    }
+    // public String handleWriteRequest(SSHRequest cliRequest){
+    //     String cmd = cliRequest.getType();
+    //     String message = cmd + " received";
+    //     logService.generateLogEntry(cliRequest);
+    //     return message;
+    // }
 
     public String handlePersist(){
         persistService.sendPersistRequest2All(raftClientManager);
@@ -144,10 +144,10 @@ public class SSHService {
 
 
 
-    public String redirectCMD2Leader(SSHRequest cliRequest){
+    public String handleWriteRequest(SSHRequest cliRequest){
         String cmd = cliRequest.getType();
         String message = cmd + " received";
-        if(raftNode.getLeaderHost()==null|| raftNode.getLeaderHost().isEmpty()){
+        if(raftNode.getLeaderId() == -1){
             message = cmd + " failed, no leader found";
             return message;
         }
@@ -159,20 +159,11 @@ public class SSHService {
         raftRequest.setData(cliRequest.getData());
         raftRequest.setDataType(cliRequest.getDataType());
         raftRequest.setUuid(cliRequest.getUuid());
-        log.info("node {} redirect write requestt leader {}", raftNode.getId(), cmd, raftNode.getLeaderId());
-        raftClientManager.sendToPeer(raftNode.getLeaderId(), JSON.toJSONString(raftRequest));
+        logService.handleWriteRequest(raftRequest);
         return message;
     }
 
-    // public void chekcIsLeader(Channel channel, CLIRequest cliRequest){
-    //     if(raftNode.getIsLeader().get()){
-    //         log.info("node {} is leader, handle write request", raftNode.getId());
-    //         handleWriteRequest(channel, cliRequest);
-    //     }else{
-    //         log.info("node {} is not leader, redirect to leader", raftNode.getId());
-    //         redirectToLeader(channel, cliRequest);
-    //     }
-    // }
+ 
 
     public String checkIsLeaderForClusterCmd(SSHRequest cliRequest){
         String cmd = cliRequest.getType();
@@ -204,15 +195,15 @@ public class SSHService {
         return cmd + " received";
     }
 
-    public String chekcIsLeader(SSHRequest cliRequest){
-        if(raftNode.getIsLeader().get()){
-            log.info("node {} is leader, handle write request", raftNode.getId());
-            return handleWriteRequest(cliRequest);
-        }else{
-            log.info("node {} is not leader, redirect to leader", raftNode.getId());
-            return redirectCMD2Leader(cliRequest);
-        }
-    }
+    // public String chekcIsLeader(SSHRequest cliRequest){
+    //     if(raftNode.getIsLeader().get()){
+    //         log.info("node {} is leader, handle write request", raftNode.getId());
+    //         return handleWriteRequest(cliRequest);
+    //     }else{
+    //         log.info("node {} is not leader, redirect to leader", raftNode.getId());
+    //         return redirectCMD2Leader(cliRequest);
+    //     }
+    // }
 
 
     public String userInputCheck(String input, AtomicReference<BPlusNode> sessionCurrent){

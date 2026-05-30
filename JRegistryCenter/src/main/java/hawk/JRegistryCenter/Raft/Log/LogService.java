@@ -141,13 +141,29 @@ public class LogService {
         this.commitWatcher = new CommitWatcher(this, nodeCount, stateMachine);
    }
 
+//    public RaftRequest handleWriteRequest(RaftRequest request){
+//         log.info("node {} handle write request: {}", raftNode.getId(), JSON.toJSONString(request));
+//         generateLogEntry(request);
+//         return null;
+//    }
+
    public RaftRequest handleWriteRequest(RaftRequest request){
+        if(!raftNode.getIsLeader().get()){
+            redirectWriteRequest2Leader(request);
+            return null;
+        }
         log.info("node {} handle write request: {}", raftNode.getId(), JSON.toJSONString(request));
         generateLogEntry(request);
         return null;
-   }
+    }
 
-   
+    public void redirectWriteRequest2Leader(RaftRequest request){
+        if(raftNode.getLeaderId() == -1){
+            log.error("node {} redirect write request to leader failed, leader id is -1", raftNode.getId());
+            return;
+        }
+        raftClientManagerProvider.getObject().sendToPeer(raftNode.getLeaderId(), JSON.toJSONString(request));
+    }
 
     public void generateLogEntry(RaftRequest request){
         long prevLogIndex = -1;        
