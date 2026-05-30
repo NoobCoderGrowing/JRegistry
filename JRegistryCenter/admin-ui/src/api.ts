@@ -72,3 +72,14 @@ export async function fetchElectionRounds(): Promise<ElectionRounds> {
   }
   return res.json();
 }
+
+export async function triggerPersist(): Promise<StateMachineWriteResult> {
+  const res = await fetch(`${API_BASE}/api/admin/persist`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `请求失败: ${res.status} ${res.statusText}`);
+  }
+  return res.json();
+}

@@ -48,6 +48,12 @@ header {
   flex-wrap: wrap;
 }
 
+.header-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
 header h1 {
   font-size: 1.75rem;
   font-weight: 600;
@@ -201,6 +207,15 @@ tr.self-row td {
   background: #7f1d1d44;
   border: 1px solid #ef444466;
   color: #fecaca;
+  padding: 1rem 1.25rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+}
+
+.info-banner {
+  background: #14532d44;
+  border: 1px solid #22c55e66;
+  color: #bbf7d0;
   padding: 1rem 1.25rem;
   border-radius: 8px;
   margin-bottom: 1.5rem;

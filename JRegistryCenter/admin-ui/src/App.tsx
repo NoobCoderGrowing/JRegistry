@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { fetchClusterStatus, fetchElectionRounds, fetchElectionTimeline } from './api';
+import { fetchClusterStatus, fetchElectionRounds, fetchElectionTimeline, triggerPersist } from './api';
 import { ClusterSummary } from './components/ClusterSummary';
 import { NodeTable } from './components/NodeTable';
 import { ElectionAnimationPanel } from './components/ElectionAnimationPanel';
@@ -25,6 +25,9 @@ export default function App() {
   const [electionError, setElectionError] = useState<string | null>(null);
   const [animationSessionKey, setAnimationSessionKey] = useState(0);
   const [autoPlayElection, setAutoPlayElection] = useState(false);
+  const [persistLoading, setPersistLoading] = useState(false);
+  const [persistMessage, setPersistMessage] = useState<string | null>(null);
+  const [persistIsError, setPersistIsError] = useState(false);
 
   const electionInitializedRef = useRef(false);
   const lastElectionSignatureRef = useRef('');
@@ -80,6 +83,21 @@ export default function App() {
     }
   }, [openLatestElectionTimeline]);
 
+  async function handlePersist() {
+    setPersistLoading(true);
+    setPersistMessage(null);
+    setPersistIsError(false);
+    try {
+      const result = await triggerPersist();
+      setPersistMessage(result.message || 'Persist 已触发');
+    } catch (e) {
+      setPersistIsError(true);
+      setPersistMessage(e instanceof Error ? e.message : 'Persist 失败');
+    } finally {
+      setPersistLoading(false);
+    }
+  }
+
   const load = useCallback(async () => {
     try {
       const status = await fetchClusterStatus();
@@ -111,18 +129,34 @@ export default function App() {
             <h1>JRegistry Center</h1>
             <p>Raft 集群节点管理后台 · 每 {REFRESH_MS / 1000}s 自动刷新 · 重选主后自动播放动画</p>
           </div>
-          <button
-            type="button"
-            className="btn"
-            disabled={electionLoading || !latestElectionRound}
-            onClick={() => {
-              void openLatestElectionTimeline({ autoPlay: true });
-            }}
-          >
-            {electionLoading ? '加载中…' : '最新选主流程'}
-          </button>
+          <div className="header-actions">
+            <button
+              type="button"
+              className="btn"
+              disabled={persistLoading}
+              onClick={() => {
+                void handlePersist();
+              }}
+            >
+              {persistLoading ? 'Persist 中…' : 'Persist'}
+            </button>
+            <button
+              type="button"
+              className="btn"
+              disabled={electionLoading || !latestElectionRound}
+              onClick={() => {
+                void openLatestElectionTimeline({ autoPlay: true });
+              }}
+            >
+              {electionLoading ? '加载中…' : '最新选主流程'}
+            </button>
+          </div>
         </div>
       </header>
+
+      {persistMessage && (
+        <div className={persistIsError ? 'error-banner' : 'info-banner'}>{persistMessage}</div>
+      )}
 
       {electionError && (
         <div className="error-banner">{electionError}</div>

@@ -32,6 +32,9 @@ public class AdminController {
     private AdminStateMachineWriteService adminStateMachineWriteService;
 
     @Autowired
+    private AdminPersistService adminPersistService;
+
+    @Autowired
     private ElectionLogService electionLogService;
 
     @Autowired
@@ -140,6 +143,11 @@ public class AdminController {
         return handleWrite(() -> adminStateMachineWriteService.delete(body.getKey()));
     }
 
+    @PostMapping("/persist")
+    public ResponseEntity<?> persist() {
+        return handleWrite(() -> adminPersistService.triggerPersist());
+    }
+
     private ResponseEntity<?> handleWrite(java.util.function.Supplier<StateMachineWriteResultDTO> action) {
         try {
             return ResponseEntity.ok(action.get());
@@ -147,9 +155,11 @@ public class AdminController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("State machine write failed");
+                    .body("Request failed");
         }
     }
 }
