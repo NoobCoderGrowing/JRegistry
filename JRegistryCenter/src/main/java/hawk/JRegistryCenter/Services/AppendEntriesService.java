@@ -45,11 +45,6 @@ public class AppendEntriesService {
     @Autowired
     private ThreadPoolExecutor writePool;
 
-    @Value("${host}")
-    private String CLIServerHost;
-    @Value("${CLS.port}")
-    private int CLIServerPort;
-
     @Value("${raft.auto-persist}")
     private boolean autoPersist;
 
@@ -84,8 +79,8 @@ public class AppendEntriesService {
         request.setType("heartbeat");
         request.setId(raftNode.getId());
         request.setTerm(raftNode.getCurrentTerm());
-        request.setLeaderHost(CLIServerHost);
-        request.setLeaderPort(CLIServerPort);
+        request.setLeaderHost(raftNode.getHost());
+        request.setLeaderPort(raftNode.getPort());
         writePool.execute(() -> {
             channel.writeAndFlush(JSON.toJSONString(request) + "\n");
         });

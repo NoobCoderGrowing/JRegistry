@@ -57,9 +57,6 @@ public class AdminService {
     @Value("${ssh.port}")
     private int sshPort;
 
-    @Value("${CLS.port}")
-    private int clsPort;
-
     @Value("${raft.count:3}")
     private int clusterSize;
 
@@ -180,7 +177,6 @@ public class AdminService {
                 .raftPort(raftPort)
                 .httpPort(httpPort)
                 .sshPort(sshPort)
-                .clsPort(clsPort)
                 .role(resolveRole(raftNode))
                 .connected(true)
                 .self(true)

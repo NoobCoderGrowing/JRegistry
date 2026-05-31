@@ -27,12 +27,6 @@ public class RequestVoteService {
     @Autowired
     private LogService logService;
 
-
-    @Value("${host}")
-    private String CLIServerHost;
-    @Value("${CLS.port}")
-    private int CLIServerPort;
-
     @Autowired
     private TimeoutService timeoutService;
 

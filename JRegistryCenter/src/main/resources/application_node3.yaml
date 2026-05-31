@@ -3,8 +3,6 @@ host: 127.0.0.3
 server:
   port: 6103
 
-CLS:
-  port: 6303
 
 raft:
   node-id: 3

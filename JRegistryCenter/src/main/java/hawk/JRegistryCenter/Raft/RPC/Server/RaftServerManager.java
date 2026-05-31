@@ -25,7 +25,7 @@ import hawk.JRegistryCenter.Raft.Log.LogService;
 import hawk.JRegistryCenter.Services.AppendEntriesService;
 import hawk.JRegistryCenter.Services.RequestVoteService;
 import hawk.JRegistryCenter.Services.Persist.PersistService;
-
+import hawk.JRegitstryCore.StateMachine;
 import java.util.concurrent.ThreadPoolExecutor;
 
 @Component
@@ -59,6 +59,9 @@ public class RaftServerManager {
 
     @Autowired
     private ThreadPoolExecutor writePool;
+
+    @Autowired
+    private StateMachine stateMachine;
 
     private Channel channel;
 
@@ -96,7 +99,7 @@ public class RaftServerManager {
                      p.addLast(new StringDecoder(StandardCharsets.UTF_8));
                      p.addLast(new StringEncoder(StandardCharsets.UTF_8));
                      p.addLast(new RaftServerHandler(RaftServerManager.this, appendEntriesService, requestVoteService, raftNode, 
-                        logService, writePool, persistService));
+                        logService, writePool, persistService, stateMachine));
                  }
              });
             

@@ -16,6 +16,7 @@ import hawk.JRegistryCenter.Services.RequestVoteService;
 import hawk.JRegistryCenter.Services.Persist.PersistService;
 
 import java.util.concurrent.ThreadPoolExecutor;
+import hawk.JRegitstryCore.StateMachine;
 
 @Slf4j
 @Data
@@ -39,9 +40,11 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
 
     private PersistService persistService;
 
+    private StateMachine stateMachine;
+
     public RaftServerHandler(RaftServerManager raftServer, AppendEntriesService appendEntriesService, 
         RequestVoteService requestVoteService, RaftNode raftNode, LogService logService, 
-        ThreadPoolExecutor writePool, PersistService persistService) {
+        ThreadPoolExecutor writePool, PersistService persistService, StateMachine stateMachine) {
         this.raftServer = raftServer;
         this.appendEntriesService = appendEntriesService;
         this.requestVoteService = requestVoteService;
@@ -49,6 +52,7 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
         this.logService = logService;
         this.writePool = writePool;
         this.persistService = persistService;
+        this.stateMachine = stateMachine;
     }
 
     @Override
@@ -84,6 +88,15 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
                     break;
                 case "compact":
                     persistService.handleCompactRequest();
+                    break;
+                case "get":
+                    reply = stateMachine.handleGetRequest(request);
+                    break;
+                case "set":
+                    reply = logService.handleWriteRequest(request);
+                    break;
+                case "delete":
+                    reply = logService.handleWriteRequest(request);
                     break;
                 default:
                     break;
