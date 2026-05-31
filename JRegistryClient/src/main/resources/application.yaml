@@ -3,7 +3,7 @@ spring:
     name: JRegistryClient
 
 server:
-  port: 6604
+  port: 8583
 
 
 raft:
