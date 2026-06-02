@@ -304,20 +304,13 @@ public class LogService {
                 return;
             }
 
-            LogEntry prevLog = getLog(nextIndex - 1);
-            if(prevLog == null){
-                log.info("prev log is null, send snapshot");
-                sendSnapshot(channel);
-                return;
-            }
-
             RaftRequest raftRequest = new RaftRequest();
             raftRequest.setType("appendEntries");
             raftRequest.setId(raftNode.getId());
             raftRequest.setTerm(raftNode.getCurrentTerm());
             raftRequest.setLeaderCommit(stateMachine.getCommitIndex());
-            raftRequest.setPrevLogIndex(prevLog.getIndex());
-            raftRequest.setPrevLogTerm(prevLog.getTerm());
+            raftRequest.setPrevLogIndex(-1);
+            raftRequest.setPrevLogTerm(-1);
             raftRequest.setLog(currentLog);
             raftRequest.setLeaderHost(raftNode.getLeaderHost());
             raftRequest.setLeaderPort(raftNode.getLeaderPort());
