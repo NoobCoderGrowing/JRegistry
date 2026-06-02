@@ -1,3 +1,3 @@
-{"command":"set","data":"c21hcnQ=","dataType":"string","index":24,"key":"wenjun","term":22}
-{"command":"set","data":"aGFuZHNvbWU=","dataType":"string","index":25,"key":"wenjun","term":22}
 {"command":"noOp","index":0,"term":0}
+{"command":"set","data":"aGFuZHNvbWU=","dataType":"string","index":1,"key":"wenjun","term":0}
+{"command":"set","data":"bm90IHJpZ2h0","dataType":"string","index":2,"key":"wenjun","term":0}

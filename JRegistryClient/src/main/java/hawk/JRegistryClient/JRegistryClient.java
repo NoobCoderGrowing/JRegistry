@@ -1,4 +1,5 @@
 package hawk.JRegistryClient;
+
 import hawk.JRegitstryCore.Pair;
 import hawk.JRegitstryCore.RPC.RaftRequest;
 import com.github.f4b6a3.uuid.UuidCreator;
@@ -9,17 +10,38 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class JRegistryClient {
-    private NettyClient nettyClient;
+    private long TASK_TIMEOUT_MS = 1000;
 
-    public JRegistryClient(String host, int port) {
-        this.nettyClient = new NettyClient(host, port);
+    private final NettyClient nettyClient;
+
+    public JRegistryClient(String host, int port, long taskTimeoutMs, int connectTimeoutMillis) {
+        this.nettyClient = new NettyClient(host, port, connectTimeoutMillis);
+        this.TASK_TIMEOUT_MS = taskTimeoutMs;
     }
 
-    public void connect(){
-        nettyClient.start();
+    /**
+     * Connect synchronously; returns true only when the TCP channel is active.
+     */
+    public boolean connect() {
+        return nettyClient.connectSync();
     }
 
-    public Pair<byte[], String> get(String key){
+    public boolean isConnected() {
+        return nettyClient.isConnected();
+    }
+
+    public void shutdown() {
+        nettyClient.shutdown();
+    }
+
+    private void requireConnected() {
+        if (!nettyClient.isConnected()) {
+            throw new IllegalStateException("JRegistryClient is not connected; call connect() first");
+        }
+    }
+
+    public Pair<byte[], String> get(String key) {
+        requireConnected();
         RaftRequest request = new RaftRequest();
         request.setType("get");
         request.setKey(key);
@@ -27,19 +49,19 @@ public class JRegistryClient {
         CompletableFuture<RaftRequest> future = new CompletableFuture<>();
         nettyClient.setMessageListener(message -> {
             RaftRequest reply = JSON.parseObject(message, RaftRequest.class);
-            if(reply == null){
+            if (reply == null) {
                 return;
             }
-            if(reply.getUuid().equals(request.getUuid())){
+            if (reply.getUuid().equals(request.getUuid())) {
                 future.complete(reply);
             }
         });
         nettyClient.sendRequest(request);
-        
+
         try {
-            RaftRequest reply = future.get(100,TimeUnit.MILLISECONDS);
-            if(reply.isSuccess()){
-                return new Pair<byte[], String>(reply.getData(), reply.getDataType());
+            RaftRequest reply = future.get(TASK_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+            if (reply.isSuccess()) {
+                return new Pair<>(reply.getData(), reply.getDataType());
             }
             return null;
         } catch (Exception e) {
@@ -48,9 +70,11 @@ public class JRegistryClient {
         }
     }
 
-    public void set(String key, byte[] data, String dataType){
+    public void set(String key, byte[] data, String dataType) {
+        requireConnected();
         RaftRequest request = new RaftRequest();
-        request.setType("set");
+        request.setType("writeRequest");
+        request.setCmd("set");
         request.setKey(key);
         request.setData(data);
         request.setDataType(dataType);
@@ -58,15 +82,13 @@ public class JRegistryClient {
         nettyClient.sendRequest(request);
     }
 
-    public void delete(String key){
+    public void delete(String key) {
+        requireConnected();
         RaftRequest request = new RaftRequest();
-        request.setType("delete");
+        request.setType("writeRequest");
+        request.setCmd("delete");
         request.setKey(key);
         request.setUuid(UuidCreator.getTimeOrderedEpoch());
         nettyClient.sendRequest(request);
     }
-
-    
-
- 
 }
