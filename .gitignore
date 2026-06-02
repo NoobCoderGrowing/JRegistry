@@ -16,6 +16,7 @@ target/
 .vscode/
 .history/
 .settings.json
+.vscode/
 
 # Maven / Gradle
 .mvn/wrapper/maven-wrapper.jar
@@ -24,4 +25,11 @@ build/
 !gradle/wrapper/gradle-wrapper.jar
 
 # 日志文件
-**/logs/
+**/logs/**
+
+# admin-ui
+JRegistryCenter/admin-ui/node_modules/
+
+# persistency
+JRegistryCenter/persistency/*
+
