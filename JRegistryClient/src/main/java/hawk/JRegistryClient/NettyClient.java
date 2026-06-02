@@ -23,8 +23,6 @@ import javax.annotation.PreDestroy;
 
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-
 
 @Slf4j
 @Data
@@ -35,21 +33,23 @@ public class NettyClient {
     private static final int HEARTBEAT_INTERVAL_SECONDS = 10;
 
     
-    @Value("${raft.host}")
+    
     private String host;
 
-    @Value("${raft.port}")
     private int port;
 
-    @Value("${raft.client-threads}")
-    private int clientThreads;
 
-    private final EventLoopGroup group = new NioEventLoopGroup(clientThreads);
+    private final EventLoopGroup group = new NioEventLoopGroup(1);
     private final AtomicBoolean reconnectScheduled = new AtomicBoolean(false);
     private final AtomicBoolean connecting = new AtomicBoolean(false);
 
     private volatile Channel channel;
     private volatile Consumer<String> messageListener;
+
+    public NettyClient(String host, int port) {
+        this.host = host;
+        this.port = port;
+    }
 
     public void start() {
         connect();

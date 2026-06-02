@@ -31,5 +31,5 @@ build/
 JRegistryCenter/admin-ui/node_modules/
 
 # persistency
-JRegistryCenter/persistency/*
+**/persistency/**
 

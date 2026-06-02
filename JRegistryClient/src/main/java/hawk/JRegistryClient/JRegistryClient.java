@@ -11,13 +11,12 @@ import lombok.extern.slf4j.Slf4j;
 public class JRegistryClient {
     private NettyClient nettyClient;
 
-    public JRegistryClient() {
-        this.nettyClient = new NettyClient();
-        this.nettyClient.connect();
+    public JRegistryClient(String host, int port) {
+        this.nettyClient = new NettyClient(host, port);
     }
 
     public void connect(){
-        nettyClient.connect();
+        nettyClient.start();
     }
 
     public Pair<byte[], String> get(String key){
