@@ -161,20 +161,6 @@ http://localhost:6003 默认节点3
 - 选主历史与最新成功选主的动画回放
 - 手动触发 **Persist**（持久化）与 **Compact**（日志压缩）
 
-### 管理 REST API
-
-| 方法 | 接口 | 说明 |
-|------|------|------|
-| `GET` | `/api/admin/cluster` | 集群概览与全部节点 |
-| `GET` | `/api/admin/node` | 当前节点 Raft 状态 |
-| `GET` | `/api/admin/self` | 当前节点详情 |
-| `GET` | `/api/admin/state-machine?nodeId=` | 状态机树（可选指定节点） |
-| `GET` | `/api/admin/election-rounds` | 从日志解析的选主轮次 |
-| `GET` | `/api/admin/election-timeline?round=` | 选主时间线（用于回放） |
-| `POST` | `/api/admin/state-machine/set` | 写入键值 |
-| `POST` | `/api/admin/state-machine/delete` | 删除键 |
-| `POST` | `/api/admin/persist` | 触发集群持久化 |
-| `POST` | `/api/admin/compact` | 触发日志压缩 |
 
 ## JRegistryClient 客户端
 
@@ -205,6 +191,19 @@ mvn -f pom.xml clean package -pl JRegistryClient -am -DskipTests
 cd JRegistryClient
 ./start.sh
 ```
+<!-- 
+### 管理 REST API
+
+| 方法 | 接口 | 说明 |
+|------|------|------|
+| `GET` | `/api/admin/cluster` | 集群概览与全部节点 |
+| `GET` | `/api/admin/node` | 当前节点 Raft 状态 |
+| `GET` | `/api/admin/self` | 当前节点详情 |
+| `POST` | `/api/admin/state-machine/set` | 写入键值 |
+| `POST` | `/api/admin/state-machine/delete` | 删除键 |
+| `POST` | `/api/admin/persist` | 主动触发集群持久化，会全部重新持久化日志并生成快照 |
+| `POST` | `/api/admin/compact` | 触发日志压缩 | -->
+
 
 ## SSH 命令行
 
@@ -264,7 +263,7 @@ JRegistry/
 │   ├── stop.sh             # 开发模式停止所有节点
 │   └── build-release.sh    # 构建release包
 ├── JRegistryClient/        # Netty 客户端库
-├── persistency/            # 运行时快照
+├── persistency/            # raft日志及state machine快照
 ├── logs/                   # 应用日志与 PID 文件
 └── release/                # 发布包目录
 ```
