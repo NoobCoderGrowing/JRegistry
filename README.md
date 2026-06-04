@@ -73,7 +73,7 @@ cd release
 脚本会依次：
 1. 停止已有节点
 2. 清空旧日志
-3. 在后台启动节点 3个节点
+3. 在后台启动3个默认配置的节点集群
 
 进程 PID 保存在 `logs/node1.pid`、`logs/node2.pid`、`logs/node3.pid`。
 
@@ -181,19 +181,6 @@ mvn -f pom.xml clean package -pl JRegistryClient -am -DskipTests
 cd JRegistryClient
 ./start.sh
 ```
-<!-- 
-### 管理 REST API
-
-| 方法 | 接口 | 说明 |
-|------|------|------|
-| `GET` | `/api/admin/cluster` | 集群概览与全部节点 |
-| `GET` | `/api/admin/node` | 当前节点 Raft 状态 |
-| `GET` | `/api/admin/self` | 当前节点详情 |
-| `POST` | `/api/admin/state-machine/set` | 写入键值 |
-| `POST` | `/api/admin/state-machine/delete` | 删除键 |
-| `POST` | `/api/admin/persist` | 主动触发集群持久化，会全部重新持久化日志并生成快照 |
-| `POST` | `/api/admin/compact` | 触发日志压缩 | -->
-
 
 ## SSH 命令行
 
