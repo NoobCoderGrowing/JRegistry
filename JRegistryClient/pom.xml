@@ -9,7 +9,7 @@
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>hawk.JRegistryClient</groupId>
+    <groupId>hawk.JRegistry</groupId>
     <artifactId>JRegistryClient</artifactId>
     <version>1.0.0</version>
     <name>JRegistryClient</name>
@@ -22,7 +22,7 @@
 
     <dependencies>
         <dependency>
-            <groupId>hawk.JRegistryCore</groupId>
+            <groupId>hawk.JRegistry</groupId>
             <artifactId>JRegistryCore</artifactId>
             <version>1.0.0</version>
         </dependency>

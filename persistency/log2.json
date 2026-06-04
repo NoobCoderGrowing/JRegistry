@@ -2,3 +2,6 @@
 {"command":"set","data":"ZGZkZmRm","dataType":"string","index":3,"key":"dfdfd","term":0}
 {"command":"noOp","index":4,"term":1}
 {"command":"noOp","index":5,"term":2}
+{"command":"noOp","index":6,"term":3}
+{"command":"noOp","index":7,"term":4}
+{"command":"noOp","index":8,"term":5}
