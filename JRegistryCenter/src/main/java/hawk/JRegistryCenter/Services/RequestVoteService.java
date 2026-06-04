@@ -129,6 +129,7 @@ public class RequestVoteService {
                 if(voteReceived > nodeCount/2){ // 获得多数票，成为leader
                     timeoutService.resetTimeout();
                     raftNode.turn2Leader();
+                    logService.leaderSetNextIndex();
                     log.info("term {} ,client node {} become leader, {} votes received, active nodes: {}", raftNode.getCurrentTerm(), raftNode.getId(), voteReceived, 
                     nodeCount);
                     //异步发送心跳包给所有节点（netty发送消息本身就是异步的）

@@ -102,6 +102,13 @@ public class LogService {
         openLogWriter();
     }
 
+    public void leaderSetNextIndex(){
+        peers.forEach((k,v)->{
+            nextIndexMap.put(k, getLastLogIndex() + 1);
+        });
+        log.info("leader node {} set next index map to {}", raftNode.getId(), nextIndexMap);
+    }
+
     private void openLogWriter(){
         try {
         closeLogWriterQuietly();
