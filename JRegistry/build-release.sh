@@ -29,6 +29,9 @@ cp "$SCRIPT_DIR/src/main/resources/application_node3.yaml" "$RELEASE_DIR/config/
 cp "$SCRIPT_DIR/start-release.sh" "$RELEASE_DIR/start.sh" 2>/dev/null || true
 cp "$SCRIPT_DIR/stop-release.sh" "$RELEASE_DIR/stop.sh" 2>/dev/null || true
 
+echo "==> 5. Set permissions"
+chmod -R a+rwx "$ROOT_DIR/release"
+
 echo "==> 4. Create tarball"
 cd "$ROOT_DIR/release"
 tar -czf "JRegistry-${VERSION}.tar.gz" "JRegistry-${VERSION}"
