@@ -18,7 +18,7 @@
 
     <groupId>hawk.JRegistry</groupId>
     <artifactId>JRegistry</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>1.0.0</version>
     <name>JRegistry</name>
 
     <properties>

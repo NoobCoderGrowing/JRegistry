@@ -5,13 +5,13 @@
     <parent>
         <artifactId>JRegistry</artifactId>
         <groupId>hawk.JRegistry</groupId>
-        <version>1.0-SNAPSHOT</version>
+        <version>1.0.0</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>hawk.JRegistryClient</groupId>
     <artifactId>JRegistryClient</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>1.0.0</version>
     <name>JRegistryClient</name>
 
     <properties>
@@ -24,7 +24,7 @@
         <dependency>
             <groupId>hawk.JRegistryCore</groupId>
             <artifactId>JRegistryCore</artifactId>
-            <version>1.0-SNAPSHOT</version>
+            <version>1.0.0</version>
         </dependency>
     </dependencies>
 
