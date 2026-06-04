@@ -245,3 +245,247 @@ JRegistry/
 └── release/                # 发布包目录
 ```
 
+---
+
+# English
+
+A distributed, Raft-based key-value registry with a web admin console, Netty RPC client, and SSH shell.
+
+---
+
+## Overview
+
+JRegistry is a multi-node distributed registry built on the [Raft](https://raft.github.io/) consensus algorithm. Data is stored as hierarchical key-value pairs in an in-memory state machine (keys use `.` as path separators, e.g. `app.config.timeout`). Writes are replicated through the Raft log and can be accessed via:
+
+- **Netty RPC** — programmatic get / set / delete through `JRegistryClient`
+- **Web Admin UI** — cluster monitoring, state machine browser, election replay animation
+- **SSH Shell** — interactive, filesystem-style CLI on each node
+
+The default deployment is a local **3-node cluster** (`127.0.0.1` / `127.0.0.2` / `127.0.0.3`).
+
+## Features
+
+| Area | Description |
+|------|-------------|
+| **Raft consensus** | Leader election, log replication, log commit |
+| **State machine** | Hierarchical B+ tree; keys use `.` as path separator |
+| **Persistence** | Snapshots of Raft node state, log, and state machine written to `persistency/`; auto-recovery on startup |
+| **Log compaction** | Scheduled and manual compaction to trim old log entries |
+| **Admin UI** | React + Vite dashboard: cluster overview, node roles, state machine tree, election animation |
+| **SSH CLI** | Commands: `get`, `set`, `delete`, `ls`, `cd`, `pwd`, `persist`, `compact` |
+| **Client SDK** | Netty-based `JRegistryClient` with synchronous `get` and asynchronous writes |
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        JRegistry Cluster                     │
+│  ┌──────────┐    ┌──────────┐    ┌──────────┐               │
+│  │  Node 1  │◄──►│  Node 2  │◄──►│  Node 3  │  Raft RPC    │
+│  │ :6001    │    │ :6002    │    │ :6003    │  (Netty)       │
+│  └────┬─────┘    └────┬─────┘    └────┬─────┘               │
+│       │ HTTP :6101    │ HTTP :6102    │ HTTP :6103          │
+│       │ SSH  :2001    │ SSH  :2002    │ SSH  :2003          │
+└───────┼───────────────┼───────────────┼─────────────────────┘
+        │               │               │
+   Admin UI / API   JRegistryClient   SSH shell
+```
+
+### Modules
+
+| Module | Role |
+|--------|------|
+| **JRegistryCore** | Shared core: `RaftNode`, `StateMachine`, `LogEntry`, RPC DTOs |
+| **JRegistry** | Spring Boot server: Raft services, persistence, web admin, SSH |
+| **JRegistryClient** | Netty client library and sample `TestApp` |
+
+## Requirements
+
+- **JDK 11+**
+- **Maven 3.6+**
+- **Node.js 18+** and **npm** (for building the admin UI)
+- Linux/macOS recommended (startup scripts use bash)
+
+## Quick Start
+
+### 1. Start a 3-node cluster
+
+After downloading the release archive:
+
+```bash
+tar -xzf JRegistry-1.0.0.tar.gz   # extract
+cd JRegistry-1.0.0
+./start-cluster.sh
+```
+
+The script will:
+
+1. Stop any existing nodes
+2. Clear old logs
+3. Start a 3-node cluster with default config in the background
+
+PID files are saved to `logs/node1.pid`, `logs/node2.pid`, and `logs/node3.pid`.
+
+### 2. Open the admin console
+
+| Node | Admin UI |
+|------|----------|
+| 1 | http://127.0.0.1:6101/ |
+| 2 | http://127.0.0.2:6102/ |
+| 3 | http://127.0.0.3:6103/ |
+
+### 3. Stop the cluster
+
+```bash
+./stop.sh
+```
+
+## Configuration
+
+Each node has a YAML config file under `config/`:
+
+| File | Node |
+|------|------|
+| `application.yaml` | Node 1 |
+| `application_node2.yaml` | Node 2 |
+| `application_node3.yaml` | Node 3 |
+
+Key settings:
+
+```yaml
+host: 127.0.0.1
+
+server:
+  port: 6101          # HTTP / Admin UI
+
+raft:
+  node-id: 1
+  port: 6001          # local Raft port
+  peers: "{2:'127.0.0.2:6002',3:'127.0.0.3:6003'}"   # initial cluster peer addresses
+  count: 3
+  auto-persist: true
+  image-path: "persistency/"
+  log-compaction-interval: 14400   # seconds
+
+admin:
+  peer-http-ports: "{1:6101, 2:6102, 3:6103}"  # admin HTTP ports for all nodes
+  election-log-path: logs/JRegistry.log
+
+ssh:
+  enabled: true
+  host: 127.0.0.1
+  port: 2001
+  auth:
+    username: admin
+    password: 123
+```
+
+> **Note:** Start the process from the **repository root** (or the extracted release directory) so relative paths like `persistency/` and `logs/` resolve correctly.
+
+### Default ports
+
+| Node | HTTP | Raft RPC | SSH |
+|------|------|----------|-----|
+| 1 | 6101 | 6001 | 2001 |
+| 2 | 6102 | 6002 | 2002 |
+| 3 | 6103 | 6003 | 2003 |
+
+**Capabilities:**
+
+- Cluster overview and per-node Raft role (Leader / Candidate / Follower)
+- State machine tree browser with write/delete operations (submitted via Leader)
+- Election history and animated replay of the latest successful election
+- Manual **Persist** and **Compact** triggers
+
+## JRegistryClient
+
+Connect to any node's Raft port for read/write operations:
+
+```java
+JRegistryClient client = new JRegistryClient("127.0.0.3", 6003, 1000, 5000);
+if (!client.connect()) {
+    throw new IllegalStateException("Cannot connect to registry");
+}
+
+client.set("app.config.name", "demo".getBytes(), "string");
+Thread.sleep(1000);
+
+Pair<byte[], String> result = client.get("app.config.name");
+if (result != null) {
+    System.out.println(new String(result.getLeft()));
+}
+
+client.delete("app.config.name");
+client.shutdown();
+```
+
+Run the sample client:
+
+```bash
+mvn -f pom.xml clean package -pl JRegistryClient -am -DskipTests
+cd JRegistryClient
+./start.sh
+```
+
+## SSH Shell
+
+Each node exposes an SSH server (Apache MINA SSHD). Connect using credentials from config (default `admin` / `123`):
+
+```bash
+ssh admin@127.0.0.1 -p 2001
+```
+
+Supported commands:
+
+| Command | Example | Description |
+|---------|---------|-------------|
+| `get` | `get app.config.timeout` | Read a value by full key path |
+| `set` | `set mykey hello` | Write a string value |
+| `delete` | `delete mykey` | Remove a key |
+| `ls` | `ls` | List children at current path |
+| `cd` | `cd app.config` | Navigate the state machine tree |
+| `pwd` | `pwd` | Show current path |
+| `persist` | `persist` | Snapshot all nodes (leader only) |
+| `compact` | `compact` | Compact logs (leader only) |
+
+### Tech stack
+
+| Layer | Technology |
+|-------|------------|
+| Server | Java 11, Spring Boot 2.7.8, Log4j2 |
+| RPC | Netty 4.1 |
+| Consensus | Custom Raft implementation |
+| Admin UI | React, Vite, TypeScript |
+| SSH | Apache SSHD |
+| Serialization | FastJSON, Gson |
+
+### Persistence layout
+
+After writes and persist operations, snapshots are saved under `persistency/`:
+
+```
+persistency/
+├── raftNode1.json
+├── log1.json
+├── stateMachine1.json
+├── raftNode2.json
+├── ...
+```
+
+## Project layout
+
+```
+JRegistry/
+├── JRegistryCore/          # Shared Raft & state machine core
+├── JRegistry/              # Server, admin UI, scripts
+│   ├── admin-ui/           # React admin dashboard
+│   ├── src/main/java/      # Raft services, web, SSH
+│   ├── start.sh            # Dev: build and start 3-node cluster
+│   ├── stop.sh             # Dev: stop all nodes
+│   └── build-release.sh    # Build release package
+├── JRegistryClient/        # Netty client library
+├── persistency/            # Raft log & state machine snapshots
+├── logs/                   # Application logs & PID files
+└── release/                # Release output directory
+```
+
