@@ -184,7 +184,6 @@ public class StateMachine {
         boolean success = false;
         switch (cmd) {
             case "set":
-                log.info("into set");
                 success = put(logEntry);
                 break;
             case "delete":

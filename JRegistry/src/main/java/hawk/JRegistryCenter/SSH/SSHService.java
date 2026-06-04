@@ -260,9 +260,6 @@ public class SSHService {
             log.error("userInputCheck timeout: {}", e.getMessage());
             return "ssh server timeout";
         }
-        
-        log.info("userInputCheck after sendRequest: requestId={}, response={}", cliRequest.getUuid(), response);
-
         return response;
     }
 }

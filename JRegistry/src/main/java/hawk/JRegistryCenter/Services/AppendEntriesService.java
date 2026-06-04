@@ -84,11 +84,11 @@ public class AppendEntriesService {
         writePool.execute(() -> {
             channel.writeAndFlush(JSON.toJSONString(request) + "\n");
         });
-        log.info("term {}, leader node {} send heartbeat to node {}", raftNode.getCurrentTerm(), raftNode.getId(), peerNodeId);
+        // log.info("term {}, leader node {} send heartbeat to node {}", raftNode.getCurrentTerm(), raftNode.getId(), peerNodeId);
     }
 
     public void sendHeartBeatToAll(Map<Integer, Channel> peerChannels){
-        log.info("term {}, leader node {} send heartbeat to all nodes", raftNode.getCurrentTerm(), raftNode.getId());
+        // log.info("term {}, leader node {} send heartbeat to all nodes", raftNode.getCurrentTerm(), raftNode.getId());
         for (Map.Entry<Integer, Channel> entry : peerChannels.entrySet()) {
             if(entry.getKey() != raftNode.getId()){ // 不发送心跳包给自己
                 sendHeartBeat(entry.getValue(), entry.getKey());
