@@ -17,9 +17,9 @@
     </parent>
 
     <groupId>hawk.JRegistry</groupId>
-    <artifactId>JRegistry</artifactId>
+    <artifactId>JRegistryParent</artifactId>
     <version>1.0.0</version>
-    <name>JRegistry</name>
+    <name>JRegistryParent</name>
 
     <properties>
         <java.version>11</java.version>
