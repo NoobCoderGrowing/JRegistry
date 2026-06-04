@@ -20,7 +20,7 @@ npm run build
 
 产物输出到 `JRegistry/src/main/resources/static/`，随 Spring Boot 一起打包。
 
-启动任意 JRegistryCenter 节点后，访问该节点的 HTTP 端口即可，例如：
+启动任意 JRegistry 节点后，访问该节点的 HTTP 端口即可，例如：
 
 - 节点 1: http://127.0.0.1:6101/
 - 节点 2: http://127.0.0.2:6102/

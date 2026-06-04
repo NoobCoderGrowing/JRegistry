@@ -15,6 +15,7 @@ raft:
 
 admin:
   peer-http-ports: "{1:6101, 2:6102, 3:6103}"
+  election-log-path: logs/JRegistry.log
 
 ssh:
   enabled: true
