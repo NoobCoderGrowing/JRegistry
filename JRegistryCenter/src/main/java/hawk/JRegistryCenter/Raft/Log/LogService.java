@@ -523,9 +523,11 @@ public class LogService {
                 stateMachine.setCommitIndex(logEntry.getIndex());
                 startIndex++;
                 currentCommitIndex++;
+            }else{
+                break;
             }
         }
-        log.info("follower node {} commit logs to {}", raftNode.getId(), commitableIndex);
+        log.info("follower node {} commit logs to {}", raftNode.getId(), stateMachine.getCommitIndex());
         return null;
     }
 
@@ -546,17 +548,13 @@ public class LogService {
             
             if((startIndex < logger.size()) && startIndex >= 0){
                 LogEntry logEntry = logger.get(startIndex);
-                try{
-                    stateMachine.applyLog(logEntry);
-                }catch (Exception e) {
-                    log.error("apply exception");
-                }
-                
+                stateMachine.applyLog(logEntry);
                 stateMachine.setCommitIndex(logEntry.getIndex());
                 startIndex++;
                 currentCommitIndex++;
+            }else{
+                break;
             }
-
         }
         
         RaftRequest raftRequest = new RaftRequest();
@@ -567,7 +565,7 @@ public class LogService {
         raftRequest.setLeaderHost(raftNode.getLeaderHost());
         raftRequest.setLeaderPort(raftNode.getLeaderPort());
 
-        log.info("leader node {} require commit logs to {}", raftNode.getId(), commitableIndex);
+        log.info("leader node {} require commit logs to {}", raftNode.getId(), stateMachine.getCommitIndex());
         raftClientManagerProvider.getObject().sendToAllPeers(JSON.toJSONString(raftRequest));
 
     }
