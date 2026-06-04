@@ -63,10 +63,11 @@ JRegistry 是一个基于 [Raft](https://raft.github.io/) 共识算法的多节�
 
 ### 1. 启动 3 节点集群
 
-在release包目录执行：
+下载release压缩包后执行：
 
 ```bash
-cd release
+tar -xzf JRegistry-1.0.0.tar.gz #解压包
+cd JRegistry-1.0.0
 ./start-cluster.sh
 ```
 
