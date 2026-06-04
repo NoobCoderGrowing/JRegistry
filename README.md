@@ -89,7 +89,6 @@ cd JRegistry-1.0.0
 ### 3. 停止集群
 
 ```bash
-cd release
 ./stop.sh
 ```
 
