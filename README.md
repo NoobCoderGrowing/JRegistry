@@ -95,7 +95,7 @@ cd JRegistry-1.0.0
 
 ## 配置说明
 
-每个节点对应 `release/config/` 下的一份 YAML 配置：
+每个节点对应 `config/` 下的一份 YAML 配置：
 
 | 文件 | 节点 |
 |------|------|
