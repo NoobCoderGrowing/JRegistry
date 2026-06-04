@@ -30,13 +30,6 @@ public class RaftNode {
     @JSONField(serialize = false)
     private ThreadPoolExecutor writePool;
 
-    @Value("${host}")
-    @JSONField(serialize = false)
-    private String CLIServerHost;
-
-    @Value("${CLS.port}")
-    @JSONField(serialize = false)
-    private int CLIServerPort;
 
     @Value("${raft.node-id}")
     @JSONField(serialize = false)
@@ -53,6 +46,14 @@ public class RaftNode {
 
     @JSONField(serialize = false)
     private int leaderPort;
+
+    @JSONField(serialize = false)
+    @Value("${host}")
+    private String host;
+
+    @JSONField(serialize = false)
+    @Value("${raft.port}")
+    private int port;
 
     
     
@@ -199,8 +200,8 @@ public class RaftNode {
         this.getIsLeader().compareAndSet(false, true);
         this.getIsCandidate().compareAndSet(true, false);
         this.setLeaderId(this.getId());
-        this.setLeaderHost(CLIServerHost);
-        this.setLeaderPort(CLIServerPort);
+        this.setLeaderHost(host);
+        this.setLeaderPort(port);
     }
 
     public void acceptHeartbeat(RaftRequest request){

@@ -1,8 +1,8 @@
 # 编译输出
-/target/
-target/
-/out/
-/build/
+**/target/
+**target/
+**/out/
+**/build/
 
 # 常见 IDE / 编辑器
 # IntelliJ IDEA
@@ -16,6 +16,7 @@ target/
 .vscode/
 .history/
 .settings.json
+.vscode/
 
 # Maven / Gradle
 .mvn/wrapper/maven-wrapper.jar
@@ -24,4 +25,12 @@ build/
 !gradle/wrapper/gradle-wrapper.jar
 
 # 日志文件
-**/logs/
+**/logs/**
+
+# admin-ui
+**/node_modules/**
+
+# persistency
+**/persistency/**
+**/release/**
+

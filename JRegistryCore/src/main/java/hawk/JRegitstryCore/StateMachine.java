@@ -18,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.io.BufferedWriter;
 import javax.annotation.PostConstruct;
 import com.alibaba.fastjson.annotation.JSONField;
+import hawk.JRegitstryCore.RPC.RaftRequest;
 
 
 @Slf4j
@@ -127,6 +128,24 @@ public class StateMachine {
         return new Pair<String, byte[]>(current.getType(), current.getValue());
     }
 
+    public RaftRequest handleGetRequest(RaftRequest request){
+        Pair<String, byte[]> result = get(request.getKey());
+        RaftRequest reply = new RaftRequest();
+        reply.setType("get");
+        reply.setKey(request.getKey());
+        reply.setUuid(request.getUuid());
+        if(result != null){
+            reply.setSuccess(true);
+            reply.setData(result.getRight());
+            reply.setDataType(result.getLeft());
+            return reply;
+        }else{
+
+            reply.setSuccess(false);
+            return reply;
+        }
+    }
+
     public boolean delete(String key){
         String[] paths = key.split("\\.");
         BPlusNode current = root;
@@ -165,7 +184,6 @@ public class StateMachine {
         boolean success = false;
         switch (cmd) {
             case "set":
-                log.info("into set");
                 success = put(logEntry);
                 break;
             case "delete":
