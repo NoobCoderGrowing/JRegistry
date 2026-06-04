@@ -4,7 +4,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 APP_JAR="$SCRIPT_DIR/target/JRegistry-1.0.0.jar"
-LOG_DIR="$SCRIPT_DIR/logs"
+LOG_DIR="$ROOT_DIR/logs"
 ADMIN_UI_DIR="$SCRIPT_DIR/admin-ui"
 
 ensure_node_npm() {
@@ -51,7 +51,7 @@ mkdir -p "$LOG_DIR"
 
 sleep 1
 
-rm -rf "$LOG_DIR"/*
+rm -f "$LOG_DIR"/*
 
 # 3. 在项目根目录启动，保证 persistency/ 相对路径正确
 cd "$ROOT_DIR"

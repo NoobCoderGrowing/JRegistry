@@ -196,7 +196,7 @@ export default function App() {
 
       {error && (
         <div className="error-banner">
-          无法连接后端 API：{error}。请确认 JRegistryCenter 已启动（默认 http://127.0.0.1:6101）。
+          无法连接后端 API：{error}。请确认 JRegistry 已启动（默认 http://127.0.0.1:6101）。
         </div>
       )}
 

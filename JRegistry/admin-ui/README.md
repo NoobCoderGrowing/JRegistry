@@ -5,7 +5,7 @@
 ## 开发模式
 
 ```bash
-cd JRegistryCenter/admin-ui
+cd JRegistry/admin-ui
 npm install
 npm run dev
 ```
@@ -18,7 +18,7 @@ npm run dev
 npm run build
 ```
 
-产物输出到 `JRegistryCenter/src/main/resources/static/`，随 Spring Boot 一起打包。
+产物输出到 `JRegistry/src/main/resources/static/`，随 Spring Boot 一起打包。
 
 启动任意 JRegistryCenter 节点后，访问该节点的 HTTP 端口即可，例如：
 

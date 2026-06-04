@@ -20,4 +20,15 @@ nohup java -jar "$APP_JAR" \
   --spring.config.location=file:${CONFIG_DIR}/application.yaml \
   > /dev/null 2>&1 &
 echo $! > "$LOG_DIR/node1.pid"
+
+nohup java -jar "$APP_JAR" \
+  --spring.config.location=file:${CONFIG_DIR}/application_node2.yaml \
+  > /dev/null 2>&1 &
+echo $! > "$LOG_DIR/node2.pid"
+
+nohup java -jar "$APP_JAR" \
+  --spring.config.location=file:${CONFIG_DIR}/application_node3.yaml \
+  > /dev/null 2>&1 &
+echo $! > "$LOG_DIR/node3.pid"
+
 echo "Started from $BASE_DIR"

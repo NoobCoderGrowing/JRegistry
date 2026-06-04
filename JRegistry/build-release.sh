@@ -27,6 +27,7 @@ cp "$SCRIPT_DIR/src/main/resources/application_node3.yaml" "$RELEASE_DIR/config/
 
 # 若有 release 专用启动脚本则复制，否则复制后需改路径
 cp "$SCRIPT_DIR/start-release.sh" "$RELEASE_DIR/start.sh" 2>/dev/null || true
+cp "$SCRIPT_DIR/start-cluster-release.sh" "$RELEASE_DIR/start-cluster.sh" 2>/dev/null || true
 cp "$SCRIPT_DIR/stop-release.sh" "$RELEASE_DIR/stop.sh" 2>/dev/null || true
 
 echo "==> 5. Set permissions"
