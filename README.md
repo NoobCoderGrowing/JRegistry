@@ -143,16 +143,6 @@ ssh:
 | 2 | 6102 | 6002 | 2002 |
 | 3 | 6103 | 6003 | 2003 |
 
-## 管理后台
-
-管理后台由（React + Vite）生产构建，由 Spring Boot 静态资源服务提供。
-
-**浏览器访问**（API 代理到节点 1）：
-
-http://localhost:5173 或
-http://localhost:6001 默认节点1
-http://localhost:6002 默认节点2
-http://localhost:6003 默认节点3
 
 **主要功能：**
 
