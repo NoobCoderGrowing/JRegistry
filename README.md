@@ -154,7 +154,17 @@ ssh:
 - 手动触发 **Persist**（持久化）与 **Compact**（日志压缩）
 
 
-## JRegistryClient 客户端
+## JRegistryClient 客户端快速开始
+
+引入maven依赖
+
+```
+<dependency>
+    <groupId>io.github.noobcodergrowing</groupId>
+    <artifactId>JRegistryClient</artifactId>
+    <version>1.0.0</version>
+</dependency>
+```
 
 连接任意节点的 Raft 端口进行读写：
 
@@ -394,7 +404,17 @@ ssh:
 - Election history and animated replay of the latest successful election
 - Manual **Persist** and **Compact** triggers
 
-## JRegistryClient
+## JRegistryClient quick start
+
+import maven dependency
+```
+<dependency>
+    <groupId>io.github.noobcodergrowing</groupId>
+    <artifactId>JRegistryClient</artifactId>
+    <version>1.0.0</version>
+</dependency>
+```
+
 
 Connect to any node's Raft port for read/write operations:
 
