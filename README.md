@@ -68,8 +68,8 @@ JRegistry 是一个基于 [Raft](https://raft.github.io/) 共识算法的多节�
 下载release压缩包后执行：
 
 ```bash
-tar -xzf JRegistry-1.0.0.tar.gz #解压包
-cd JRegistry-1.0.0
+tar -xzf JRegistry-1.0.1.tar.gz #解压包
+cd JRegistry-1.0.1
 ./start-cluster.sh
 ```
 
@@ -156,35 +156,56 @@ ssh:
 
 ## JRegistryClient 客户端快速开始
 
-引入maven依赖
+### Maven 依赖
 
-```
+```xml
 <dependency>
     <groupId>io.github.noobcodergrowing</groupId>
     <artifactId>JRegistryClient</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
 </dependency>
 ```
 
-连接任意节点的 Raft 端口进行读写：
+> **从 1.0.0 升级：** 包名已由 `hawk.JRegistryClient` / `hawk.JRegitstryCore` 统一为 `io.github.noobcodergrowing.jregistryclient` / `io.github.noobcodergrowing.jregistrycore`，请同步更新 import。
+
+### 前置条件
+
+先启动 JRegistry 集群（见上文「快速开始」）。客户端连接任意节点的 **Raft RPC 端口**（默认 6001 / 6002 / 6003），无需经过 HTTP 管理端口。
+
+### API 概览
+
+构造方法：`JRegistryClient(host, port, taskTimeoutMs, connectTimeoutMillis)`
+
+| 方法 | 说明 |
+|------|------|
+| `connect()` | 同步建立 TCP 连接，成功返回 `true` |
+| `isConnected()` | 当前是否已连接 |
+| `get(key)` | 同步读取，返回 `Pair<byte[], String>`（值 + 类型）；失败或超时返回 `null` |
+| `set(key, data, dataType)` | 异步写入（fire-and-forget） |
+| `delete(key)` | 异步删除 |
+| `shutdown()` | 关闭连接并释放资源 |
+
+键名使用 `.` 作为路径分隔符，例如 `app.config.timeout`。
+
+### 示例代码
+
+完整示例见 [`Example.java`](JRegistryClient/src/test/java/io/github/noobcodergrowing/jregistryclient/Example.java)。
 
 ```java
-import hawk.JRegistryClient.JRegistryClient;
-import hawk.JRegitstryCore.Pair;
-import java.lang.InterruptedException;
+import io.github.noobcodergrowing.jregistryclient.JRegistryClient;
+import io.github.noobcodergrowing.jregistrycore.Pair;
 
-public class Example 
-{
-    public static void main( String[] args ) throws InterruptedException
-    {
-        //参数为ip地址，端口，任务超时时间，连接超时时间
+public class Example {
+    public static void main(String[] args) throws InterruptedException {
+        // host, Raft 端口, 单次 RPC 超时(ms), TCP 连接超时(ms)
         JRegistryClient client = new JRegistryClient("127.0.0.3", 6003, 1000, 5000);
         if (!client.connect()) {
-            client.shutdown(); //reconnect forever, need to shutdown manually
+            client.shutdown();
+            return;
         }
         try {
             client.set("app.config.name", "demo".getBytes(), "string");
-            Thread.sleep(1000);
+            Thread.sleep(1000); // 等待 Raft 复制提交
             Pair<byte[], String> result = client.get("app.config.name");
             if (result != null) {
                 System.out.println("value=" + new String(result.getLeft()));
@@ -331,8 +352,8 @@ The default deployment is a local **3-node cluster** (`127.0.0.1` / `127.0.0.2` 
 After downloading the release archive:
 
 ```bash
-tar -xzf JRegistry-1.0.0.tar.gz   # extract
-cd JRegistry-1.0.0
+tar -xzf JRegistry-1.0.1.tar.gz   # extract
+cd JRegistry-1.0.1
 ./start-cluster.sh
 ```
 
@@ -417,35 +438,56 @@ ssh:
 
 ## JRegistryClient quick start
 
-import maven dependency
-```
+### Maven dependency
+
+```xml
 <dependency>
     <groupId>io.github.noobcodergrowing</groupId>
     <artifactId>JRegistryClient</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
 </dependency>
 ```
 
+> **Upgrading from 1.0.0:** packages were renamed from `hawk.JRegistryClient` / `hawk.JRegitstryCore` to `io.github.noobcodergrowing.jregistryclient` / `io.github.noobcodergrowing.jregistrycore`. Update your imports accordingly.
 
-Connect to any node's Raft port for read/write operations:
+### Prerequisites
+
+Start the JRegistry cluster first (see **Quick start** above). The client connects to any node's **Raft RPC port** (defaults: 6001 / 6002 / 6003), not the HTTP admin port.
+
+### API overview
+
+Constructor: `JRegistryClient(host, port, taskTimeoutMs, connectTimeoutMillis)`
+
+| Method | Description |
+|--------|-------------|
+| `connect()` | Establish TCP connection synchronously; returns `true` on success |
+| `isConnected()` | Whether the client is currently connected |
+| `get(key)` | Synchronous read; returns `Pair<byte[], String>` (value + type), or `null` on failure/timeout |
+| `set(key, data, dataType)` | Asynchronous write (fire-and-forget) |
+| `delete(key)` | Asynchronous delete |
+| `shutdown()` | Close the connection and release resources |
+
+Keys use `.` as a path separator, e.g. `app.config.timeout`.
+
+### Example
+
+See [`Example.java`](JRegistryClient/src/test/java/io/github/noobcodergrowing/jregistryclient/Example.java) for the full source.
 
 ```java
-import hawk.JRegistryClient.JRegistryClient;
-import hawk.JRegitstryCore.Pair;
-import java.lang.InterruptedException;
+import io.github.noobcodergrowing.jregistryclient.JRegistryClient;
+import io.github.noobcodergrowing.jregistrycore.Pair;
 
-public class Example 
-{
-    public static void main( String[] args ) throws InterruptedException
-    {
-        /args are ip, port, tas timeout and connection timeout
+public class Example {
+    public static void main(String[] args) throws InterruptedException {
+        // host, Raft port, per-RPC timeout (ms), TCP connect timeout (ms)
         JRegistryClient client = new JRegistryClient("127.0.0.3", 6003, 1000, 5000);
         if (!client.connect()) {
-            client.shutdown(); //reconnect forever, need to shutdown manually
+            client.shutdown();
+            return;
         }
         try {
             client.set("app.config.name", "demo".getBytes(), "string");
-            Thread.sleep(1000);
+            Thread.sleep(1000); // wait for Raft replication
             Pair<byte[], String> result = client.get("app.config.name");
             if (result != null) {
                 System.out.println("value=" + new String(result.getLeft()));
@@ -457,7 +499,6 @@ public class Example
         }
     }
 }
-
 ```
 
 ## SSH Shell

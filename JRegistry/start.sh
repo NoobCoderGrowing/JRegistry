@@ -3,7 +3,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-APP_JAR="$SCRIPT_DIR/target/JRegistry-1.0.0.jar"
+APP_JAR="$SCRIPT_DIR/target/JRegistry-1.0.1.jar"
 LOG_DIR="$ROOT_DIR/logs"
 ADMIN_UI_DIR="$SCRIPT_DIR/admin-ui"
 

@@ -3,7 +3,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-VERSION="1.0.0"
+VERSION="1.0.1"
 RELEASE_DIR="$ROOT_DIR/release/JRegistry-${VERSION}"
 ADMIN_UI_DIR="$SCRIPT_DIR/admin-ui"
 

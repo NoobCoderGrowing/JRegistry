@@ -2,7 +2,7 @@
 set -e
 
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP_JAR="$BASE_DIR/JRegistry-1.0.0.jar"
+APP_JAR="$BASE_DIR/JRegistry-1.0.1.jar"
 LOG_DIR="$BASE_DIR/logs"
 CONFIG_DIR="$BASE_DIR/config"
 

@@ -1,0 +1,638 @@
+package io.github.noobcodergrowing.jregistry.Raft.Log;
+
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
+import io.github.noobcodergrowing.jregistrycore.Raft.RaftNode;
+import io.github.noobcodergrowing.jregistry.Raft.RPC.Client.RaftClientManager;
+import io.github.noobcodergrowing.jregistry.Services.Timer.TimeoutService;
+import io.github.noobcodergrowing.jregistrycore.Log.LogEntry;
+import java.util.ArrayList;
+import io.github.noobcodergrowing.jregistrycore.RPC.RaftRequest;
+import io.github.noobcodergrowing.jregistrycore.RPC.SSH.SSHRequest;
+
+import com.alibaba.fastjson.JSON;
+import io.netty.channel.Channel;
+
+import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.beans.factory.annotation.Value;
+import javax.annotation.PostConstruct;
+import java.util.concurrent.ThreadPoolExecutor;
+import org.springframework.stereotype.Service;
+import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Map;
+
+import org.springframework.context.annotation.Lazy;
+import java.io.IOException;
+import java.util.List;
+import java.nio.file.Path;
+import java.io.BufferedWriter;
+import java.nio.file.Files;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.StandardOpenOption;
+import java.io.BufferedReader;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import io.github.noobcodergrowing.jregistrycore.StateMachine;
+
+@Service
+@Data
+@Slf4j
+public class LogService {
+
+    @Autowired
+    private RaftNode raftNode;
+
+    /** 延迟解析，避免 LogService → RaftClientManager → AppendEntries → LogService 环 */
+    @Autowired
+    private ObjectProvider<RaftClientManager> raftClientManagerProvider;
+
+    private List<LogEntry> logger = new ArrayList<>();
+
+    public ConcurrentHashMap<Integer, Long> matchIndexMap = new ConcurrentHashMap<>();
+    public ConcurrentHashMap<Integer, Long> nextIndexMap = new ConcurrentHashMap<>();
+    private CommitWatcher commitWatcher;
+
+     /** 防止父子容器各刷新一次时重复初始化 */
+     private final AtomicBoolean indexMapInitialized = new AtomicBoolean(false);
+
+    @Autowired
+    private ThreadPoolExecutor writePool;
+
+    @Value("${raft.count}")
+    private int nodeCount;
+
+    @Value("#{${raft.peers:{}}}")
+    private Map<Integer, String> peers;
+
+    @Lazy
+    @Autowired
+    private TimeoutService timeoutService;
+
+    @Value("${raft.auto-persist}")
+    private boolean autoPersist;
+
+    private volatile Path logFilePath;
+
+    private volatile BufferedWriter logWriter;
+
+    @Value("${raft.image-path}")
+    private String imagePath;
+
+    @Autowired
+    private ThreadPoolExecutor persistThread;
+
+    private ReentrantReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+
+    @Autowired
+    private StateMachine stateMachine;
+
+
+    @PostConstruct
+    public void initIndexMap(){
+        peers.forEach((k,v)->{
+            nextIndexMap.put(k, 0L);
+            matchIndexMap.put(k, -1L);
+        });
+    }
+
+    @PostConstruct
+    public void initLogWriter(){
+        logFilePath = Path.of(imagePath+"log"+raftNode.getId()+".json");
+        openLogWriter();
+    }
+
+    public void leaderSetNextIndex(){
+        peers.forEach((k,v)->{
+            nextIndexMap.put(k, getLastLogIndex() + 1);
+        });
+        log.info("leader node {} set next index map to {}", raftNode.getId(), nextIndexMap);
+    }
+
+    private void openLogWriter(){
+        try {
+        closeLogWriterQuietly();
+        Files.createDirectories(logFilePath.getParent());
+        logWriter = Files.newBufferedWriter(
+            logFilePath,
+            StandardCharsets.UTF_8,
+            StandardOpenOption.CREATE,
+            StandardOpenOption.APPEND
+        );
+        } catch (IOException e) {
+            log.error("node {} open log writer failed", raftNode.getId());
+        }
+    }
+
+    private void closeLogWriterQuietly() {
+        if (logWriter != null) {
+            try {
+                logWriter.close();
+            } catch (IOException e) {
+                log.error("node {} close log writer failed", raftNode.getId());
+            }
+            logWriter = null;
+        }
+    }
+
+    
+    private void ensureLogWriterOpen(){
+        if (logWriter == null) {
+            openLogWriter();
+        }
+    }
+   
+
+   @PostConstruct
+   public void registerCommitWatcher(){
+        this.commitWatcher = new CommitWatcher(this, nodeCount, stateMachine);
+   }
+
+   public RaftRequest handleWriteRequest(RaftRequest request){
+        if(!raftNode.getIsLeader().get()){
+            redirectWriteRequest2Leader(request);
+            return null;
+        }
+        log.info("node {} handle write request: {}", raftNode.getId(), JSON.toJSONString(request));
+        generateLogEntry(request);
+        return null;
+    }
+
+    public void redirectWriteRequest2Leader(RaftRequest request){
+        if(raftNode.getLeaderId() == -1){
+            log.error("node {} redirect write request to leader failed, leader id is -1", raftNode.getId());
+            return;
+        }
+        raftClientManagerProvider.getObject().sendToPeer(raftNode.getLeaderId(), JSON.toJSONString(request));
+    }
+
+    public void generateLogEntry(RaftRequest request){
+        long prevLogIndex = -1;        
+        if(logger.size() != 0){ // always keep last log in logger
+            prevLogIndex = logger.get(logger.size() - 1).getIndex();
+        }
+        LogEntry logEntry = new LogEntry();
+        logEntry.setTerm(raftNode.getCurrentTerm());
+        logEntry.setIndex(prevLogIndex + 1);
+        logEntry.setCommand(request.getCmd());
+        logEntry.setKey(request.getKey());
+        logEntry.setData(request.getData());
+        logEntry.setDataType(request.getDataType());
+        logger.add(logEntry);
+        // raftNode.setLastLogIndex(logEntry.getIndex());
+        // raftNode.setLastLogTerm(logEntry.getTerm());
+        if(autoPersist){
+            persistEntry(logEntry);
+        }
+
+        log.info("node {} replicate log to all nodes", raftNode.getId());
+        replicateLog2All();
+    }
+
+    public void generateNoOpLog(){
+        long prevLogIndex = -1;
+        
+        if(logger.size() != 0){ // always keep last log in logger
+            prevLogIndex = logger.get(logger.size() - 1).getIndex();
+        }
+        LogEntry logEntry = new LogEntry();
+        logEntry.setTerm(raftNode.getCurrentTerm());
+        logEntry.setIndex(prevLogIndex + 1);
+        logEntry.setCommand("noOp");
+        logger.add(logEntry);
+        if(autoPersist){
+            persistEntry(logEntry);
+        }
+        log.info("term {} node {} generate no op log {}", raftNode.getCurrentTerm(), raftNode.getId(), JSON.toJSONString(logEntry));
+        replicateLog2All();
+    }
+
+    public void generateLogEntry(SSHRequest cliRequest){
+        long prevLogIndex = -1;
+        if(logger.size() != 0){ // always keep last log in logger
+            prevLogIndex = logger.get(logger.size() - 1).getIndex();
+        }
+        log.info("prev log index is {}", String.valueOf(prevLogIndex));
+        LogEntry logEntry = new LogEntry();
+        logEntry.setTerm(raftNode.getCurrentTerm());
+        logEntry.setIndex(prevLogIndex + 1);
+        logEntry.setCommand(cliRequest.getType());
+        logEntry.setKey(cliRequest.getKey());
+        logEntry.setData(cliRequest.getData());
+        logEntry.setDataType(cliRequest.getDataType());
+        logger.add(logEntry);
+        if(autoPersist){
+            persistEntry(logEntry);
+        }
+        replicateLog2All();
+    }
+
+    public LogEntry getLog(long logIndex){
+        
+        long startIndex = logIndex - logger.get(0).getIndex();
+        if(startIndex < 0){
+            return null;
+        }
+        return logger.get((int) startIndex);
+        
+    }
+
+    public long getLogTerm(long logIndex){
+        long startIndex = logIndex - logger.get(0).getIndex();
+        if(startIndex < 0){
+            return -1;
+        }
+        return logger.get((int) startIndex).getTerm();
+    }
+
+    public void deleteLogs(long startIndex){
+        int i = logger.size() - 1;
+        while(i >= 0 && logger.get(i).getIndex() > startIndex){
+            i--;
+        }
+        logger.subList(i + 1, logger.size()).clear();
+        
+    }
+
+    public void persistEntry(LogEntry logEntry){
+        String line = JSON.toJSONString(logEntry) + "\n";
+        persistThread.execute(() -> {
+            try {
+                readWriteLock.writeLock().lock();
+                ensureLogWriterOpen();
+                logWriter.write(line);
+                logWriter.flush();
+            } catch (IOException e) {
+                log.error("node {} persist log entry {} failed", raftNode.getId(), line);
+            }finally{
+                readWriteLock.writeLock().unlock();
+            }
+        });
+    }
+
+    public void replicateLog2All(){
+        raftClientManagerProvider.getObject().getPeerChannels().forEach((k,v)->{
+            replicateLog(k, v);
+        });
+    }
+
+    public long getLastLogIndex(){
+        if(logger.size() == 0){
+            return -1;
+        }
+        return logger.get(logger.size() - 1).getIndex();
+    }
+
+    public long getLastLogTerm(){
+        if(logger.size() == 0){
+            return -1;
+        }
+        return logger.get(logger.size() - 1).getTerm();
+    }
+
+    public int getLogCount(){
+        return logger.size();
+    }
+
+
+    public void replicateLog( int id , Channel channel){
+        long nextIndex = nextIndexMap.get(id);
+        if(nextIndex > getLastLogIndex()){
+            return;
+        }
+
+        log.info("nextIndexMap: {}", nextIndexMap);
+        
+        if(nextIndex == 0){
+            LogEntry currentLog = getLog(nextIndex);
+            if(currentLog == null){
+                log.info("current log is null, send snapshot");
+                sendSnapshot(channel);
+                return;
+            }
+
+            RaftRequest raftRequest = new RaftRequest();
+            raftRequest.setType("appendEntries");
+            raftRequest.setId(raftNode.getId());
+            raftRequest.setTerm(raftNode.getCurrentTerm());
+            raftRequest.setLeaderCommit(stateMachine.getCommitIndex());
+            raftRequest.setPrevLogIndex(-1);
+            raftRequest.setPrevLogTerm(-1);
+            raftRequest.setLog(currentLog);
+            raftRequest.setLeaderHost(raftNode.getLeaderHost());
+            raftRequest.setLeaderPort(raftNode.getLeaderPort());
+            writePool.execute(() -> {
+                channel.writeAndFlush(JSON.toJSONString(raftRequest) + "\n");
+            });
+            return;
+        }
+
+        LogEntry currentLog = getLog(nextIndex);
+        LogEntry prevLog = getLog(nextIndex - 1);
+        if(currentLog == null || prevLog == null){
+            sendSnapshot(channel);
+            return;
+        }
+        RaftRequest raftRequest = new RaftRequest();
+        raftRequest.setType("appendEntries");
+        raftRequest.setId(raftNode.getId());
+        raftRequest.setTerm(raftNode.getCurrentTerm());
+        raftRequest.setLeaderCommit(stateMachine.getCommitIndex());
+        raftRequest.setPrevLogIndex(prevLog.getIndex());
+        raftRequest.setPrevLogTerm(prevLog.getTerm());
+        raftRequest.setLog(currentLog);
+        raftRequest.setLeaderHost(raftNode.getLeaderHost());
+        raftRequest.setLeaderPort(raftNode.getLeaderPort());
+        writePool.execute(() -> {
+            channel.writeAndFlush(JSON.toJSONString(raftRequest) + "\n");
+        });
+    }
+
+    // insertion sort version
+    // public void appendLog(LogEntry logEntry){
+    //     // insertion sort
+    //     logLock.writeLock().lock();
+    //     try{
+    //         int i = logger.size() - 1;
+    //         while(i >= 0 && logger.get(i).getIndex() > logEntry.getIndex()){
+    //             i--;
+    //         }
+    //         logger.add(i + 1, logEntry);
+    //         raftNode.setLastLogIndex(logger.get(logger.size() - 1).getIndex());
+    //         raftNode.setLastLogTerm(logger.get(logger.size() - 1).getTerm());
+    //     }finally{
+    //         logLock.writeLock().unlock();
+    //     }
+    // }
+
+    public void appendLog(LogEntry logEntry){
+        logger.add(logEntry);
+        // raftNode.setLastLogIndex(logger.get(logger.size() - 1).getIndex());
+        // raftNode.setLastLogTerm(logger.get(logger.size() - 1).getTerm());
+    }
+
+    public boolean containLog(long logTerm, long logIndex){
+        if(logIndex == -1){
+            return true;
+        }
+        if(logger.size() == 0){
+            return false;
+        }
+            
+        long index = logIndex - logger.get(0).getIndex();
+        if(logger.size() < index + 1){
+            return false;
+        }
+
+        LogEntry logEntry = logger.get((int) index);
+        if(logEntry.getTerm() == logTerm && logEntry.getIndex() == logIndex){
+            return true;
+        }
+        return false;
+        
+    }
+
+    public LogEntry containAndGetNextLog(long logIndex, long logTerm){
+        if(logger.size() <= 1){
+            return null;
+        }
+        long index = logIndex - logger.get(0).getIndex();
+        if(index < 0){
+            return null;
+        }
+        LogEntry logEntry = logger.get((int) index);
+        if(logEntry.getTerm() == logTerm && logEntry.getIndex() == logIndex){
+            logEntry = logger.get((int) index + 1);
+            return logEntry;
+        }
+        return null;
+    }
+
+    public void sendSnapshot(Channel channel){
+        RaftRequest raftRequest = new RaftRequest();
+        raftRequest.setType("installSnapshot");
+        raftRequest.setId(raftNode.getId());
+        raftRequest.setTerm(raftNode.getCurrentTerm());
+        raftRequest.setLeaderCommit(stateMachine.getCommitIndex());
+        raftRequest.setStateMachine(stateMachine);
+        raftRequest.setLogs(this.getLogger());
+        writePool.execute(() -> {
+            channel.writeAndFlush(JSON.toJSONString(raftRequest) + "\n");
+        });
+        // stateMachine.persist();
+    }
+
+    public RaftRequest handleInstallSnapshotRequest(RaftRequest request){
+        if(request.getTerm() >= raftNode.getCurrentTerm()){
+            log.info("server {} handle install snapshot request: {}", raftNode.getId(), JSON.toJSONString(request));
+            timeoutService.resetTimeout();
+            long oldTerm = raftNode.getCurrentTerm();
+            raftNode.acceptLeader(request);
+            if(request.getTerm() > oldTerm){
+                if(autoPersist){
+                    raftNode.persist();
+                }
+            }
+            stateMachine.setCommitIndex(request.getLeaderCommit());
+            stateMachine.setRoot(request.getStateMachine().getRoot());
+            stateMachine.rebuildParentLinks();
+            installLogger(request);
+
+
+            RaftRequest reply = new RaftRequest();
+            reply.setType("installSnapshot");
+            reply.setId(raftNode.getId());
+            reply.setTerm(raftNode.getCurrentTerm());
+            reply.setLeaderCommit(stateMachine.getCommitIndex());
+            reply.setLeaderHost(raftNode.getLeaderHost());
+            reply.setLeaderPort(raftNode.getLeaderPort());
+            reply.setLastLogIndex(getLastLogIndex());
+            reply.setSuccess(true);
+
+            // rewrite local history
+            stateMachine.persist();
+            persist();
+            log.info("server {} install snapshot request success", raftNode.getId());
+            return reply;
+        }
+        return null;
+    }
+
+    public void clientHandleInstallSnapshotResponse(RaftRequest reply){
+        if(reply.getTerm() >= raftNode.getCurrentTerm()){
+            if(reply.getTerm() > raftNode.getCurrentTerm()){
+                timeoutService.resetTimeout();
+                raftNode.turn2Follower(reply);
+                return;
+            }
+            if(reply.isSuccess()){
+                nextIndexMap.put(reply.getId(), reply.getLastLogIndex() + 1);
+                updateMatchIndex(reply);
+            }
+            log.info("match index map {}", JSON.toJSONString(matchIndexMap));
+            log.info("next index map {}", JSON.toJSONString(nextIndexMap));
+        }
+    }
+
+    
+
+    public void installLogger(RaftRequest request){
+        logger.clear();
+        logger.addAll(request.getLogs());
+    }
+
+    public void updateMatchIndex(RaftRequest reply){
+        int id = reply.getId();
+        long matchIndex = reply.getLastLogIndex();
+        matchIndexMap.compute(id, (k,v)->{
+            if(v == null){
+                return matchIndex;
+            }
+            if(matchIndex > v){
+                return matchIndex;
+            }
+            return v;
+        });
+        log.info("Node {} matchIndexMap updated to {}", raftNode.getId(), matchIndexMap);
+        commitWatcher.update();
+    }
+
+    public RaftRequest followerCommitLogs(RaftRequest request){
+        if(request.getTerm() < raftNode.getCurrentTerm()){
+            return null;
+        }
+        timeoutService.resetTimeout();
+        long oldTerm = raftNode.getCurrentTerm();
+        raftNode.acceptLeader(request);
+        if(request.getTerm() > oldTerm){
+            if(autoPersist){
+                raftNode.persist();
+            }
+        }
+        // 找到起始index,逐个提交到要求的index
+        long commitableIndex = request.getLeaderCommit();
+        long currentCommitIndex = stateMachine.getCommitIndex();
+        int startIndex = 0;
+        if(logger.size() > 0){
+            startIndex = (int) (currentCommitIndex - logger.get(0).getIndex()) + 1;
+        }
+        while (currentCommitIndex < commitableIndex) {
+            if((startIndex < logger.size()) && startIndex >= 0){
+                LogEntry logEntry = logger.get(startIndex);
+                stateMachine.applyLog(logEntry);
+                stateMachine.setCommitIndex(logEntry.getIndex());
+                startIndex++;
+                currentCommitIndex++;
+            }else{
+                break;
+            }
+        }
+        log.info("follower node {} commit logs to {}", raftNode.getId(), stateMachine.getCommitIndex());
+        return null;
+    }
+
+    public void commitLogs(long commitableIndex){
+        long commitableTerm = getLogTerm(commitableIndex);
+        if(commitableTerm != raftNode.getCurrentTerm()){
+            return; // leader only commit logs of current term
+        }
+        log.error("leader node {} commit logs to {} of term {}, current term is {}", raftNode.getId(), commitableIndex, commitableTerm, raftNode.getCurrentTerm());
+
+        long currentCommitIndex = stateMachine.getCommitIndex();
+        int startIndex = 0;
+        if(logger.size() > 0){
+            startIndex = (int) (currentCommitIndex - logger.get(0).getIndex()) + 1;
+        }
+        while (currentCommitIndex < commitableIndex) {
+            log.info("currentCommitIndex: {}, commitableIndex: {}, startIndex: {}, logger size: {}", currentCommitIndex, commitableIndex, startIndex, logger.size());
+            
+            if((startIndex < logger.size()) && startIndex >= 0){
+                LogEntry logEntry = logger.get(startIndex);
+                stateMachine.applyLog(logEntry);
+                stateMachine.setCommitIndex(logEntry.getIndex());
+                startIndex++;
+                currentCommitIndex++;
+            }else{
+                break;
+            }
+        }
+        
+        RaftRequest raftRequest = new RaftRequest();
+        raftRequest.setType("commitLogs");
+        raftRequest.setId(raftNode.getId());
+        raftRequest.setTerm(raftNode.getCurrentTerm());
+        raftRequest.setLeaderCommit(stateMachine.getCommitIndex());
+        raftRequest.setLeaderHost(raftNode.getLeaderHost());
+        raftRequest.setLeaderPort(raftNode.getLeaderPort());
+
+        log.info("leader node {} require commit logs to {}", raftNode.getId(), stateMachine.getCommitIndex());
+        raftClientManagerProvider.getObject().sendToAllPeers(JSON.toJSONString(raftRequest));
+
+    }
+
+    public boolean persist(){
+        List<LogEntry> deepCopy =  new ArrayList<>(logger.size());
+        for(LogEntry logEntry : logger){
+            deepCopy.add(new LogEntry(logEntry));
+        }
+        persistThread.execute(() -> {
+            readWriteLock.writeLock().lock();
+            try {
+                closeLogWriterQuietly();
+                BufferedWriter writer = Files.newBufferedWriter(
+                logFilePath,
+                StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.TRUNCATE_EXISTING);
+                for(LogEntry logEntry : deepCopy){
+                    writer.write(JSON.toJSONString(logEntry) + "\n");
+                }
+                writer.flush();
+                writer.close();
+            }catch (IOException e) {
+                log.error("node {} persist log failed", raftNode.getId());
+            }finally{
+                readWriteLock.writeLock().unlock();
+            }
+        });
+        return true;
+    }
+
+    public void recoverFromLocalImage(){
+        Path logPath = Path.of(imagePath + "log" + raftNode.getId() + ".json");
+        logger.clear();
+        
+        readWriteLock.readLock().lock();
+        try (BufferedReader reader = Files.newBufferedReader(logPath, StandardCharsets.UTF_8)) {
+            
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.isBlank()) {
+                    continue;
+                }
+                LogEntry entry = JSON.parseObject(line, LogEntry.class);
+                if (entry != null) {
+                    logger.add(entry);
+                }
+            }
+            reader.close();
+        }catch (IOException e) {
+            log.error("node {} recover from local image failed", raftNode.getId());
+        }finally{
+            readWriteLock.readLock().unlock();
+        }
+    }
+
+    
+
+
+    public static void main(String[] args) {
+        ArrayList<LogEntry> log = new ArrayList<>();
+        System.out.println(log.get(0).getIndex());
+    }
+
+
+
+
+    
+}

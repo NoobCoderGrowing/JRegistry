@@ -5,11 +5,10 @@
     <parent>
         <artifactId>JRegistryParent</artifactId>
         <groupId>io.github.noobcodergrowing</groupId>
-        <version>1.0.0</version>
+        <version>1.0.1</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>hawk.JRegistry</groupId>
     <artifactId>JRegistry</artifactId>
     <name>JRegistry</name>
 

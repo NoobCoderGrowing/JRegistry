@@ -42,7 +42,7 @@
 
     <Loggers>
         <!-- 你项目包日志级别 -->
-        <Logger name="hawk.JRegistry" level="INFO" additivity="false">
+        <Logger name="io.github.noobcodergrowing.jregistry" level="INFO" additivity="false">
             <AppenderRef ref="Console"/>
             <AppenderRef ref="AppFile"/>
             <AppenderRef ref="ErrorFile"/>
