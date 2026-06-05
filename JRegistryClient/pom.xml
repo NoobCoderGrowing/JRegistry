@@ -11,7 +11,7 @@
 
     <artifactId>JRegistryClient</artifactId>
     <name>JRegistryClient</name>
-    <description>Netty-based client library for JRegistry Raft RPC</description>
+    <description>Netty-based client library for JRegistry registry center</description>
 
     <properties>
         <maven.compiler.source>11</maven.compiler.source>
