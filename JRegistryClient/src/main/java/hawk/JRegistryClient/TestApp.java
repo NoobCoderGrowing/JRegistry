@@ -5,8 +5,6 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import hawk.JRegitstryCore.Pair;
-import java.util.Base64;
-import java.nio.charset.StandardCharsets;
 
 @SpringBootApplication
 public class TestApp {
@@ -31,11 +29,6 @@ public class TestApp {
             }else{
                 System.out.println("get returned null");
             }
-
-            
-            // String base64 = "bm90IHJpZ2h0";
-            // String text = new String(Base64.getDecoder().decode(base64), StandardCharsets.UTF_8);
-            // System.out.println(text); 
         };
     }
 

@@ -4,12 +4,12 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
         <artifactId>JRegistryParent</artifactId>
-        <groupId>hawk.JRegistry</groupId>
+        <groupId>io.github.noobcodergrowing</groupId>
         <version>1.0.0</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
-
-    <groupId>hawk.JRegistry</groupId>
+    
+    <groupId>io.github.noobcodergrowing</groupId>
     <artifactId>JRegistryClient</artifactId>
     <version>1.0.0</version>
     <name>JRegistryClient</name>
@@ -22,7 +22,7 @@
 
     <dependencies>
         <dependency>
-            <groupId>hawk.JRegistry</groupId>
+            <groupId>io.github.noobcodergrowing</groupId>
             <artifactId>JRegistryCore</artifactId>
             <version>1.0.0</version>
         </dependency>

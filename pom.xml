@@ -16,7 +16,7 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
 
-    <groupId>hawk.JRegistry</groupId>
+    <groupId>io.github.noobcodergrowing</groupId>
     <artifactId>JRegistryParent</artifactId>
     <version>1.0.0</version>
     <name>JRegistryParent</name>
