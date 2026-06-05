@@ -159,29 +159,22 @@ ssh:
 连接任意节点的 Raft 端口进行读写：
 
 ```java
-JRegistryClient client = new JRegistryClient("127.0.0.3", 6003, 1000, 5000);
-if (!client.connect()) {
-    throw new IllegalStateException("无法连接 Registry");
-}
-
-client.set("app.config.name", "demo".getBytes(), "string");
-Thread.sleep(1000);
-
-Pair<byte[], String> result = client.get("app.config.name");
-if (result != null) {
-    System.out.println(new String(result.getLeft()));
-}
-
-client.delete("app.config.name");
-client.shutdown();
-```
-
-运行示例客户端：
-
-```bash
-mvn -f pom.xml clean package -pl JRegistryClient -am -DskipTests
-cd JRegistryClient
-./start.sh
+  JRegistryClient client = new JRegistryClient("127.0.0.3", 6003, 1000, 5000);
+  if (!client.connect()) {
+      client.shutdown(); //失败会一直尝试重连，所以需要手动关闭
+  }
+  try {
+      client.set("app.config.name", "demo".getBytes(), "string");
+      Thread.sleep(1000);
+      Pair<byte[], String> result = client.get("app.config.name");
+      if (result != null) {
+          System.out.println("value=" + new String(result.getLeft()));
+      } else {
+          System.out.println("get returned null");
+      }
+  } finally {
+      client.shutdown();
+  }
 ```
 
 ## SSH 命令行
@@ -406,29 +399,22 @@ ssh:
 Connect to any node's Raft port for read/write operations:
 
 ```java
-JRegistryClient client = new JRegistryClient("127.0.0.3", 6003, 1000, 5000);
-if (!client.connect()) {
-    throw new IllegalStateException("Cannot connect to registry");
-}
-
-client.set("app.config.name", "demo".getBytes(), "string");
-Thread.sleep(1000);
-
-Pair<byte[], String> result = client.get("app.config.name");
-if (result != null) {
-    System.out.println(new String(result.getLeft()));
-}
-
-client.delete("app.config.name");
-client.shutdown();
-```
-
-Run the sample client:
-
-```bash
-mvn -f pom.xml clean package -pl JRegistryClient -am -DskipTests
-cd JRegistryClient
-./start.sh
+  JRegistryClient client = new JRegistryClient("127.0.0.3", 6003, 1000, 5000);
+  if (!client.connect()) {
+      client.shutdown(); //reconnect forever, need to shutdown manually
+  }
+  try {
+      client.set("app.config.name", "demo".getBytes(), "string");
+      Thread.sleep(1000);
+      Pair<byte[], String> result = client.get("app.config.name");
+      if (result != null) {
+          System.out.println("value=" + new String(result.getLeft()));
+      } else {
+          System.out.println("get returned null");
+      }
+  } finally {
+      client.shutdown();
+  }
 ```
 
 ## SSH Shell
