@@ -1,18 +1,22 @@
 package hawk.JRegistryClient;
 
+import hawk.JRegistryClient.JRegistryClient;
 import hawk.JRegitstryCore.Pair;
+import java.lang.InterruptedException;
 
-public class TestApp {
-
-    public static void main(String[] args) throws Exception {
+public class Example 
+{
+    public static void main( String[] args ) throws InterruptedException
+    {
+        //参数为ip地址，端口，任务超时时间，连接超时时间
         JRegistryClient client = new JRegistryClient("127.0.0.3", 6003, 1000, 5000);
         if (!client.connect()) {
-            client.shutdown(); //失败会一直尝试重连，所以需要手动关闭
+            client.shutdown(); //reconnect forever, need to shutdown manually
         }
         try {
-            client.set("wenjun", "not right".getBytes(), "string");
+            client.set("app.config.name", "demo".getBytes(), "string");
             Thread.sleep(1000);
-            Pair<byte[], String> result = client.get("wenjun");
+            Pair<byte[], String> result = client.get("app.config.name");
             if (result != null) {
                 System.out.println("value=" + new String(result.getLeft()));
             } else {
