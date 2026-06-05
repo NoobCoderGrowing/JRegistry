@@ -60,7 +60,7 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
         try {
             RaftRequest request = JSON.parseObject(msg, RaftRequest.class);
             RaftRequest reply = null;
-            log.info("server {} handle request: {}", raftNode.getId(), JSON.toJSONString(request));
+            // log.info("server {} handle request: {}", raftNode.getId(), JSON.toJSONString(request));
             switch (request.getType()) {
                 case "appendEntries":
                     reply = appendEntriesService.handleAppendEntriesRequest(request);
