@@ -2,9 +2,15 @@
 set -e
 
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP_JAR="$BASE_DIR/JRegistry-1.0.1.jar"
 LOG_DIR="$BASE_DIR/logs"
 CONFIG_DIR="$BASE_DIR/config"
+
+# 版本号从随包发布的 jar 解析，升版本时无需改本脚本
+APP_JAR="$(ls -1 "$BASE_DIR"/JRegistry-*.jar 2>/dev/null | head -1)"
+if [ -z "$APP_JAR" ]; then
+  echo "Error: no JRegistry-*.jar found in $BASE_DIR"
+  exit 1
+fi
 
 mkdir -p "$LOG_DIR" "$BASE_DIR/persistency"
 

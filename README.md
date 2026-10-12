@@ -68,8 +68,8 @@ JRegistry 是一个基于 [Raft](https://raft.github.io/) 共识算法的多节�
 下载release压缩包后执行：
 
 ```bash
-tar -xzf JRegistry-1.0.1.tar.gz #解压包
-cd JRegistry-1.0.1
+tar -xzf JRegistry-1.0.2.tar.gz #解压包
+cd JRegistry-1.0.2
 ./start-cluster.sh
 ```
 
@@ -162,7 +162,7 @@ ssh:
 <dependency>
     <groupId>io.github.noobcodergrowing</groupId>
     <artifactId>JRegistryClient</artifactId>
-    <version>1.0.1</version>
+    <version>1.0.2</version>
 </dependency>
 ```
 
@@ -354,8 +354,8 @@ The default deployment is a local **3-node cluster** (`127.0.0.1` / `127.0.0.2` 
 After downloading the release archive:
 
 ```bash
-tar -xzf JRegistry-1.0.1.tar.gz   # extract
-cd JRegistry-1.0.1
+tar -xzf JRegistry-1.0.2.tar.gz   # extract
+cd JRegistry-1.0.2
 ./start-cluster.sh
 ```
 
@@ -446,7 +446,7 @@ ssh:
 <dependency>
     <groupId>io.github.noobcodergrowing</groupId>
     <artifactId>JRegistryClient</artifactId>
-    <version>1.0.1</version>
+    <version>1.0.2</version>
 </dependency>
 ```
 

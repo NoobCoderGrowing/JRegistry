@@ -18,7 +18,7 @@
 
     <groupId>io.github.noobcodergrowing</groupId>
     <artifactId>JRegistryParent</artifactId>
-    <version>1.0.1</version>
+    <version>1.0.2</version>
     <name>JRegistryParent</name>
     <description>Raft-based distributed key-value registry</description>
     <url>https://github.com/NoobCoderGrowing/JRegistry</url>
@@ -52,7 +52,7 @@
         <uuid-creator.version>5.3.7</uuid-creator.version>
         <sshd.version>2.12.1</sshd.version>
         <jline.version>3.21.0</jline.version>
-        <central-publishing-maven-plugin.version>0.7.0</central-publishing-maven-plugin.version>
+        <central-publishing-maven-plugin.version>0.11.0</central-publishing-maven-plugin.version>
         <flatten-maven-plugin.version>1.6.0</flatten-maven-plugin.version>
     </properties>
 

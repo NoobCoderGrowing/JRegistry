@@ -3,7 +3,6 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-APP_JAR="$SCRIPT_DIR/target/JRegistry-1.0.1.jar"
 LOG_DIR="$ROOT_DIR/logs"
 ADMIN_UI_DIR="$SCRIPT_DIR/admin-ui"
 
@@ -44,6 +43,14 @@ npm --prefix "$ADMIN_UI_DIR" run build
 # 2. 构建后端 jar（包含最新 static 资源）
 echo "Building JRegistry..."
 mvn -f "$ROOT_DIR/pom.xml" clean package -pl JRegistry -am -DskipTests
+
+# 版本号从构建产物解析，升版本时无需改本脚本
+APP_JAR="$(ls -1t "$SCRIPT_DIR"/target/JRegistry-*.jar 2>/dev/null | head -1)"
+if [ -z "$APP_JAR" ]; then
+  echo "Error: no JRegistry-*.jar found in $SCRIPT_DIR/target"
+  exit 1
+fi
+echo "Using $APP_JAR"
 
 mkdir -p "$LOG_DIR"
 
