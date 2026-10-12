@@ -154,9 +154,27 @@ public class StateMachine {
         }
         if(current.getChildren().containsKey(paths[paths.length-1])){
             current.deleteNode(paths[paths.length-1]);
+            pruneEmptyAncestors(current);
             return true;
         }else{
             return false;
+        }
+    }
+
+    /**
+     * 删除叶子后，把因此变空、且自身没有值的祖先节点一并摘掉（unix rmdir 语义）。
+     * 同时有值和子节点的中转节点不受影响：只有「既无值又无子节点」才会被清理。
+     */
+    private void pruneEmptyAncestors(BPlusNode node){
+        while(node != null && node != root
+                && node.getValue() == null
+                && (node.getChildren() == null || node.getChildren().isEmpty())){
+            BPlusNode parent = node.getParent();
+            if(parent == null){
+                return;
+            }
+            parent.getChildren().remove(node.getKey());
+            node = parent;
         }
     }
 
