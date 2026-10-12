@@ -92,6 +92,9 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
                 case "get":
                     reply = stateMachine.handleGetRequest(request);
                     break;
+                case "ls":
+                    reply = stateMachine.handleLsRequest(request);
+                    break;
                 default:
                     break;
             }

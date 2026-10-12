@@ -1,6 +1,7 @@
 package io.github.noobcodergrowing.jregistrycore.RPC;
 
 import lombok.Data;
+import io.github.noobcodergrowing.jregistrycore.KV;
 import io.github.noobcodergrowing.jregistrycore.Log.LogEntry;
 import io.github.noobcodergrowing.jregistrycore.StateMachine;
 import java.util.UUID;
@@ -39,4 +40,5 @@ public class RaftRequest {
     private byte[] data;
     private String dataType;
     private UUID uuid;
+    private List<KV> kvs;
 }

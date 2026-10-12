@@ -26,7 +26,7 @@ JRegistry 是一个基于 [Raft](https://raft.github.io/) 共识算法的多节�
 | **日志压缩** | 支持定时与手动压缩，清理历史日志 |
 | **管理后台** | React + Vite 仪表盘：集群概览、节点角色、状态机树、选主动画 |
 | **SSH CLI** | 命令：`get`、`set`、`delete`、`ls`、`cd`、`pwd`、`persist`、`compact` |
-| **客户端 SDK** | 基于 Netty 的 `JRegistryClient`，支持同步 `get` 与异步写操作 |
+| **客户端 SDK** | 基于 Netty 的 `JRegistryClient`，支持同步 `get` / `listAll` 与异步写操作 |
 
 ## 架构
 
@@ -68,8 +68,8 @@ JRegistry 是一个基于 [Raft](https://raft.github.io/) 共识算法的多节�
 下载release压缩包后执行：
 
 ```bash
-tar -xzf JRegistry-1.0.2.tar.gz #解压包
-cd JRegistry-1.0.2
+tar -xzf JRegistry-1.0.4.tar.gz #解压包
+cd JRegistry-1.0.4
 ./start-cluster.sh
 ```
 
@@ -162,11 +162,13 @@ ssh:
 <dependency>
     <groupId>io.github.noobcodergrowing</groupId>
     <artifactId>JRegistryClient</artifactId>
-    <version>1.0.2</version>
+    <version>1.0.4</version>
 </dependency>
 ```
 
 > **从 1.0.0 升级：** 包名已由 `hawk.JRegistryClient` / `hawk.JRegitstryCore` 统一为 `io.github.noobcodergrowing.jregistryclient` / `io.github.noobcodergrowing.jregistrycore`，请同步更新 import。
+>
+> **1.0.4 新增：** `JRegistryClient#listAll(path)` —— 递归列出某个路径下所有带值的 key:value 对。旧版本升级只需替换依赖版本号，无破坏性变更。
 
 ### 前置条件
 
@@ -181,6 +183,7 @@ ssh:
 | `connect()` | 同步建立 TCP 连接，成功返回 `true` |
 | `isConnected()` | 当前是否已连接 |
 | `get(key)` | 同步读取，返回 `Pair<byte[], String>`（值 + 类型）；失败或超时返回 `null` |
+| `listAll(path)` | 同步递归列出该路径及其所有后代中带值的 key:value 对，返回 `List<KV>`（`key` 为绝对完整路径，可直接再传给 `get`）；路径不存在或超时返回 `null` |
 | `set(key, data, dataType)` | 异步写入（fire-and-forget） |
 | `delete(key)` | 异步删除 |
 | `shutdown()` | 关闭连接并释放资源 |
@@ -195,7 +198,9 @@ ssh:
 
 ```java
 import io.github.noobcodergrowing.jregistryclient.JRegistryClient;
+import io.github.noobcodergrowing.jregistrycore.KV;
 import io.github.noobcodergrowing.jregistrycore.Pair;
+import java.util.List;
 
 public class Example {
     public static void main(String[] args) throws InterruptedException {
@@ -213,6 +218,17 @@ public class Example {
                 System.out.println("value=" + new String(result.getLeft()));
             } else {
                 System.out.println("get returned null");
+            }
+
+            // 递归列出 app 下所有带值的 key:value 对，key 为绝对完整路径
+            List<KV> kvs = client.listAll("app");
+            if (kvs == null) {
+                System.out.println("listAll returned null (path not found)");
+            } else {
+                for (KV kv : kvs) {
+                    System.out.println(kv.getKey() + "=" + new String(kv.getData())
+                            + " (" + kv.getDataType() + ")");
+                }
             }
         } finally {
             client.shutdown();
@@ -312,7 +328,7 @@ The default deployment is a local **3-node cluster** (`127.0.0.1` / `127.0.0.2` 
 | **Log compaction** | Scheduled and manual compaction to trim old log entries |
 | **Admin UI** | React + Vite dashboard: cluster overview, node roles, state machine tree, election animation |
 | **SSH CLI** | Commands: `get`, `set`, `delete`, `ls`, `cd`, `pwd`, `persist`, `compact` |
-| **Client SDK** | Netty-based `JRegistryClient` with synchronous `get` and asynchronous writes |
+| **Client SDK** | Netty-based `JRegistryClient` with synchronous `get` / `listAll` and asynchronous writes |
 
 ## Architecture
 
@@ -354,8 +370,8 @@ The default deployment is a local **3-node cluster** (`127.0.0.1` / `127.0.0.2` 
 After downloading the release archive:
 
 ```bash
-tar -xzf JRegistry-1.0.2.tar.gz   # extract
-cd JRegistry-1.0.2
+tar -xzf JRegistry-1.0.4.tar.gz   # extract
+cd JRegistry-1.0.4
 ./start-cluster.sh
 ```
 
@@ -446,11 +462,13 @@ ssh:
 <dependency>
     <groupId>io.github.noobcodergrowing</groupId>
     <artifactId>JRegistryClient</artifactId>
-    <version>1.0.2</version>
+    <version>1.0.4</version>
 </dependency>
 ```
 
 > **Upgrading from 1.0.0:** packages were renamed from `hawk.JRegistryClient` / `hawk.JRegitstryCore` to `io.github.noobcodergrowing.jregistryclient` / `io.github.noobcodergrowing.jregistrycore`. Update your imports accordingly.
+>
+> **New in 1.0.4:** `JRegistryClient#listAll(path)` — recursively lists every valued key:value pair under a path. Upgrading from an earlier release only requires bumping the dependency version; no breaking changes.
 
 ### Prerequisites
 
@@ -465,6 +483,7 @@ Constructor: `JRegistryClient(host, port, taskTimeoutMs, connectTimeoutMillis)`
 | `connect()` | Establish TCP connection synchronously; returns `true` on success |
 | `isConnected()` | Whether the client is currently connected |
 | `get(key)` | Synchronous read; returns `Pair<byte[], String>` (value + type), or `null` on failure/timeout |
+| `listAll(path)` | Synchronously lists, recursively, the key:value pairs that hold a value at or below `path`; returns `List<KV>` (`key` is the absolute path, reusable with `get`), or `null` if the path does not exist / on timeout |
 | `set(key, data, dataType)` | Asynchronous write (fire-and-forget) |
 | `delete(key)` | Asynchronous delete |
 | `shutdown()` | Close the connection and release resources |
@@ -479,7 +498,9 @@ See [`Example.java`](JRegistryClient/src/test/java/io/github/noobcodergrowing/jr
 
 ```java
 import io.github.noobcodergrowing.jregistryclient.JRegistryClient;
+import io.github.noobcodergrowing.jregistrycore.KV;
 import io.github.noobcodergrowing.jregistrycore.Pair;
+import java.util.List;
 
 public class Example {
     public static void main(String[] args) throws InterruptedException {
@@ -497,6 +518,17 @@ public class Example {
                 System.out.println("value=" + new String(result.getLeft()));
             } else {
                 System.out.println("get returned null");
+            }
+
+            // Recursively list every valued key:value pair under app; keys are absolute paths
+            List<KV> kvs = client.listAll("app");
+            if (kvs == null) {
+                System.out.println("listAll returned null (path not found)");
+            } else {
+                for (KV kv : kvs) {
+                    System.out.println(kv.getKey() + "=" + new String(kv.getData())
+                            + " (" + kv.getDataType() + ")");
+                }
             }
         } finally {
             client.shutdown();

@@ -1,8 +1,10 @@
 package io.github.noobcodergrowing.jregistryclient;
 
+import io.github.noobcodergrowing.jregistrycore.KV;
 import io.github.noobcodergrowing.jregistrycore.Pair;
 import io.github.noobcodergrowing.jregistrycore.RPC.RaftRequest;
 import com.github.f4b6a3.uuid.UuidCreator;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import com.alibaba.fastjson.JSON;
 import java.util.concurrent.TimeUnit;
@@ -66,6 +68,41 @@ public class JRegistryClient {
             return null;
         } catch (Exception e) {
             log.error("get failed: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 递归列出 {@code path} 及其所有后代中带值的 key:value 对。
+     * 返回的 key 是绝对完整路径（形如 {@code app/config/name}，可直接再传给 {@link #get}）。
+     * 路径不存在或超时返回 {@code null}；路径存在但没有带值的后代时返回空列表。
+     */
+    public List<KV> listAll(String path) {
+        requireConnected();
+        RaftRequest request = new RaftRequest();
+        request.setType("ls");
+        request.setKey(path);
+        request.setUuid(UuidCreator.getTimeOrderedEpoch());
+        CompletableFuture<RaftRequest> future = new CompletableFuture<>();
+        nettyClient.setMessageListener(message -> {
+            RaftRequest reply = JSON.parseObject(message, RaftRequest.class);
+            if (reply == null) {
+                return;
+            }
+            if (reply.getUuid().equals(request.getUuid())) {
+                future.complete(reply);
+            }
+        });
+        nettyClient.sendRequest(request);
+
+        try {
+            RaftRequest reply = future.get(TASK_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+            if (reply.isSuccess()) {
+                return reply.getKvs();
+            }
+            return null;
+        } catch (Exception e) {
+            log.error("listAll failed: {}", e.getMessage());
             return null;
         }
     }

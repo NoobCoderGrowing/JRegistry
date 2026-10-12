@@ -1,6 +1,8 @@
 package io.github.noobcodergrowing.jregistrycore;
 
 import io.github.noobcodergrowing.jregistrycore.Log.LogEntry;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ThreadPoolExecutor;
 import com.alibaba.fastjson.JSON;
 import java.io.FileOutputStream;
@@ -122,6 +124,54 @@ public class StateMachine {
             }
         }
         return new Pair<String, byte[]>(current.getType(), current.getValue());
+    }
+
+    /**
+     * 递归列出 {@code path} 节点及其所有后代中带值的节点，返回的 key 是绝对完整路径
+     * （形如 {@code app/config/name}，即 {@link #get} 接受的形式，不含 {@code root} 前缀）。
+     * {@code path} 本身不存在时返回 {@code null}；存在但没有带值的后代时返回空列表。
+     */
+    public List<KV> ls(String path){
+        String[] paths = KeyPath.split(path);
+        BPlusNode current = root;
+        for (int i = 0; i < paths.length; i++) {
+            if(current.getChildren() == null || !current.getChildren().containsKey(paths[i])){
+                return null;
+            }
+            current = current.getChildren().get(paths[i]);
+        }
+        List<KV> result = new ArrayList<>();
+        collectKVs(current, "", result);
+        return result;
+    }
+
+    /** 先序收集带值的节点：{@code prefix} 是父节点累积出的绝对路径，root 层为空串。 */
+    private void collectKVs(BPlusNode node, String prefix, List<KV> result){
+        String path = prefix.isEmpty() ? node.getKey() : prefix + KeyPath.SEPARATOR + node.getKey();
+        if(node.getValue() != null){
+            result.add(new KV(path, node.getValue(), node.getType()));
+        }
+        if(node.getChildren() == null){
+            return;
+        }
+        for(BPlusNode child : node.getChildren().values()){
+            collectKVs(child, path, result);
+        }
+    }
+
+    public RaftRequest handleLsRequest(RaftRequest request){
+        List<KV> kvs = ls(request.getKey());
+        RaftRequest reply = new RaftRequest();
+        reply.setType("ls");
+        reply.setKey(request.getKey());
+        reply.setUuid(request.getUuid());
+        if(kvs == null){
+            reply.setSuccess(false);
+            return reply;
+        }
+        reply.setSuccess(true);
+        reply.setKvs(kvs);
+        return reply;
     }
 
     public RaftRequest handleGetRequest(RaftRequest request){
