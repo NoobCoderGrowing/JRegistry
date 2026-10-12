@@ -30,7 +30,7 @@ final class StateMachineTreeMapper {
         return TreeNodeDTO.builder()
                 .key(node.getKey())
                 .path(node.getPath())
-                .dotKey(toDotKey(node))
+                .fullKey(toFullKey(node))
                 .type(node.getType())
                 .value(decodeValue(node.getValue()))
                 .leaf(leaf)
@@ -38,15 +38,16 @@ final class StateMachineTreeMapper {
                 .build();
     }
 
-    private static String toDotKey(BPlusNode node) {
+    /** 相对 root 的完整 key（`/` 分隔），root 自身为 ""。 */
+    private static String toFullKey(BPlusNode node) {
         String path = node.getPath();
         if (path == null || "/root".equals(path)) {
             return "";
         }
         if (path.startsWith("/root/")) {
-            return path.substring("/root/".length()).replace('/', '.');
+            return path.substring("/root/".length());
         }
-        return path.replace('/', '.');
+        return path;
     }
 
     private static String decodeValue(byte[] value) {

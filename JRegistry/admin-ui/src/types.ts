@@ -1,7 +1,7 @@
 export interface TreeNode {
   key: string;
   path: string;
-  dotKey: string;
+  fullKey: string;
   type: string | null;
   value: string | null;
   leaf: boolean;

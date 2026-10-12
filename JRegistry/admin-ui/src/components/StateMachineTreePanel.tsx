@@ -5,14 +5,14 @@ import { deleteStateMachineKey, setStateMachineKey } from '../api';
 interface TreeNodeItemProps {
   node: TreeNode;
   depth?: number;
-  onDelete: (dotKey: string) => void;
+  onDelete: (fullKey: string) => void;
   deletingKey: string | null;
 }
 
 function TreeNodeItem({ node, depth = 0, onDelete, deletingKey }: TreeNodeItemProps) {
   const hasChildren = node.children.length > 0;
   const [expanded, setExpanded] = useState(depth < 2);
-  const canDelete = node.leaf && node.dotKey;
+  const canDelete = node.leaf && node.fullKey;
 
   return (
     <li className="tree-node">
@@ -45,10 +45,10 @@ function TreeNodeItem({ node, depth = 0, onDelete, deletingKey }: TreeNodeItemPr
           <button
             type="button"
             className="btn btn-sm btn-danger"
-            disabled={deletingKey === node.dotKey}
-            onClick={() => onDelete(node.dotKey)}
+            disabled={deletingKey === node.fullKey}
+            onClick={() => onDelete(node.fullKey)}
           >
-            {deletingKey === node.dotKey ? '删除中…' : '删除'}
+            {deletingKey === node.fullKey ? '删除中…' : '删除'}
           </button>
         )}
       </div>
@@ -130,10 +130,10 @@ export function StateMachineTreePanel({
     setDeleteKey('');
   }
 
-  async function handleTreeDelete(dotKey: string) {
-    if (!window.confirm(`确认删除键 "${dotKey}"？`)) return;
-    setDeletingKey(dotKey);
-    await runWrite(() => deleteStateMachineKey(dotKey));
+  async function handleTreeDelete(fullKey: string) {
+    if (!window.confirm(`确认删除键 "${fullKey}"？`)) return;
+    setDeletingKey(fullKey);
+    await runWrite(() => deleteStateMachineKey(fullKey));
   }
 
   return (
@@ -161,7 +161,7 @@ export function StateMachineTreePanel({
               <span>新增 / 更新 (set)</span>
               <input
                 className="sm-input mono"
-                placeholder="键，如 app.config.timeout"
+                placeholder="键，如 app/config/timeout"
                 value={setKey}
                 onChange={(e) => setSetKey(e.target.value)}
                 disabled={busy}
@@ -197,7 +197,7 @@ export function StateMachineTreePanel({
               <span>删除 (delete)</span>
               <input
                 className="sm-input mono"
-                placeholder="键，如 app.config.timeout"
+                placeholder="键，如 app/config/timeout"
                 value={deleteKey}
                 onChange={(e) => setDeleteKey(e.target.value)}
                 disabled={busy}

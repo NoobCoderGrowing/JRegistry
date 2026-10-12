@@ -8,7 +8,7 @@
 
 ## 概述
 
-JRegistry 是一个基于 [Raft](https://raft.github.io/) 共识算法的多节点分布式注册中心。数据以层级键值形式存储在内存状态机中（键名使用 `.` 分隔路径，例如 `app.config.timeout`），写操作通过 Raft 日志复制，并可通过以下方式访问：
+JRegistry 是一个基于 [Raft](https://raft.github.io/) 共识算法的多节点分布式注册中心。数据以层级键值形式存储在内存状态机中（键名使用 `/` 分隔路径，例如 `app/config/timeout`；除 `/` 外的任意字符都可以作为键名，包括 `.`），写操作通过 Raft 日志复制，并可通过以下方式访问：
 
 - **Netty RPC** — 通过 `JRegistryClient` 进行编程式 get / set / delete
 - **Web 管理后台** — 集群监控、状态机浏览、选主动画回放
@@ -21,7 +21,7 @@ JRegistry 是一个基于 [Raft](https://raft.github.io/) 共识算法的多节�
 | 模块 | 说明 |
 |------|------|
 | **Raft 共识** | 领导者选举、日志复制、日志提交 |
-| **状态机** | 层级 B+ 树结构；键名以 `.` 作为路径分隔符 |
+| **状态机** | 层级 B+ 树结构；键名以 `/` 作为路径分隔符，除 `/` 外任意字符均可 |
 | **持久化** | 将 Raft 节点状态、日志和状态机快照写入 `persistency/`；启动时自动恢复 |
 | **日志压缩** | 支持定时与手动压缩，清理历史日志 |
 | **管理后台** | React + Vite 仪表盘：集群概览、节点角色、状态机树、选主动画 |
@@ -185,7 +185,9 @@ ssh:
 | `delete(key)` | 异步删除 |
 | `shutdown()` | 关闭连接并释放资源 |
 
-键名使用 `.` 作为路径分隔符，例如 `app.config.timeout`。
+键名使用 `/` 作为路径分隔符，例如 `app/config/timeout`。除 `/` 外的任意字符都可以作为键名的一部分（`.` 只是普通字符，因此 `app.config.name` 是一个键名而非三级路径）。
+
+> **注意：** 该分隔符与旧版本的 `.` 不兼容，`persistency/` 下按 `.` 分层持久化的数据需要清空后重新写入。
 
 ### 示例代码
 
@@ -204,9 +206,9 @@ public class Example {
             return;
         }
         try {
-            client.set("app.config.name", "demo".getBytes(), "string");
+            client.set("app/config/name", "demo".getBytes(), "string");
             Thread.sleep(1000); // 等待 Raft 复制提交
-            Pair<byte[], String> result = client.get("app.config.name");
+            Pair<byte[], String> result = client.get("app/config/name");
             if (result != null) {
                 System.out.println("value=" + new String(result.getLeft()));
             } else {
@@ -231,11 +233,11 @@ ssh admin@127.0.0.1 -p 2001
 
 | 命令 | 示例 | 说明 |
 |------|------|------|
-| `get` | `get app.config.timeout` | 按完整路径读取值 |
+| `get` | `get app/config/timeout` | 按完整路径读取值 |
 | `set` | `set mykey hello` | 写入字符串 |
 | `delete` | `delete mykey` | 删除键 |
 | `ls` | `ls` | 列出当前路径下的子节点 |
-| `cd` | `cd app.config` | 在状态机树中切换路径 |
+| `cd` | `cd app/config` | 在状态机树中切换路径 |
 | `pwd` | `pwd` | 显示当前路径 |
 | `persist` | `persist` | 全集群快照（仅 Leader） |
 | `compact` | `compact` | 日志压缩（仅 Leader） |
@@ -292,7 +294,7 @@ A distributed, Raft-based key-value registry with a web admin console, Netty RPC
 
 ## Overview
 
-JRegistry is a multi-node distributed registry built on the [Raft](https://raft.github.io/) consensus algorithm. Data is stored as hierarchical key-value pairs in an in-memory state machine (keys use `.` as path separators, e.g. `app.config.timeout`). Writes are replicated through the Raft log and can be accessed via:
+JRegistry is a multi-node distributed registry built on the [Raft](https://raft.github.io/) consensus algorithm. Data is stored as hierarchical key-value pairs in an in-memory state machine (keys use `/` as path separators, e.g. `app/config/timeout`; any character other than `/` is allowed inside a key, including `.`). Writes are replicated through the Raft log and can be accessed via:
 
 - **Netty RPC** — programmatic get / set / delete through `JRegistryClient`
 - **Web Admin UI** — cluster monitoring, state machine browser, election replay animation
@@ -305,7 +307,7 @@ The default deployment is a local **3-node cluster** (`127.0.0.1` / `127.0.0.2` 
 | Area | Description |
 |------|-------------|
 | **Raft consensus** | Leader election, log replication, log commit |
-| **State machine** | Hierarchical B+ tree; keys use `.` as path separator |
+| **State machine** | Hierarchical B+ tree; keys use `/` as path separator, any character other than `/` is allowed |
 | **Persistence** | Snapshots of Raft node state, log, and state machine written to `persistency/`; auto-recovery on startup |
 | **Log compaction** | Scheduled and manual compaction to trim old log entries |
 | **Admin UI** | React + Vite dashboard: cluster overview, node roles, state machine tree, election animation |
@@ -467,7 +469,9 @@ Constructor: `JRegistryClient(host, port, taskTimeoutMs, connectTimeoutMillis)`
 | `delete(key)` | Asynchronous delete |
 | `shutdown()` | Close the connection and release resources |
 
-Keys use `.` as a path separator, e.g. `app.config.timeout`.
+Keys use `/` as a path separator, e.g. `app/config/timeout`. Any character other than `/` is allowed inside a key (`.` is just an ordinary character, so `app.config.name` is a single key, not a three-level path).
+
+> **Note:** This separator is incompatible with the `.` used by earlier versions; data persisted under `persistency/` with `.`-separated keys must be cleared and written again.
 
 ### Example
 
@@ -486,9 +490,9 @@ public class Example {
             return;
         }
         try {
-            client.set("app.config.name", "demo".getBytes(), "string");
+            client.set("app/config/name", "demo".getBytes(), "string");
             Thread.sleep(1000); // wait for Raft replication
-            Pair<byte[], String> result = client.get("app.config.name");
+            Pair<byte[], String> result = client.get("app/config/name");
             if (result != null) {
                 System.out.println("value=" + new String(result.getLeft()));
             } else {
@@ -513,11 +517,11 @@ Supported commands:
 
 | Command | Example | Description |
 |---------|---------|-------------|
-| `get` | `get app.config.timeout` | Read a value by full key path |
+| `get` | `get app/config/timeout` | Read a value by full key path |
 | `set` | `set mykey hello` | Write a string value |
 | `delete` | `delete mykey` | Remove a key |
 | `ls` | `ls` | List children at current path |
-| `cd` | `cd app.config` | Navigate the state machine tree |
+| `cd` | `cd app/config` | Navigate the state machine tree |
 | `pwd` | `pwd` | Show current path |
 | `persist` | `persist` | Snapshot all nodes (leader only) |
 | `compact` | `compact` | Compact logs (leader only) |

@@ -1,6 +1,5 @@
 package io.github.noobcodergrowing.jregistrycore;
 
-import java.util.Arrays;
 import io.github.noobcodergrowing.jregistrycore.Log.LogEntry;
 import java.util.concurrent.ThreadPoolExecutor;
 import com.alibaba.fastjson.JSON;
@@ -66,14 +65,13 @@ public class StateMachine {
     }
 
     public boolean putIfAbsent(String key, byte[] value, String type){
-        String[] paths = key.split("\\.");
+        String[] paths = KeyPath.split(key);
         BPlusNode current = root;
         for (int i = 0; i < paths.length-1; i++) {
-            if(current.getChildren().containsKey(paths[i])){ 
+            if(current.getChildren().containsKey(paths[i])){
                 current = current.getChildren().get(paths[i]);
             }else{ // if the node is not exists, add it
-                String path = String.join("/", Arrays.copyOfRange(paths, 0, i+1));
-                BPlusNode newNode = new BPlusNode(paths[i], path);
+                BPlusNode newNode = new BPlusNode(paths[i]);
                 current.addNode(newNode);
                 current = newNode;
             }
@@ -94,14 +92,12 @@ public class StateMachine {
         byte[] value = logEntry.getData();
         String type = logEntry.getDataType();
 
-        String[] paths = key.split("\\.");
+        String[] paths = KeyPath.split(key);
         BPlusNode current = root;
         for (int i = 0; i < paths.length-1; i++) {
-            if(current.getChildren().containsKey(paths[i])){ 
+            if(current.getChildren().containsKey(paths[i])){
                 current = current.getChildren().get(paths[i]);
             }else{ // if the node is not exists, add it
-                // String path = String.join("/", Arrays.copyOfRange(paths, 0, i+1));
-                // BPlusNode newNode = new BPlusNode(paths[i], path);
                 BPlusNode newNode = new BPlusNode(paths[i]);
                 current.addNode(newNode);
                 current = newNode;
@@ -116,7 +112,7 @@ public class StateMachine {
 
 
     public Pair<String, byte[]> get(String key){
-        String[] paths = key.split("\\.");
+        String[] paths = KeyPath.split(key);
         BPlusNode current = root;
         for (int i = 0; i < paths.length; i++) {
             if(current.getChildren().containsKey(paths[i])){
@@ -147,7 +143,7 @@ public class StateMachine {
     }
 
     public boolean delete(String key){
-        String[] paths = key.split("\\.");
+        String[] paths = KeyPath.split(key);
         BPlusNode current = root;
         for (int i = 0; i < paths.length-1; i++) {
             if(current.getChildren().containsKey(paths[i])){
@@ -182,18 +178,25 @@ public class StateMachine {
         String cmd = logEntry.getCommand();
         log.info("apply log: {}", JSON.toJSONString(logEntry));
         boolean success = false;
-        switch (cmd) {
-            case "set":
-                success = put(logEntry);
-                break;
-            case "delete":
-                success = delete(logEntry.getKey());
-                break;
-            case "noOp":
-                success = true;
-                break;
-            default:
-                break;
+        // A malformed key must never propagate: the caller advances commitIndex only after this
+        // returns, so throwing here would stall the commit loop and wedge the whole cluster.
+        try {
+            switch (cmd) {
+                case "set":
+                    success = put(logEntry);
+                    break;
+                case "delete":
+                    success = delete(logEntry.getKey());
+                    break;
+                case "noOp":
+                    success = true;
+                    break;
+                default:
+                    break;
+            }
+        } catch (IllegalArgumentException e) {
+            log.error("node {} skip log entry with invalid key, index {}: {}",
+                    id, logEntry.getIndex(), e.getMessage());
         }
         return success;
     }
@@ -202,32 +205,33 @@ public class StateMachine {
         return root;
     }
 
+    /**
+     * 按 {@code /} 分隔的路径切换当前节点。绝对路径从 root 出发，相对路径从 position 出发；
+     * 段内 {@code ~} 表示 root，{@code .} 表示当前节点，{@code ..} 表示父节点（到 root 为止）。
+     * 任一段不存在则返回 {@code null}。
+     */
     public BPlusNode cd(String path, BPlusNode position){
-        if(path.equals("/")||path.equals("/root")||path.equals("~")){
+        if(path == null || path.isEmpty() || path.equals("/") || path.equals("/root") || path.equals("~")){
             return root;
         }
 
-        if(path.equals("..")){
-            if(position!=root){
-                return position.getParent();
+        BPlusNode current = path.charAt(0) == '/' || path.charAt(0) == '~' ? root : position;
+        for (String segment : path.split(KeyPath.SEPARATOR)) {
+            if(segment.isEmpty() || segment.equals(".")){
+                continue;
             }
-            return root;
-        }
-
-        if(path.charAt(0)!='/' && path.charAt(0)!='~'){
-            BPlusNode current = position.cd(path);
-            return current;
-        }
-
-
-        String[] paths = path.split("\\.");
-        BPlusNode current = root;
-        for (int i = 0; i < paths.length; i++) {
-            if(current.getChildren().containsKey(paths[i])){
-                current = current.getChildren().get(paths[i]);
-            }else{
+            if(segment.equals("~")){
+                current = root;
+                continue;
+            }
+            if(segment.equals("..")){
+                current = current == root ? root : current.getParent();
+                continue;
+            }
+            if(current.getChildren() == null || !current.getChildren().containsKey(segment)){
                 return null;
             }
+            current = current.getChildren().get(segment);
         }
         return current;
     }
@@ -316,13 +320,5 @@ public class StateMachine {
             SMWriter = null;
         }
     }
-
-
-   
-public static void main(String[] args) {
-    String[] paths = "we.n".split("\\.");
-    // String[] paths = "we.n".split("\\.");
-    System.out.println(paths[-1]);
-}
 
 }

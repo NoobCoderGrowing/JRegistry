@@ -14,9 +14,9 @@ public class Example
             client.shutdown(); //reconnect forever, need to shutdown manually
         }
         try {
-            client.set("app.config.name", "demo".getBytes(), "string");
+            client.set("app/config/name", "demo".getBytes(), "string");
             Thread.sleep(1000);
-            Pair<byte[], String> result = client.get("app.config.name");
+            Pair<byte[], String> result = client.get("app/config/name");
             if (result != null) {
                 System.out.println("value=" + new String(result.getLeft()));
             } else {

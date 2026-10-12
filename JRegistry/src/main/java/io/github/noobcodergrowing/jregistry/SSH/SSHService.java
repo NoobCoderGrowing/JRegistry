@@ -9,6 +9,7 @@ import com.alibaba.fastjson.JSON;
 import io.github.noobcodergrowing.jregistry.Raft.Log.LogService;
 
 import io.github.noobcodergrowing.jregistrycore.BPlusNode;
+import io.github.noobcodergrowing.jregistrycore.KeyPath;
 import io.github.noobcodergrowing.jregistrycore.Pair;
 import io.netty.channel.EventLoopGroup;
 import java.util.concurrent.CompletableFuture;
@@ -206,17 +207,23 @@ public class SSHService {
     // }
 
 
+    /** Commands whose argument is a state machine key rather than a navigational path. */
+    private static boolean isKeyCommand(String cmd){
+        return cmd.equals("set") || cmd.equals("get") || cmd.equals("delete");
+    }
+
+
     public String userInputCheck(String input, AtomicReference<BPlusNode> sessionCurrent){
         if (input.isEmpty()) {
             log.info("user input is empty");
             return "invalid cmd";
         }
-        if(!input.matches("[A-Za-z0-9.~/ ]+")){
+        if(!input.matches("[\\x20-\\x7E]+")){
             log.info("user input is empty");
             return "invalid cmd";
         }
 
-        String[] cmd = input.split(" ");
+        String[] cmd = input.trim().split("\\s+");
         if(cmd.length != 3 && cmd.length != 2 && cmd.length != 1){
             log.info("user input is empty");
             return "invalid cmd";
@@ -242,8 +249,14 @@ public class SSHService {
         if(cmd.length == 1){ // ls / pwd / show
             cliRequest.setType(cmd[0]);
         }
-        
-        
+
+        // cd accepts navigational paths ("/", "~", "..") that are not state machine keys,
+        // so only validate the commands that address the tree by key.
+        if(cmd.length > 1 && isKeyCommand(cmd[0]) && !KeyPath.isValid(cliRequest.getKey())){
+            log.info("invalid key: {}", cliRequest.getKey());
+            return "invalid key";
+        }
+
         log.info("userInputCheck before sendRequest: requestId={}", cliRequest.getUuid());
         CompletableFuture<String> future = new CompletableFuture<>();
         future.completeAsync(() -> {

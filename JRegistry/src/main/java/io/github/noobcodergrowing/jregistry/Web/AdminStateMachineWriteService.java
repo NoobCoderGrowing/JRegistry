@@ -1,6 +1,7 @@
 package io.github.noobcodergrowing.jregistry.Web;
 
 import com.github.f4b6a3.uuid.UuidCreator;
+import io.github.noobcodergrowing.jregistrycore.KeyPath;
 import io.github.noobcodergrowing.jregistrycore.RPC.RaftRequest;
 import io.github.noobcodergrowing.jregistrycore.Raft.RaftNode;
 import io.github.noobcodergrowing.jregistry.Raft.Log.LogService;
@@ -86,7 +87,7 @@ public class AdminStateMachineWriteService {
         if (key == null || key.isEmpty()) {
             throw new IllegalArgumentException("key is required");
         }
-        if (!key.matches("[A-Za-z0-9.]+")) {
+        if (!KeyPath.isValid(key)) {
             throw new IllegalArgumentException("invalid key format");
         }
     }

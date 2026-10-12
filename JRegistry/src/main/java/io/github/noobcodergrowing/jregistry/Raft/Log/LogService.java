@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import io.github.noobcodergrowing.jregistrycore.Raft.RaftNode;
 import io.github.noobcodergrowing.jregistry.Raft.RPC.Client.RaftClientManager;
 import io.github.noobcodergrowing.jregistry.Services.Timer.TimeoutService;
+import io.github.noobcodergrowing.jregistrycore.KeyPath;
 import io.github.noobcodergrowing.jregistrycore.Log.LogEntry;
 import java.util.ArrayList;
 import io.github.noobcodergrowing.jregistrycore.RPC.RaftRequest;
@@ -151,6 +152,12 @@ public class LogService {
    public RaftRequest handleWriteRequest(RaftRequest request){
         if(!raftNode.getIsLeader().get()){
             redirectWriteRequest2Leader(request);
+            return null;
+        }
+        // Gate the log here: an invalid key must not enter the Raft log at all, on any entry
+        // point (SSH CLI, admin API, client SDK).
+        if(!KeyPath.isValid(request.getKey())){
+            log.warn("node {} reject write request with invalid key: {}", raftNode.getId(), request.getKey());
             return null;
         }
         log.info("node {} handle write request: {}", raftNode.getId(), JSON.toJSONString(request));
