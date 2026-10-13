@@ -169,9 +169,9 @@ public class AppendEntriesService {
 
 
     public RaftRequest serverHandleHeartbeatRequest(RaftRequest request) {
-        
 
-        if(request.getTerm() >= raftNode.getCurrentTerm()){ 
+
+        if(request.getTerm() >= raftNode.getCurrentTerm()){
             //收到更高term或一样term的心跳包，承认对方leader，更新自己term
             // followerElectionTimer.resetTimeout();
             timeoutService.resetTimeout();
@@ -183,7 +183,13 @@ public class AppendEntriesService {
                 }
             }
         }
-        return null;
+        // 回一条 ack。leader 侧靠它判断本节点是否还活着——一个崩溃/被隔离的节点不再回 ack，
+        // leader 就会回收它名下那些客户端连接留下的会话。
+        RaftRequest reply = new RaftRequest();
+        reply.setType("heartbeatReply");
+        reply.setId(raftNode.getId());
+        reply.setTerm(raftNode.getCurrentTerm());
+        return reply;
     }
 
 }

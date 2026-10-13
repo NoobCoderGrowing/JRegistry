@@ -41,4 +41,12 @@ public class RaftRequest {
     private String dataType;
     private UUID uuid;
     private List<KV> kvs;
+
+    // client session part: identifies the JRegistryClient connection behind a request
+    private String clientId;
+    private long clientEpoch;
+    private int ownerNodeId;
+
+    /** 读回复里带出的二值状态：false = 生效，true = 该 key 所属客户端已离线。 */
+    private boolean offline;
 }

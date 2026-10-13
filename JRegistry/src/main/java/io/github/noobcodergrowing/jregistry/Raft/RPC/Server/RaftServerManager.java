@@ -23,6 +23,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import io.github.noobcodergrowing.jregistrycore.Raft.RaftNode;
 import io.github.noobcodergrowing.jregistry.Raft.Log.LogService;
 import io.github.noobcodergrowing.jregistry.Services.AppendEntriesService;
+import io.github.noobcodergrowing.jregistry.Services.ClientSessionService;
 import io.github.noobcodergrowing.jregistry.Services.RequestVoteService;
 import io.github.noobcodergrowing.jregistry.Services.Persist.PersistService;
 import io.github.noobcodergrowing.jregistrycore.StateMachine;
@@ -63,6 +64,13 @@ public class RaftServerManager {
     @Autowired
     private StateMachine stateMachine;
 
+    @Autowired
+    private ClientSessionService clientSessionService;
+
+    /** 客户端的读超时：连续这么长时间没有任何入站流量，算客户端丢了一次心跳。 */
+    @Value("${registry.client-heartbeat.read-timeout-seconds:20}")
+    private int clientReadTimeoutSeconds;
+
     private Channel channel;
 
     private Random random = new Random();
@@ -92,14 +100,14 @@ public class RaftServerManager {
                  @Override
                  protected void initChannel(SocketChannel ch) {
                      ChannelPipeline p = ch.pipeline();
-                     // 心跳检测：30秒无读写发送选举
+                     // 读超时：IdleStateEvent 既用于客户端心跳计数，也用于 peer 侧超时判定。
                      p.addLast(new IdleStateHandler
-                        (20000 , 0, 0, TimeUnit.MILLISECONDS));
+                        (clientReadTimeoutSeconds * 1000L, 0, 0, TimeUnit.MILLISECONDS));
                      p.addLast(new LineBasedFrameDecoder(8192));
                      p.addLast(new StringDecoder(StandardCharsets.UTF_8));
                      p.addLast(new StringEncoder(StandardCharsets.UTF_8));
-                     p.addLast(new RaftServerHandler(RaftServerManager.this, appendEntriesService, requestVoteService, raftNode, 
-                        logService, writePool, persistService, stateMachine));
+                     p.addLast(new RaftServerHandler(RaftServerManager.this, appendEntriesService, requestVoteService, raftNode,
+                        logService, writePool, persistService, stateMachine, clientSessionService));
                  }
              });
             

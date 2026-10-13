@@ -53,6 +53,8 @@ public class RaftClientHandler extends SimpleChannelInboundHandler<String> {
         // 解析并交给 RaftNode 处理
         try {
         RaftRequest reply = JSON.parseObject(msg, RaftRequest.class);
+        // 任何来自该 peer 的入站消息都证明它还活着（心跳 ack、appendEntries 回复……）。
+        raftClientManager.recordPeerAlive(peerNodeId);
         RaftRequest request = null;
         switch (reply.getType()) {
             case "appendEntries":
@@ -61,6 +63,9 @@ public class RaftClientHandler extends SimpleChannelInboundHandler<String> {
             case "heartbeat":
                 //do nothing, because leader needn't respond to follower's heartbeat response
                 // request = appendEntriesService.handleHeartbeatReply(reply);
+                break;
+            case "heartbeatReply":
+                // follower 对 leader 心跳的 ack；活性已在上方记录，这里无需别的处理
                 break;
             case "requestVote":
                 request = requestVoteService.clientHandleRequestVoteRequest(reply, raftClientManager);
@@ -95,6 +100,7 @@ public class RaftClientHandler extends SimpleChannelInboundHandler<String> {
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
+        raftClientManager.recordPeerAlive(peerNodeId);
         appendEntriesService.sendShakeHands(ctx.channel(), peerNodeId);
     }
 

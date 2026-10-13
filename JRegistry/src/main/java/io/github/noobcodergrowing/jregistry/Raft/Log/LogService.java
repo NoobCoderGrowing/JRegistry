@@ -156,13 +156,20 @@ public class LogService {
         }
         // Gate the log here: an invalid key must not enter the Raft log at all, on any entry
         // point (SSH CLI, admin API, client SDK).
-        if(!KeyPath.isValid(request.getKey())){
+        // 会话命令（clientAttach / clientOffline）按 clientId 而不是 key 定位，不带 key，放行。
+        boolean sessionCmd = isClientSessionCmd(request.getCmd());
+        if(!sessionCmd && !KeyPath.isValid(request.getKey())){
             log.warn("node {} reject write request with invalid key: {}", raftNode.getId(), request.getKey());
             return null;
         }
         log.info("node {} handle write request: {}", raftNode.getId(), JSON.toJSONString(request));
         generateLogEntry(request);
         return null;
+    }
+
+    /** 会话命令不带 key，操作对象是 client 租约而不是 KV 路径。 */
+    public static boolean isClientSessionCmd(String cmd){
+        return "clientAttach".equals(cmd) || "clientOffline".equals(cmd);
     }
 
     public void redirectWriteRequest2Leader(RaftRequest request){
@@ -185,6 +192,9 @@ public class LogService {
         logEntry.setKey(request.getKey());
         logEntry.setData(request.getData());
         logEntry.setDataType(request.getDataType());
+        logEntry.setClientId(request.getClientId());
+        logEntry.setClientEpoch(request.getClientEpoch());
+        logEntry.setOwnerNodeId(request.getOwnerNodeId());
         logger.add(logEntry);
         // raftNode.setLastLogIndex(logEntry.getIndex());
         // raftNode.setLastLogTerm(logEntry.getTerm());
@@ -442,6 +452,13 @@ public class LogService {
             }
             stateMachine.setCommitIndex(request.getLeaderCommit());
             stateMachine.setRoot(request.getStateMachine().getRoot());
+            // 归属表/租约表也要随快照过来，否则恢复后租约清理能力静默失效。
+            if(request.getStateMachine().getOwnership() != null){
+                stateMachine.setOwnership(request.getStateMachine().getOwnership());
+            }
+            if(request.getStateMachine().getSessions() != null){
+                stateMachine.setSessions(request.getStateMachine().getSessions());
+            }
             stateMachine.rebuildParentLinks();
             installLogger(request);
 

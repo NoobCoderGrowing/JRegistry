@@ -17,6 +17,24 @@ admin:
   peer-http-ports: "{1:6101, 2:6102, 3:6103}"
   election-log-path: logs/JRegistry.log
 
+# 客户端连接租约。客户端每 10s 发一次心跳（客户端常量），read-timeout 必须大于该间隔，
+# 否则正常连接会被误判。连续 max-misses 次读超时即认为连接已死，把该客户端标为「离线」
+# （只翻状态，不删除它 set 过的 key）。
+registry:
+  client-heartbeat:
+    read-timeout-seconds: 20
+    max-misses: 3
+    retry-delay-seconds: 5
+  # leader 侧的孤儿会话扫描：某个 peer 超过 peer-dead-threshold 没有任何响应（心跳 ack /
+  # appendEntries 回复），就把它名下的客户端会话标为「离线」。覆盖「客户端消失 + 持有连接的
+  # 节点也崩了」这一档，本地检测够不到。注意语义：被网络隔开的节点同样会被判失效，它名下活
+  # 客户端也会被标离线（数据仍在）。阈值别设太小。
+  session-sweep:
+    enabled: true
+    sweep-interval-seconds: 10
+    peer-dead-threshold-seconds: 60
+    leader-grace-seconds: 30
+
 ssh:
   enabled: true
   host: 127.0.0.2

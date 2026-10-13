@@ -12,6 +12,7 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import io.github.noobcodergrowing.jregistry.Raft.Log.LogService;
 import io.github.noobcodergrowing.jregistry.Services.AppendEntriesService;
+import io.github.noobcodergrowing.jregistry.Services.ClientSessionService;
 import io.github.noobcodergrowing.jregistry.Services.RequestVoteService;
 import io.github.noobcodergrowing.jregistry.Services.Persist.PersistService;
 
@@ -42,9 +43,12 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
 
     private StateMachine stateMachine;
 
-    public RaftServerHandler(RaftServerManager raftServer, AppendEntriesService appendEntriesService, 
-        RequestVoteService requestVoteService, RaftNode raftNode, LogService logService, 
-        ThreadPoolExecutor writePool, PersistService persistService, StateMachine stateMachine) {
+    private ClientSessionService clientSessionService;
+
+    public RaftServerHandler(RaftServerManager raftServer, AppendEntriesService appendEntriesService,
+        RequestVoteService requestVoteService, RaftNode raftNode, LogService logService,
+        ThreadPoolExecutor writePool, PersistService persistService, StateMachine stateMachine,
+        ClientSessionService clientSessionService) {
         this.raftServer = raftServer;
         this.appendEntriesService = appendEntriesService;
         this.requestVoteService = requestVoteService;
@@ -53,6 +57,7 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
         this.writePool = writePool;
         this.persistService = persistService;
         this.stateMachine = stateMachine;
+        this.clientSessionService = clientSessionService;
     }
 
     @Override
@@ -80,7 +85,14 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
                 case "commitLogs":
                     reply = logService.followerCommitLogs(request);
                     break;
+                case "clientHeartbeat":
+                    // 客户端心跳：只是"这条连接还活着"的证据。绝不能复用 "heartbeat" 这个名字——
+                    // 那个会被 serverHandleHeartbeatRequest 当成 leader 心跳、刷新选举超时。
+                    clientSessionService.onHeartbeat(request.getClientId(), ctx.channel());
+                    break;
                 case "writeRequest":
+                    // touch 必须在处理写之前：它决定 clientAttach 与首条 set 的日志先后。
+                    clientSessionService.touch(request.getClientId(), ctx.channel());
                     reply = logService.handleWriteRequest(request);
                     break;
                 case "persist":
@@ -90,9 +102,11 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
                     persistService.handleCompactRequest();
                     break;
                 case "get":
+                    clientSessionService.touch(request.getClientId(), ctx.channel());
                     reply = stateMachine.handleGetRequest(request);
                     break;
                 case "ls":
+                    clientSessionService.touch(request.getClientId(), ctx.channel());
                     reply = stateMachine.handleLsRequest(request);
                     break;
                 default:
@@ -121,16 +135,21 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
             // }
 
             //交给TimeoutLoop处理投票发起
-    
+
+            // 一次读超时 = 客户端少了一次心跳。只对确实注册过的 client 连接计数，
+            // peer 连接在 ClientSessionService 里查不到会话，自然被忽略。
+            clientSessionService.onMiss(ctx.channel());
         }
     }
-    
+
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
     }
-    
+
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
+        // 连接确定关闭（FIN/RST）→ 立即清理，不必等满三次超时。
+        clientSessionService.onDisconnect(ctx.channel());
         raftServer.getPeerChannels().remove(peerNodeId);
         log.info("server {} disconnected from peer {}", raftNode.getId(), peerNodeId);
     }

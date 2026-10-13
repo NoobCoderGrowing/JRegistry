@@ -3,6 +3,9 @@ package io.github.noobcodergrowing.jregistrycore;
 import io.github.noobcodergrowing.jregistrycore.Log.LogEntry;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadPoolExecutor;
 import com.alibaba.fastjson.JSON;
 import java.io.FileOutputStream;
@@ -53,6 +56,16 @@ public class StateMachine {
 
     @JSONField(serialize = false)
     private volatile BufferedWriter SMWriter;
+
+    /**
+     * 归属表：规范化 key -> 写入它的 clientId。只记录带 clientId 的写入（JRegistryClient 的 set），
+     * SSH / Admin 等无 clientId 的写入不进表，因此不受租约清理影响。
+     * 随 StateMachine 一起序列化，用于快照安装与本地恢复后重建。
+     */
+    private Map<String, String> ownership = new ConcurrentHashMap<>();
+
+    /** 租约表：clientId -> 当前归属（owner 节点 + epoch 任期）。 */
+    private Map<String, SessionInfo> sessions = new ConcurrentHashMap<>();
 
     public StateMachine() {
         this.root = new BPlusNode("root", "/root" );
@@ -109,6 +122,14 @@ public class StateMachine {
         BPlusNode newNode = new BPlusNode(paths[paths.length-1], value, type);
         current.addNode(newNode);
         log.info("current node info: {}", current.show());
+        if(logEntry.getClientId() != null){
+            String normalized = KeyPath.normalize(key);
+            String previousOwner = ownership.put(normalized, logEntry.getClientId());
+            // 归属转移：旧 owner 若已离线、且因此不再拥有任何 key，顺手回收那行空壳簿记。
+            if(previousOwner != null && !previousOwner.equals(logEntry.getClientId())){
+                collectOrphanSessionIfAny(previousOwner);
+            }
+        }
         return true;
     }
 
@@ -149,7 +170,7 @@ public class StateMachine {
     private void collectKVs(BPlusNode node, String prefix, List<KV> result){
         String path = prefix.isEmpty() ? node.getKey() : prefix + KeyPath.SEPARATOR + node.getKey();
         if(node.getValue() != null){
-            result.add(new KV(path, node.getValue(), node.getType()));
+            result.add(new KV(path, node.getValue(), node.getType(), isKeyOffline(path)));
         }
         if(node.getChildren() == null){
             return;
@@ -184,6 +205,7 @@ public class StateMachine {
             reply.setSuccess(true);
             reply.setData(result.getRight());
             reply.setDataType(result.getLeft());
+            reply.setOffline(isKeyOffline(KeyPath.normalize(request.getKey())));
             return reply;
         }else{
 
@@ -194,6 +216,10 @@ public class StateMachine {
 
     public boolean delete(String key){
         String[] paths = KeyPath.split(key);
+        String previousOwner = ownership.remove(KeyPath.normalize(key));
+        if(previousOwner != null){
+            collectOrphanSessionIfAny(previousOwner);
+        }
         BPlusNode current = root;
         for (int i = 0; i < paths.length-1; i++) {
             if(current.getChildren().containsKey(paths[i])){
@@ -228,6 +254,114 @@ public class StateMachine {
         }
     }
 
+    /**
+     * 登记一次 client 归属：把 clientId 判给 {@code ownerNodeId}，并把 epoch 自增一任。
+     *
+     * <p>epoch 的自增在 applyLog 里做（而不是在提交日志的节点上做），因此每个副本对同一份日志
+     * 得到完全相同的任期号——这是守卫可重放的前提。
+     */
+    private boolean clientAttach(LogEntry logEntry){
+        String clientId = logEntry.getClientId();
+        if(clientId == null || clientId.isEmpty()){
+            log.warn("node {} skip clientAttach with empty clientId, index {}", id, logEntry.getIndex());
+            return false;
+        }
+        SessionInfo session = sessions.computeIfAbsent(clientId, k -> new SessionInfo());
+        session.setOwnerNodeId(logEntry.getOwnerNodeId());
+        session.setEpoch(session.getEpoch() + 1);
+        session.setOffline(false);
+        log.info("node {} client {} attached to node {}, epoch {}, now online",
+                id, clientId, session.getOwnerNodeId(), session.getEpoch());
+        return true;
+    }
+
+    /**
+     * 租约过期的判决：把该客户端标成<b>离线</b>。<b>只翻状态，不删任何 key。</b>
+     * 守卫在这里：只有当这条判决针对的仍然是当前这一次归属时才执行，否则当作陈旧判决丢弃。
+     *
+     * <p>为什么守卫必须存在：离线判决是在检测节点上、根据它当时已经 apply 的状态做出的，
+     * 而真正执行要等日志走到这一步。这中间客户端可能已经带着同一个 clientId 重连（甚至重连回
+     * 同一个节点），归属早已换了一任。被拒绝不代表判决丢失——归属已经转移给了别的节点，
+     * 由那一任 owner 负责它后续的死活。
+     *
+     * <p>为什么只比 owner 不够：owner 会重复。同一个节点可以先后两次成为 owner（客户端重连回同一节点、
+     * 客户端重启后连回同一节点、节点自身重启后再接管），只比 owner 就会把「上一任的判决」误用到
+     * 「这一任的数据」上。epoch 是唯一能区分两任归属的字段。
+     */
+    private boolean clientOffline(LogEntry logEntry){
+        String clientId = logEntry.getClientId();
+        if(clientId == null || clientId.isEmpty()){
+            return false;
+        }
+        SessionInfo session = sessions.get(clientId);
+        if(session == null){
+            log.warn("node {} ignore clientOffline for unknown client {}", id, clientId);
+            return false;
+        }
+        if(session.getEpoch() != logEntry.getClientEpoch()
+                || session.getOwnerNodeId() != logEntry.getOwnerNodeId()){
+            log.warn("node {} ignore stale clientOffline {}: entry(epoch={}, owner={}) current(epoch={}, owner={})",
+                    id, clientId, logEntry.getClientEpoch(), logEntry.getOwnerNodeId(),
+                    session.getEpoch(), session.getOwnerNodeId());
+            return false;
+        }
+
+        session.setOffline(true);
+        log.info("node {} mark client {} offline (owner {} epoch {}), it still holds {} key(s)",
+                id, clientId, session.getOwnerNodeId(), session.getEpoch(), keysOwnedBy(clientId).size());
+        // 离线且不再拥有任何 key 的空壳簿记就地回收；一条 key 数据都不动。
+        collectOrphanSessionIfAny(clientId);
+        return true;
+    }
+
+    /**
+     * 已离线、且不再拥有任何 key 的会话记录就地回收。<b>只删簿记，不涉及任何 key 数据。</b>
+     *
+     * <p>在线的会话绝不回收——它可能只是暂时还没 set 东西。回收是安全的：一行不指向任何数据的记录
+     * 没有任何东西会引用它；客户端将来若用同一个 clientId 重连，{@code clientAttach} 会重建这一行，
+     * 而守卫里「会话不存在 → 忽略」这条本来就兜得住陈旧的离线判决。
+     */
+    private void collectOrphanSessionIfAny(String clientId){
+        SessionInfo session = sessions.get(clientId);
+        if(session == null || !session.isOffline()){
+            return;
+        }
+        if(!keysOwnedBy(clientId).isEmpty()){
+            return;
+        }
+        sessions.remove(clientId);
+        log.info("node {} collect empty offline session {}", id, clientId);
+    }
+
+    /** 该 key 所属客户端是否离线。无归属（SSH / Admin 写入）视为生效。 */
+    private boolean isKeyOffline(String path){
+        String clientId = ownership.get(path);
+        if(clientId == null){
+            return false;
+        }
+        SessionInfo session = sessions.get(clientId);
+        return session != null && session.isOffline();
+    }
+
+    /** 当前属于 {@code clientId} 的 key（规范化路径）。仅用于本地预检与观测。 */
+    public Set<String> keysOwnedBy(String clientId){
+        Set<String> keys = ConcurrentHashMap.newKeySet();
+        if(clientId == null){
+            return keys;
+        }
+        for(Map.Entry<String, String> entry : ownership.entrySet()){
+            if(clientId.equals(entry.getValue())){
+                keys.add(entry.getKey());
+            }
+        }
+        return keys;
+    }
+
+    /** 当前租约；未知 clientId 返回 {@code null}。 */
+    public SessionInfo getSession(String clientId){
+        return clientId == null ? null : sessions.get(clientId);
+    }
+
     public boolean persist(ThreadPoolExecutor writePool){
         String serializedTree = JSON.toJSONString(this);
         writePool.execute(() -> {
@@ -255,6 +389,12 @@ public class StateMachine {
                     break;
                 case "delete":
                     success = delete(logEntry.getKey());
+                    break;
+                case "clientAttach":
+                    success = clientAttach(logEntry);
+                    break;
+                case "clientOffline":
+                    success = clientOffline(logEntry);
                     break;
                 case "noOp":
                     success = true;
@@ -354,6 +494,13 @@ public class StateMachine {
             this.setRoot(stateMachineImage.getRoot());
             log.info("state machine root path {}", this.getRoot().getPath());
             this.setCommitIndex(stateMachineImage.getCommitIndex());
+            // 归属表/租约表随镜像一起恢复；旧版本镜像没有这两个字段，此时保留构造出的空表。
+            if(stateMachineImage.getOwnership() != null){
+                this.setOwnership(stateMachineImage.getOwnership());
+            }
+            if(stateMachineImage.getSessions() != null){
+                this.setSessions(stateMachineImage.getSessions());
+            }
             this.rebuildParentLinks();
             log.info("state machine recover from local image success");
         } catch (IOException e) {

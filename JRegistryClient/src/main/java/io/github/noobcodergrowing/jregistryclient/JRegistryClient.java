@@ -43,6 +43,21 @@ public class JRegistryClient {
     }
 
     public Pair<byte[], String> get(String key) {
+        KV kv = getWithStatus(key);
+        return kv == null ? null : new Pair<>(kv.getData(), kv.getDataType());
+    }
+
+    /**
+     * 与 {@link #get} 相同，但额外带出该 key 所属客户端的二值状态
+     * （{@link KV#isOffline()}：{@code false} = 生效，{@code true} = 离线）。
+     *
+     * <p>服务端在客户端心跳连续超时 / 连接断开 / 其 owner 节点失效时只把该客户端标成离线，
+     * 不再删除它 set 过的 key —— 所以数据仍在，只是状态变了。
+     * 由 SSH / Admin 写入、没有归属客户端的 key 恒为 {@code false}。
+     *
+     * <p>key 不存在或超时返回 {@code null}。
+     */
+    public KV getWithStatus(String key) {
         requireConnected();
         RaftRequest request = new RaftRequest();
         request.setType("get");
@@ -63,11 +78,11 @@ public class JRegistryClient {
         try {
             RaftRequest reply = future.get(TASK_TIMEOUT_MS, TimeUnit.MILLISECONDS);
             if (reply.isSuccess()) {
-                return new Pair<>(reply.getData(), reply.getDataType());
+                return new KV(reply.getKey(), reply.getData(), reply.getDataType(), reply.isOffline());
             }
             return null;
         } catch (Exception e) {
-            log.error("get failed: {}", e.getMessage());
+            log.error("getWithStatus failed: {}", e.getMessage());
             return null;
         }
     }

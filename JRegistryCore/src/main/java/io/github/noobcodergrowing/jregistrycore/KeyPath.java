@@ -38,6 +38,14 @@ public final class KeyPath {
         return body.split(SEPARATOR);
     }
 
+    /**
+     * 规范化 key：去掉首尾分隔符后重新拼接，使 {@code a/b} 与 {@code /a/b/} 得到同一个结果。
+     * 归属表以规范化后的路径为主键，避免同一个 key 被记成两种写法。
+     */
+    public static String normalize(String key) {
+        return String.join(SEPARATOR, split(key));
+    }
+
     /** key 是否合法：非空且不存在空段。 */
     public static boolean isValid(String key) {
         try {

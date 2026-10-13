@@ -1,6 +1,7 @@
 package io.github.noobcodergrowing.jregistryclient;
 
 import com.alibaba.fastjson.JSON;
+import com.github.f4b6a3.uuid.UuidCreator;
 import io.github.noobcodergrowing.jregistrycore.RPC.RaftRequest;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
@@ -40,6 +41,13 @@ public class NettyClient {
     private final AtomicBoolean reconnectScheduled = new AtomicBoolean(false);
     private final AtomicBoolean connecting = new AtomicBoolean(false);
     private final AtomicBoolean shutdownHookRegistered = new AtomicBoolean(false);
+
+    /**
+     * 本客户端实例的稳定身份，随实例生命周期不变、跨重连不变。
+     * 服务端靠它把「换了一条连接回来的同一个客户端」认成同一个 client，
+     * 从而只做接管、不误删它此前 set 的 key。
+     */
+    private final String clientId = UuidCreator.getTimeOrderedEpoch().toString();
 
     private volatile Channel channel;
     private volatile Consumer<String> messageListener;
@@ -163,7 +171,29 @@ public class NettyClient {
     }
 
     public void sendRequest(RaftRequest request) {
+        // 单点注入：所有出站请求都带上本客户端的身份，服务端据此建立/接管租约。
+        if (request.getClientId() == null) {
+            request.setClientId(clientId);
+        }
         send(JSON.toJSONString(request));
+    }
+
+    /**
+     * 发一次客户端心跳。由 write-idle 事件驱动：只要一段时间没写，就补一发，
+     * 让服务端知道这条连接活着。断开时静默丢弃，不抛异常。
+     */
+    public void sendHeartbeat() {
+        if (!isConnected()) {
+            return;
+        }
+        RaftRequest heartbeat = new RaftRequest();
+        heartbeat.setType("clientHeartbeat");
+        heartbeat.setClientId(clientId);
+        try {
+            send(JSON.toJSONString(heartbeat));
+        } catch (RuntimeException e) {
+            log.debug("client heartbeat skipped: {}", e.getMessage());
+        }
     }
 
     void onMessage(String message) {

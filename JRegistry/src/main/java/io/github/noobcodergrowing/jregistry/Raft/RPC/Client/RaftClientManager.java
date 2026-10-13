@@ -36,6 +36,8 @@ public class RaftClientManager {
     
     private final ConcurrentHashMap<Integer, Channel> peerChannels = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, String> peerAddresses = new ConcurrentHashMap<>();
+    /** peer 最近一次给出响应（或连接刚建立）的墙钟时间；leader 侧据此判定 peer 是否已失效。 */
+    private final ConcurrentHashMap<Integer, Long> peerLastSeen = new ConcurrentHashMap<>();
     private ConcurrentHashMap<Integer, AtomicBoolean> reconnectLock = new ConcurrentHashMap<>();
 
     @Autowired
@@ -75,15 +77,25 @@ public class RaftClientManager {
         }
    }
 
-   
+
     // 初始化：配置所有 peer 节点的地址
     public void initPeers(Map<Integer, String> peers) {
         peerAddresses.putAll(peers);
         for (Map.Entry<Integer, String> entry : peers.entrySet()) {
             reconnectLock.put(entry.getKey(), new AtomicBoolean(false));
+            // 启动时先假定所有 peer 都活着，之后靠真实响应刷新；一直不响应的会在阈值后被判失效。
+            peerLastSeen.put(entry.getKey(), System.currentTimeMillis());
         }
     }
-    
+
+    /**
+     * 记录该 peer 仍然活着。任何来自它的入站消息、以及连接建立事件，都算证据。
+     * leader 侧的孤儿会话回收靠这个信号判定某个 peer 是否已经失效。
+     */
+    public void recordPeerAlive(int nodeId) {
+        peerLastSeen.put(nodeId, System.currentTimeMillis());
+    }
+
     // 连接到指定节点
     public void connectToPeer(int nodeId, String host, int port) {
         

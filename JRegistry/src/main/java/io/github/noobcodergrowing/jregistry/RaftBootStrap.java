@@ -7,6 +7,7 @@ import io.github.noobcodergrowing.jregistry.Services.Persist.PersistService;
 import org.springframework.stereotype.Component;
 import io.github.noobcodergrowing.jregistry.Raft.RPC.Server.RaftServerManager;
 import io.github.noobcodergrowing.jregistry.Raft.RPC.Client.RaftClientManager;
+import io.github.noobcodergrowing.jregistry.Services.ClientSessionService;
 import io.github.noobcodergrowing.jregistry.Services.Timer.TimeoutService;
 
 @Component
@@ -24,11 +25,15 @@ public class RaftBootStrap implements ApplicationRunner{
     @Autowired
     private TimeoutService timeoutService;
 
+    @Autowired
+    private ClientSessionService clientSessionService;
+
     @Override
     public void run(ApplicationArguments args) throws Exception {
         persistService.autoRecovery();
         raftServerManager.start();
         raftClientManager.start();
+        clientSessionService.start();
         timeoutService.timeoutStart();
     }
 }
