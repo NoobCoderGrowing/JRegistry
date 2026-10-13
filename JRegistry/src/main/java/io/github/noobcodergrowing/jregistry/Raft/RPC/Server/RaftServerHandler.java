@@ -45,6 +45,12 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
 
     private ClientSessionService clientSessionService;
 
+    /**
+     * 这条连接是不是 Raft peer（收到过 shakeHand）。用来把「客户端发来的请求」和
+     * 「peer 转发过来的请求」区分开——后者绝不代表本节点收留了一个客户端连接。
+     */
+    private volatile boolean peerConnection;
+
     public RaftServerHandler(RaftServerManager raftServer, AppendEntriesService appendEntriesService,
         RequestVoteService requestVoteService, RaftNode raftNode, LogService logService,
         ThreadPoolExecutor writePool, PersistService persistService, StateMachine stateMachine,
@@ -77,6 +83,8 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
                     reply = requestVoteService.serverHandleRequestVoteRequest(request);
                     break;
                 case "shakeHand":
+                    // 打过招呼的连接是 Raft peer，不是客户端。
+                    peerConnection = true;
                     reply = appendEntriesService.handleShakeHandsRequest(request, this, ctx.channel());
                     break;
                 case "installSnapshot":
@@ -88,11 +96,11 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
                 case "clientHeartbeat":
                     // 客户端心跳：只是"这条连接还活着"的证据。绝不能复用 "heartbeat" 这个名字——
                     // 那个会被 serverHandleHeartbeatRequest 当成 leader 心跳、刷新选举超时。
-                    clientSessionService.onHeartbeat(request.getClientId(), ctx.channel());
+                    touchIfClient(request, ctx);
                     break;
                 case "writeRequest":
                     // touch 必须在处理写之前：它决定 clientAttach 与首条 set 的日志先后。
-                    clientSessionService.touch(request.getClientId(), ctx.channel());
+                    touchIfClient(request, ctx);
                     reply = logService.handleWriteRequest(request);
                     break;
                 case "persist":
@@ -101,12 +109,17 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
                 case "compact":
                     persistService.handleCompactRequest();
                     break;
+                case "pickNode":
+                    // 连接负载均衡的选点查询。纯查询：不 touch、不建会话，否则客户端问一次
+                    // 就会在当前节点留下一个会话，等于自己给自己加负载。
+                    reply = clientSessionService.handlePickNodeRequest(request);
+                    break;
                 case "get":
-                    clientSessionService.touch(request.getClientId(), ctx.channel());
+                    touchIfClient(request, ctx);
                     reply = stateMachine.handleGetRequest(request);
                     break;
                 case "ls":
-                    clientSessionService.touch(request.getClientId(), ctx.channel());
+                    touchIfClient(request, ctx);
                     reply = stateMachine.handleLsRequest(request);
                     break;
                 default:
@@ -125,6 +138,20 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
         
     }
     
+    /**
+     * 记录一次客户端入站流量——<b>但只对真正的客户端连接</b>。
+     *
+     * <p>follower 收到客户端的写之后会把原始请求转发给 leader（{@code redirectWriteRequest2Leader}）。
+     * leader 侧读到的是同一条 {@code writeRequest}，但它带的是<b>别人的</b>客户端连接：如果在这里
+     * 也 touch，leader 就会给一个连在 follower 上的客户端凭空建一个归属自己的会话，
+     * 既污染各节点的连接数（选点就偏了），也会在 peer 连接断开时去动这个会话。
+     */
+    private void touchIfClient(RaftRequest request, ChannelHandlerContext ctx) {
+        if (!peerConnection) {
+            clientSessionService.touch(request.getClientId(), ctx.channel());
+        }
+    }
+
     @Override
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) {
         if (evt instanceof IdleStateEvent) {

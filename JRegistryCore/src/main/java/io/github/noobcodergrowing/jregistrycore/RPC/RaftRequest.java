@@ -2,6 +2,7 @@ package io.github.noobcodergrowing.jregistrycore.RPC;
 
 import lombok.Data;
 import io.github.noobcodergrowing.jregistrycore.KV;
+import io.github.noobcodergrowing.jregistrycore.NodeAddress;
 import io.github.noobcodergrowing.jregistrycore.Log.LogEntry;
 import io.github.noobcodergrowing.jregistrycore.StateMachine;
 import java.util.UUID;
@@ -49,4 +50,7 @@ public class RaftRequest {
 
     /** 读回复里带出的二值状态：false = 生效，true = 该 key 所属客户端已离线。 */
     private boolean offline;
+
+    /** pickNode 回复：按当前连接数升序排好的候选节点，客户端从头开始试。 */
+    private List<NodeAddress> nodes;
 }

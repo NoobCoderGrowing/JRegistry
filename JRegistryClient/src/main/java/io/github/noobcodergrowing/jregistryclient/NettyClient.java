@@ -2,6 +2,7 @@ package io.github.noobcodergrowing.jregistryclient;
 
 import com.alibaba.fastjson.JSON;
 import com.github.f4b6a3.uuid.UuidCreator;
+import io.github.noobcodergrowing.jregistrycore.NodeAddress;
 import io.github.noobcodergrowing.jregistrycore.RPC.RaftRequest;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
@@ -17,9 +18,13 @@ import io.netty.handler.codec.string.StringDecoder;
 import io.netty.handler.codec.string.StringEncoder;
 import io.netty.handler.timeout.IdleStateHandler;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import javax.annotation.PreDestroy;
 
 import lombok.Data;
@@ -32,15 +37,34 @@ public class NettyClient {
     private static final int RECONNECT_DELAY_SECONDS = 5;
     private  int CONNECT_TIMEOUT_MILLIS = 5000;
     private static final int HEARTBEAT_INTERVAL_SECONDS = 10;
+    /** 连续重连失败多少次后换下一个候选节点（配合 5s 重连间隔 ≈ 20s 才搬家）。 */
+    private static final int FAILOVER_AFTER_FAILED_ATTEMPTS = 3;
 
-    private String host;
+    private volatile String host;
 
-    private int port;
+    private volatile int port;
 
     private final EventLoopGroup group = new NioEventLoopGroup(1);
+
+    /**
+     * 重连专用线程。<b>不能在 Netty 的 event loop 上跑 {@link #connectSync()}</b>——它内部
+     * {@code future.await(...)} 会阻塞，而 connect 的 future 正好由同一个 event loop 完成，
+     * 于是 Netty 直接抛 BlockingOperationException（这就是原来「断线后重连」从来没生效过的原因）。
+     */
+    private final ExecutorService reconnectExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread thread = new Thread(r, "jregistry-reconnect");
+        thread.setDaemon(true);
+        return thread;
+    });
+
     private final AtomicBoolean reconnectScheduled = new AtomicBoolean(false);
     private final AtomicBoolean connecting = new AtomicBoolean(false);
     private final AtomicBoolean shutdownHookRegistered = new AtomicBoolean(false);
+    private final AtomicBoolean closed = new AtomicBoolean(false);
+    private final AtomicInteger consecutiveFailures = new AtomicInteger(0);
+
+    /** 连续重连失败后由它给出下一个候选地址；为 null 表示不做故障转移（单地址模式）。 */
+    private volatile Supplier<NodeAddress> failoverTargetSupplier;
 
     /**
      * 本客户端实例的稳定身份，随实例生命周期不变、跨重连不变。
@@ -144,21 +168,86 @@ public class NettyClient {
 
     /** Background reconnect after disconnect; does not block. */
     void connectAsync() {
-        if (isConnected() || connecting.get()) {
+        if (closed.get() || isConnected() || connecting.get()) {
             return;
         }
-        group.execute(this::connectSync);
+        reconnectExecutor.execute(this::tryReconnect);
+    }
+
+    /**
+     * 重连循环：试一次，失败就把下一次排上。
+     *
+     * <p>这一步是必要的——原来的实现只在 {@code channelInactive} 时排一次重试，而失败的
+     * {@code connectSync} 既不会产生 channelInactive 也不会自己再排一次，所以目标一旦连不上，
+     * 循环当场就断了（注释里写的 "reconnect forever" 其实只重试一次）。
+     * 连续失败到阈值后就换下一个候选节点，这就是运行期的故障转移。
+     */
+    private void tryReconnect() {
+        if (closed.get() || isConnected()) {
+            return;
+        }
+        if (consecutiveFailures.incrementAndGet() > FAILOVER_AFTER_FAILED_ATTEMPTS) {
+            moveToNextCandidate();
+        }
+        if (connectSync()) {
+            consecutiveFailures.set(0);
+        } else if (!closed.get()) {
+            scheduleReconnect();
+        }
+    }
+
+    /** 走到候选列表的下一个节点；没有候选（单地址模式）时原地不动。 */
+    private void moveToNextCandidate() {
+        Supplier<NodeAddress> supplier = failoverTargetSupplier;
+        if (supplier == null) {
+            return;
+        }
+        NodeAddress next = supplier.get();
+        if (next == null) {
+            return;
+        }
+        log.warn("netty client found {}:{} unreachable after {} attempts, failing over to {}:{}",
+                host, port, consecutiveFailures.get(), next.getHost(), next.getPort());
+        host = next.getHost();
+        port = next.getPort();
+        consecutiveFailures.set(0);
+    }
+
+    /** 设置候选地址来源；传 null 关闭故障转移。 */
+    public void setFailoverTargetSupplier(Supplier<NodeAddress> supplier) {
+        this.failoverTargetSupplier = supplier;
     }
 
     public void scheduleReconnect() {
-        if (reconnectScheduled.compareAndSet(false, true)) {
-            group.schedule(() -> {
-                reconnectScheduled.set(false);
-                if (!isConnected()) {
-                    connectAsync();
-                }
-            }, RECONNECT_DELAY_SECONDS, TimeUnit.SECONDS);
+        if (closed.get() || !reconnectScheduled.compareAndSet(false, true)) {
+            return;
         }
+        group.schedule(() -> {
+            reconnectScheduled.set(false);
+            if (!isConnected()) {
+                connectAsync();
+            }
+        }, RECONNECT_DELAY_SECONDS, TimeUnit.SECONDS);
+    }
+
+    /**
+     * 换一个目标地址并重连（用于服务端下发的选点结果）。目标没变且已连接时直接返回，
+     * 所以「候选首位的恰好就是当前节点」这种情况不会白白断一次连接。
+     *
+     * <p>目标一旦切换，后续的自动重连（{@link #scheduleReconnect}）也会跟着走新地址。
+     */
+    public boolean reconnectTo(String host, int port) {
+        if (isConnected() && this.host.equals(host) && this.port == port) {
+            return true;
+        }
+        this.host = host;
+        this.port = port;
+        Channel current = channel;
+        if (current != null && current.isOpen()) {
+            channel = null; // 先摘引用，避免断开回调里的重连把旧连接又拉起来
+            current.close();
+        }
+        return connectSync();
     }
 
     public void send(String message) {
@@ -205,9 +294,11 @@ public class NettyClient {
 
     @PreDestroy
     public void shutdown() {
+        closed.set(true); // 先停掉重连循环，否则关掉线程组之后它还会继续排重试
         if (channel != null && channel.isOpen()) {
             channel.close();
         }
+        reconnectExecutor.shutdownNow();
         group.shutdownGracefully();
         log.info("netty client shutdown");
     }

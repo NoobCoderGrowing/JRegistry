@@ -1,6 +1,7 @@
 package io.github.noobcodergrowing.jregistryclient;
 
 import io.github.noobcodergrowing.jregistrycore.KV;
+import io.github.noobcodergrowing.jregistrycore.NodeAddress;
 import io.github.noobcodergrowing.jregistrycore.Pair;
 import io.github.noobcodergrowing.jregistrycore.RPC.RaftRequest;
 import com.github.f4b6a3.uuid.UuidCreator;
@@ -8,6 +9,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import com.alibaba.fastjson.JSON;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -16,20 +18,130 @@ public class JRegistryClient {
 
     private final NettyClient nettyClient;
 
+    /** 是否在连接时向服务端查询选点结果（连接负载均衡）。 */
+    private final boolean serverSideBalancing;
+
+    /** 上一次拿到的候选节点（按连接数升序）。运行期故障转移就在这份列表上轮转。 */
+    private volatile List<NodeAddress> candidates = List.of();
+
+    /** 当前落在候选列表的第几位，故障转移时从它往后走。 */
+    private final AtomicInteger candidateIndex = new AtomicInteger(-1);
+
     public JRegistryClient(String host, int port, long taskTimeoutMs, int connectTimeoutMillis) {
+        this(host, port, taskTimeoutMs, connectTimeoutMillis, false);
+    }
+
+    /**
+     * @param serverSideBalancing 为 true 时把 {@code host:port} 当作<b>种子地址</b>：连上后向服务端
+     *        查询当前连接数最少的节点并迁过去。客户端因此只需配置一个地址、不必知道全量拓扑，
+     *        也不会所有客户端都挤在同一个节点上。
+     */
+    public JRegistryClient(String host, int port, long taskTimeoutMs, int connectTimeoutMillis,
+                           boolean serverSideBalancing) {
         this.nettyClient = new NettyClient(host, port, connectTimeoutMillis);
         this.TASK_TIMEOUT_MS = taskTimeoutMs;
+        this.serverSideBalancing = serverSideBalancing;
     }
 
     /**
      * Connect synchronously; returns true only when the TCP channel is active.
+     *
+     * <p>开启选点时会先连种子地址、问一次选点结果，再迁到候选首位；全部候选都连不上时退回种子。
      */
     public boolean connect() {
-        return nettyClient.connectSync();
+        if (!nettyClient.connectSync()) {
+            return false;
+        }
+        if (serverSideBalancing) {
+            relocateByServerHint();
+        }
+        return nettyClient.isConnected();
     }
 
     public boolean isConnected() {
         return nettyClient.isConnected();
+    }
+
+    /**
+     * 问一次种子节点要候选列表，迁到首位；首位连不上就依次往下试，全都不通时退回种子地址。
+     *
+     * <p>候选列表是服务端按各节点当前在线连接数排好序的，所以客户端的分散度直接来自服务端
+     * 对复制状态机的计数——客户端本地不做任何负载判断。
+     */
+    private void relocateByServerHint() {
+        String seedHost = nettyClient.getHost();
+        int seedPort = nettyClient.getPort();
+
+        List<NodeAddress> ranked = requestNodeRanking();
+        if (ranked.isEmpty()) {
+            log.warn("pickNode returned no candidate, staying on seed {}:{}", seedHost, seedPort);
+            return;
+        }
+        candidates = ranked;
+        // 把候选列表交给传输层：连续重连失败时它会来问下一个节点。
+        nettyClient.setFailoverTargetSupplier(this::nextCandidate);
+
+        for (int i = 0; i < ranked.size(); i++) {
+            NodeAddress node = ranked.get(i);
+            if (nettyClient.reconnectTo(node.getHost(), node.getPort())) {
+                candidateIndex.set(i);
+                log.info("client {} placed on node {} ({}:{})",
+                        nettyClient.getClientId(), node.getNodeId(), node.getHost(), node.getPort());
+                return;
+            }
+            log.warn("candidate node {} ({}:{}) unreachable, trying next",
+                    node.getNodeId(), node.getHost(), node.getPort());
+        }
+        // 遍历过程中可能把原本好好的种子连接断掉了，兜回来。
+        log.error("no candidate node reachable, falling back to seed {}:{}", seedHost, seedPort);
+        nettyClient.reconnectTo(seedHost, seedPort);
+    }
+
+    /**
+     * 运行期故障转移的目标：在候选列表上轮转，跳过当前地址。
+     *
+     * <p>只做存活意义上的转移，<b>不重新选点</b>——重新按连接数选点会让连接在节点间来回搬家。
+     * 列表只有一项、或整份列表都指向当前地址时返回 {@code null}，表示原地继续重试。
+     */
+    private NodeAddress nextCandidate() {
+        List<NodeAddress> list = candidates;
+        if (list.isEmpty()) {
+            return null;
+        }
+        for (int i = 0; i < list.size(); i++) {
+            NodeAddress node = list.get(Math.floorMod(candidateIndex.incrementAndGet(), list.size()));
+            if (!node.getHost().equals(nettyClient.getHost())
+                    || node.getPort() != nettyClient.getPort()) {
+                return node;
+            }
+        }
+        return null;
+    }
+
+    /** 向当前连接索要一份按连接数升序的候选节点列表；失败返回空列表。 */
+    private List<NodeAddress> requestNodeRanking() {
+        RaftRequest request = new RaftRequest();
+        request.setType("pickNode");
+        request.setUuid(UuidCreator.getTimeOrderedEpoch());
+        CompletableFuture<RaftRequest> future = new CompletableFuture<>();
+        nettyClient.setMessageListener(message -> {
+            RaftRequest reply = JSON.parseObject(message, RaftRequest.class);
+            if (reply == null || reply.getUuid() == null) {
+                return;
+            }
+            if (reply.getUuid().equals(request.getUuid())) {
+                future.complete(reply);
+            }
+        });
+        nettyClient.sendRequest(request);
+
+        try {
+            RaftRequest reply = future.get(TASK_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+            return reply.getNodes() == null ? List.of() : reply.getNodes();
+        } catch (Exception e) {
+            log.warn("pickNode request failed: {}", e.getMessage());
+            return List.of();
+        }
     }
 
     public void shutdown() {

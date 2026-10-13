@@ -2,6 +2,7 @@ package io.github.noobcodergrowing.jregistry.Services;
 
 import io.github.noobcodergrowing.jregistry.Raft.Log.LogService;
 import io.github.noobcodergrowing.jregistry.Raft.RPC.Client.RaftClientManager;
+import io.github.noobcodergrowing.jregistrycore.NodeAddress;
 import io.github.noobcodergrowing.jregistrycore.RPC.RaftRequest;
 import io.github.noobcodergrowing.jregistrycore.Raft.RaftNode;
 import io.github.noobcodergrowing.jregistrycore.SessionInfo;
@@ -15,6 +16,9 @@ import org.springframework.stereotype.Service;
 
 import javax.annotation.PreDestroy;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -81,6 +85,10 @@ public class ClientSessionService {
 
     @Autowired
     private RaftClientManager raftClientManager;
+
+    /** 集群里其余节点的地址，用于给客户端下发完整候选列表（自己的地址取自 raftNode）。 */
+    @Value("#{${raft.peers:{}}}")
+    private Map<Integer, String> peers;
 
     /** 连续超时多少次后判定连接已死。 */
     @Value("${registry.client-heartbeat.max-misses:3}")
@@ -304,6 +312,61 @@ public class ClientSessionService {
         if (session != null && session.channel == channel) {
             byClient.remove(clientId, session);
         }
+    }
+
+    // ------------------------------------------------------------ 连接负载均衡：选点
+
+    /**
+     * 回答「我该连哪个节点」，返回一份按当前连接数升序排好的候选列表。
+     *
+     * <p>负载视图<b>直接取自复制的状态机</b>：每个会话都带 {@code ownerNodeId} 和 {@code offline}，
+     * 按 owner 数一遍在线会话就是各节点持有的连接数——不需要任何额外的上报或计数通道。
+     * 因此任何节点都能给出同一个答案。
+     *
+     * <p>这是一次纯查询：<b>不建会话、不改变任何状态</b>。客户端连上种子地址问一次，
+     * 再迁到列表首位（连不上就依次往下试）。
+     */
+    public RaftRequest handlePickNodeRequest(RaftRequest request) {
+        RaftRequest reply = new RaftRequest();
+        reply.setType("pickNode");
+        reply.setUuid(request.getUuid());
+        reply.setNodes(rankNodes(request.getClientId()));
+        reply.setSuccess(true);
+        return reply;
+    }
+
+    /**
+     * 节点按（在线连接数升序，同数内按 clientId 打散）排序。
+     *
+     * <p>为什么要按 clientId 打散：集群空闲时所有节点连接数都是 0，若同数就按固定顺序排，
+     * 那么所有客户端会拿到同一个首选、全挤到同一台上去。用 clientId 作种子把同数节点的顺序
+     * 伪随机化，不同客户端自然分到不同节点，而且同一个客户端每次问到的顺序是稳定的。
+     */
+    private List<NodeAddress> rankNodes(String clientId) {
+        Map<Integer, NodeAddress> all = new LinkedHashMap<>();
+        all.put(raftNode.getId(),
+                new NodeAddress(raftNode.getId(), raftNode.getHost(), raftNode.getPort()));
+        for (Map.Entry<Integer, String> peer : peers.entrySet()) {
+            String[] hostPort = peer.getValue().split(":");
+            if (hostPort.length == 2) {
+                all.put(peer.getKey(),
+                        new NodeAddress(peer.getKey(), hostPort[0], Integer.parseInt(hostPort[1])));
+            }
+        }
+
+        Map<Integer, Integer> connections = new HashMap<>();
+        for (SessionInfo session : stateMachine.getSessions().values()) {
+            if (!session.isOffline()) {
+                connections.merge(session.getOwnerNodeId(), 1, Integer::sum);
+            }
+        }
+
+        int clientSeed = clientId == null ? 0 : clientId.hashCode();
+        List<NodeAddress> ranked = new ArrayList<>(all.values());
+        ranked.sort(Comparator
+                .comparingInt((NodeAddress node) -> connections.getOrDefault(node.getNodeId(), 0))
+                .thenComparingInt(node -> Math.floorMod(clientSeed * 31 + node.getNodeId(), 1000003)));
+        return ranked;
     }
 
     // ------------------------------------------------------------ leader 侧孤儿会话回收
