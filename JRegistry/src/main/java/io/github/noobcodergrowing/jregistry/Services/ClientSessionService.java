@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -66,10 +67,15 @@ public class ClientSessionService {
     /** 本节点成为 leader 的时刻；-1 表示当前不是 leader。用于给新上任的 leader 一段宽限期。 */
     private volatile long leaderSinceMillis = -1;
 
-    /** 已签发释放、但还没在状态机里落地的 clientId -> 它失效时的 owner，避免每轮重复签发。 */
-    private final Map<String, Integer> pendingRelease = new ConcurrentHashMap<>();
+    /**
+     * 已签发状态变更、但还没在状态机里落地的 clientId -> 它当时的 owner。
+     * 两条 leader 侧扫描（peer 会话回收 / 离线数据 TTL 回收）共用，避免每轮重复签发。
+     */
+    private final Map<String, Integer> pendingCommand = new ConcurrentHashMap<>();
 
     private volatile ScheduledFuture<?> sweepFuture;
+
+    private volatile ScheduledFuture<?> reclaimFuture;
 
     @Autowired
     private LogService logService;
@@ -114,6 +120,21 @@ public class ClientSessionService {
     /** 新 leader 上任后的宽限期：peer 连接可能还没建起来，这段时间内不判任何 peer 失效。 */
     @Value("${registry.session-sweep.leader-grace-seconds:30}")
     private int leaderGraceSeconds;
+
+    /** 离线数据 TTL 回收：客户端离线超过 ttl 之后，删掉它离线期间留下的 key。 */
+    @Value("${registry.offline-reclaim.enabled:true}")
+    private boolean reclaimEnabled;
+
+    /** 离线多久之后回收它的 key。默认 24 小时。 */
+    @Value("${registry.offline-reclaim.ttl-seconds:86400}")
+    private long reclaimTtlSeconds;
+
+    /**
+     * 扫描间隔。它只决定「多久检查一次有没有到期的」，<b>不是 TTL 本身</b>——
+     * 若把这个也设成 24h，key 最长能活到 48h。
+     */
+    @Value("${registry.offline-reclaim.interval-seconds:600}")
+    private int reclaimIntervalSeconds;
 
     // ------------------------------------------------------------------ 入站
 
@@ -303,6 +324,20 @@ public class ClientSessionService {
         logService.handleWriteRequest(request);
     }
 
+    /**
+     * 签发一次离线数据回收判决。它删的是 key（不像 {@code clientOffline} 只翻状态），
+     * 且比 {@code clientOffline} 多一条守卫：apply 时要求该会话<b>仍然处于离线</b>。
+     */
+    private void issueReapOffline(String clientId, long epoch, int ownerNodeId) {
+        RaftRequest request = new RaftRequest();
+        request.setType("writeRequest");
+        request.setCmd("reapOffline");
+        request.setClientId(clientId);
+        request.setClientEpoch(epoch);
+        request.setOwnerNodeId(ownerNodeId);
+        logService.handleWriteRequest(request);
+    }
+
     /** 摘掉本地活性状态；若客户端已经重连（绑定到了别的 channel），不动新连接的状态。 */
     private void dropLocal(String clientId, Channel channel) {
         if (channel != null) {
@@ -381,14 +416,43 @@ public class ClientSessionService {
      * 不滞后，落后的节点可能还没 apply 到最近的日志就误判租约过期。
      */
     public void start() {
-        if (!sweepEnabled) {
+        if (sweepEnabled) {
+            sweepFuture = singleGroup.scheduleWithFixedDelay(this::sweepTick,
+                    sweepIntervalSeconds, sweepIntervalSeconds, TimeUnit.SECONDS);
+            log.info("node {} session sweep started: interval {}s, peer-dead {}s, leader-grace {}s",
+                    raftNode.getId(), sweepIntervalSeconds, peerDeadThresholdSeconds, leaderGraceSeconds);
+        } else {
             log.info("node {} session sweep disabled", raftNode.getId());
-            return;
         }
-        sweepFuture = singleGroup.scheduleWithFixedDelay(this::sweepTick,
-                sweepIntervalSeconds, sweepIntervalSeconds, TimeUnit.SECONDS);
-        log.info("node {} session sweep started: interval {}s, peer-dead {}s, leader-grace {}s",
-                raftNode.getId(), sweepIntervalSeconds, peerDeadThresholdSeconds, leaderGraceSeconds);
+
+        if (reclaimEnabled) {
+            reclaimFuture = singleGroup.scheduleWithFixedDelay(this::reclaimTick,
+                    reclaimIntervalSeconds, reclaimIntervalSeconds, TimeUnit.SECONDS);
+            log.info("node {} offline key reclaim started: ttl {}s, scan interval {}s",
+                    raftNode.getId(), reclaimTtlSeconds, reclaimIntervalSeconds);
+        } else {
+            log.info("node {} offline key reclaim disabled", raftNode.getId());
+        }
+    }
+
+    /**
+     * leader 且已过上任宽限期才动手。两条 leader 侧扫描（peer 会话回收、离线数据 TTL 回收）
+     * 都靠它把关：只有 leader 能保证自己的 applied 状态不滞后，落后节点可能还没 apply 到
+     * 最近的日志就误判。
+     */
+    private boolean leaderSettled() {
+        if (!raftNode.getIsLeader().get()) {
+            leaderSinceMillis = -1; // 掉下 leader 就重置宽限，下次上任重新计时
+            return false;
+        }
+        long now = System.currentTimeMillis();
+        if (leaderSinceMillis < 0) {
+            leaderSinceMillis = now;
+            log.info("node {} became leader, leader-side scans in grace period for {}s",
+                    raftNode.getId(), leaderGraceSeconds);
+            return false;
+        }
+        return now - leaderSinceMillis >= leaderGraceSeconds * 1000L;
     }
 
     private void sweepTick() {
@@ -396,24 +460,12 @@ public class ClientSessionService {
             return;
         }
         try {
-            if (!raftNode.getIsLeader().get()) {
-                leaderSinceMillis = -1; // 掉下 leader 就重置宽限，下次上任重新计时
+            if (!leaderSettled()) {
                 return;
             }
+            prunePendingCommands();
+
             long now = System.currentTimeMillis();
-            if (leaderSinceMillis < 0) {
-                // 刚上任：到各 peer 的连接可能还没建立、也还没收到过任何响应，先给一段宽限。
-                leaderSinceMillis = now;
-                log.info("node {} became leader, session sweep in grace period for {}s",
-                        raftNode.getId(), leaderGraceSeconds);
-                return;
-            }
-            if (now - leaderSinceMillis < leaderGraceSeconds * 1000L) {
-                return;
-            }
-
-            prunePendingRelease();
-
             for (Map.Entry<Integer, Long> peer : raftClientManager.getPeerLastSeen().entrySet()) {
                 if (now - peer.getValue() <= peerDeadThresholdSeconds * 1000L) {
                     continue;
@@ -425,9 +477,46 @@ public class ClientSessionService {
         }
     }
 
-    /** 已释放的会话一旦从状态机消失（或已被别人接管），去重标记就没必要留着了。 */
-    private void prunePendingRelease() {
-        pendingRelease.entrySet().removeIf(entry -> {
+    /**
+     * 离线数据的 TTL 回收：离线时刻早于 {@code now - ttl} 的会话，把它名下的 key 真正删掉。
+     *
+     * <p>「到没到期」是在这里按本地时钟判定的（非确定性），但**判决结果以日志条目落地**，
+     * apply 阶段只校验「仍然离线且归属未变」——所以各副本一致、重放也一致。
+     * 与 peer 无关，只取决于会话自己的离线时长。
+     */
+    private void reclaimTick() {
+        if (!running.get() || !reclaimEnabled) {
+            return;
+        }
+        try {
+            if (!leaderSettled()) {
+                return;
+            }
+            prunePendingCommands();
+
+            long cutoff = System.currentTimeMillis() - reclaimTtlSeconds * 1000L;
+            Set<String> expired = stateMachine.sessionsOfflineBefore(cutoff);
+            if (expired.isEmpty()) {
+                return;
+            }
+            log.warn("node {} reclaiming {} client session(s) offline for more than {}s: {}",
+                    raftNode.getId(), expired.size(), reclaimTtlSeconds, expired);
+            for (String clientId : expired) {
+                SessionInfo session = stateMachine.getSession(clientId);
+                if (session == null || !session.isOffline() || pendingCommand.containsKey(clientId)) {
+                    continue; // 已重新上线 / 已回收 / 判决还在途
+                }
+                pendingCommand.put(clientId, session.getOwnerNodeId());
+                issueReapOffline(clientId, session.getEpoch(), session.getOwnerNodeId());
+            }
+        } catch (Exception e) {
+            log.error("node {} offline reclaim error", raftNode.getId(), e);
+        }
+    }
+
+    /** 已签发的会话一旦从状态机消失（或已被别人接管），去重标记就没必要留着了。 */
+    private void prunePendingCommands() {
+        pendingCommand.entrySet().removeIf(entry -> {
             SessionInfo session = stateMachine.getSession(entry.getKey());
             return session == null || session.getOwnerNodeId() != entry.getValue();
         });
@@ -442,7 +531,7 @@ public class ClientSessionService {
     private void releaseSessionsOf(int peerId) {
         List<String> orphaned = new ArrayList<>();
         for (Map.Entry<String, SessionInfo> entry : stateMachine.getSessions().entrySet()) {
-            if (entry.getValue().getOwnerNodeId() == peerId && !pendingRelease.containsKey(entry.getKey())) {
+            if (entry.getValue().getOwnerNodeId() == peerId && !pendingCommand.containsKey(entry.getKey())) {
                 orphaned.add(entry.getKey());
             }
         }
@@ -456,7 +545,7 @@ public class ClientSessionService {
             if (session == null || session.getOwnerNodeId() != peerId) {
                 continue; // 刚被接管或已经释放掉了
             }
-            pendingRelease.put(clientId, peerId);
+            pendingCommand.put(clientId, peerId);
             issueClientOffline(clientId, session.getEpoch(), session.getOwnerNodeId());
         }
     }
@@ -467,6 +556,10 @@ public class ClientSessionService {
         ScheduledFuture<?> future = sweepFuture;
         if (future != null) {
             future.cancel(false);
+        }
+        ScheduledFuture<?> reclaim = reclaimFuture;
+        if (reclaim != null) {
+            reclaim.cancel(false);
         }
         byClient.clear();
         byChannel.clear();

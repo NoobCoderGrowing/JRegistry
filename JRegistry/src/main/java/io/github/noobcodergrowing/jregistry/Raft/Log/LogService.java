@@ -169,7 +169,7 @@ public class LogService {
 
     /** 会话命令不带 key，操作对象是 client 租约而不是 KV 路径。 */
     public static boolean isClientSessionCmd(String cmd){
-        return "clientAttach".equals(cmd) || "clientOffline".equals(cmd);
+        return "clientAttach".equals(cmd) || "clientOffline".equals(cmd) || "reapOffline".equals(cmd);
     }
 
     public void redirectWriteRequest2Leader(RaftRequest request){
@@ -195,6 +195,11 @@ public class LogService {
         logEntry.setClientId(request.getClientId());
         logEntry.setClientEpoch(request.getClientEpoch());
         logEntry.setOwnerNodeId(request.getOwnerNodeId());
+        // 离线时刻在这里盖一次戳：只有 leader 会走这条路径，之后随日志复制给所有副本，
+        // 于是各副本 apply 到的、以及日后重放到的，都是同一个值（在 applyLog 里现算就不是了）。
+        if("clientOffline".equals(request.getCmd())){
+            logEntry.setOfflineSinceMillis(System.currentTimeMillis());
+        }
         logger.add(logEntry);
         // raftNode.setLastLogIndex(logEntry.getIndex());
         // raftNode.setLastLogTerm(logEntry.getTerm());

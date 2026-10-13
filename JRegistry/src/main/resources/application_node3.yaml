@@ -43,6 +43,13 @@ registry:
     sweep-interval-seconds: 10
     peer-dead-threshold-seconds: 60
     leader-grace-seconds: 30
+  # 离线数据 TTL 回收：客户端离线超过 ttl-seconds 后，删掉它离线期间留下的 key。
+  # 注意 ttl-seconds 是「离线多久之后回收」，interval-seconds 只是「多久检查一次」——
+  # 若把 interval 也设成 24h，key 最长能活到 48h。
+  offline-reclaim:
+    enabled: true
+    ttl-seconds: 86400        # 24 小时
+    interval-seconds: 600     # 每 10 分钟扫一次有没有到期的
 
 ssh:
   enabled: true
