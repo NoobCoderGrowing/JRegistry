@@ -275,6 +275,7 @@ public class StateMachine {
         session.setOwnerNodeId(logEntry.getOwnerNodeId());
         session.setEpoch(session.getEpoch() + 1);
         session.setOffline(false);
+        session.setOfflineSinceMillis(0L); // 重新上线，离线计时清零
         log.info("node {} client {} attached to node {}, epoch {}, now online",
                 id, clientId, session.getOwnerNodeId(), session.getEpoch());
         return true;
@@ -312,11 +313,70 @@ public class StateMachine {
         }
 
         session.setOffline(true);
+        // 离线时刻由 leader 在追加日志时写进 LogEntry，这里只负责存下来——重放才能得到同一个值。
+        session.setOfflineSinceMillis(logEntry.getOfflineSinceMillis());
         log.info("node {} mark client {} offline (owner {} epoch {}), it still holds {} key(s)",
                 id, clientId, session.getOwnerNodeId(), session.getEpoch(), keysOwnedBy(clientId).size());
         // 离线且不再拥有任何 key 的空壳簿记就地回收；一条 key 数据都不动。
         collectOrphanSessionIfAny(clientId);
         return true;
+    }
+
+    /**
+     * 离线数据 TTL 回收的判决：删掉该客户端离线期间留下的所有 key，并连同会话记录一起移除。
+     *
+     * <p>守卫与 {@link #clientOffline} 同形，<b>只做确定性判断、不比较时间</b>：TTL 到没到是 leader
+     * 提议时按本地时钟判定的，apply 阶段只确认「这条判决针对的那一任归属仍然处于离线」。
+     * 客户端若在这期间重新上线过（epoch 涨了）、或者归属已经换了节点，判决就作废——
+     * 免得把刚续上的数据误删。
+     */
+    private boolean reapOffline(LogEntry logEntry){
+        String clientId = logEntry.getClientId();
+        if(clientId == null || clientId.isEmpty()){
+            return false;
+        }
+        SessionInfo session = sessions.get(clientId);
+        if(session == null){
+            log.warn("node {} ignore reapOffline for unknown client {}", id, clientId);
+            return false;
+        }
+        if(!session.isOffline()
+                || session.getEpoch() != logEntry.getClientEpoch()
+                || session.getOwnerNodeId() != logEntry.getOwnerNodeId()){
+            log.warn("node {} ignore stale reapOffline {}: entry(epoch={}, owner={}) current(epoch={}, owner={}, offline={})",
+                    id, clientId, logEntry.getClientEpoch(), logEntry.getOwnerNodeId(),
+                    session.getEpoch(), session.getOwnerNodeId(), session.isOffline());
+            return false;
+        }
+
+        Set<String> keys = keysOwnedBy(clientId);
+        for(String key : keys){
+            delete(key);
+        }
+        sessions.remove(clientId);
+        log.info("node {} reclaimed {} expired offline key(s) of client {} (offline since {})",
+                id, keys.size(), clientId, session.getOfflineSinceMillis());
+        return true;
+    }
+
+    /**
+     * 供 leader 侧回收扫描使用：仍处于离线、且离线时刻早于 {@code cutoffMillis} 的全部 clientId。
+     *
+     * <p>纯查询，不做任何修改——真正的删除仍要走 {@code reapOffline} 日志才能全集群收敛。
+     * {@code offlineSinceMillis == 0} 的会话（本特性上线前就已离线的那批）不在此列：
+     * 没有可信的起点就不动它，免得升级瞬间误删一批老数据。
+     */
+    public Set<String> sessionsOfflineBefore(long cutoffMillis){
+        Set<String> expired = ConcurrentHashMap.newKeySet();
+        for(Map.Entry<String, SessionInfo> entry : sessions.entrySet()){
+            SessionInfo session = entry.getValue();
+            if(session.isOffline()
+                    && session.getOfflineSinceMillis() > 0
+                    && session.getOfflineSinceMillis() < cutoffMillis){
+                expired.add(entry.getKey());
+            }
+        }
+        return expired;
     }
 
     /**
@@ -400,6 +460,9 @@ public class StateMachine {
                     break;
                 case "clientOffline":
                     success = clientOffline(logEntry);
+                    break;
+                case "reapOffline":
+                    success = reapOffline(logEntry);
                     break;
                 case "noOp":
                     success = true;

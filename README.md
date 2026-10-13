@@ -142,6 +142,10 @@ registry:
     sweep-interval-seconds: 10
     peer-dead-threshold-seconds: 60
     leader-grace-seconds: 30
+  offline-reclaim:           # 离线数据 TTL 回收：离线超过 ttl 后删掉它的 key
+    enabled: true
+    ttl-seconds: 86400       # 24 小时。注意这是「离线多久之后回收」
+    interval-seconds: 600    # 只是「多久扫一次」，别把它也设成 24h（那样 key 最长活 48h）
 
 ssh:
   enabled: true
@@ -266,6 +270,10 @@ public class Example {
 **离线状态。** 服务端为每个客户端连接维持一份租约。以下任一情况都会把该客户端标记为**离线**：连接断开、连续 `max-misses` 次心跳超时、或它所在的节点被判定失效。
 
 > **关键语义：只翻二值状态，不删除它写过的 key。** 数据仍在，只是状态变了。客户端重新连上（`clientId` 不变）即恢复「生效」。由 SSH / Admin 写入、没有归属客户端的 key 恒为「生效」。
+
+**离线数据的 TTL 回收。** 离线只是「先留着」，不是「永远留着」。Leader 会周期性扫描，把**离线超过 `ttl-seconds`**（默认 24 小时）的客户端名下的 key 真正删掉。
+
+> `ttl-seconds` 是「离线多久之后回收」，`interval-seconds` 只是「多久检查一次」，两者别混——把 interval 也设成 24h 会让 key 最长活到 48h。**在线客户端的 key 永远不会被回收**；客户端在 TTL 内重连即恢复生效、计时清零。集群升级前就处于离线状态的那批会话（没有可信的离线起点）不会被回收。
 
 状态随读结果带出：
 
@@ -521,6 +529,10 @@ registry:
     sweep-interval-seconds: 10
     peer-dead-threshold-seconds: 60
     leader-grace-seconds: 30
+  offline-reclaim:           # TTL sweep: delete a client's keys once it has been offline long enough
+    enabled: true
+    ttl-seconds: 86400       # 24h — this is "how long offline before reclaim"
+    interval-seconds: 600    # just "how often to scan"; don't set this to 24h too (keys would live up to 48h)
 
 ssh:
   enabled: true
@@ -642,7 +654,11 @@ public class Example {
 
 **Offline status.** The server keeps a lease per client connection. Any of these marks the client **offline**: the connection drops, `max-misses` consecutive heartbeats time out, or the node holding it is judged dead.
 
-> **Key semantics: only the binary status flips — the keys it wrote are never deleted.** The data stays; only the status changes. Reconnecting (same `clientId`) flips it back to active. Keys written via SSH / Admin have no owning client and are always active.
+> **Key semantics: only the binary status flips — the keys it wrote are not deleted at that point.** The data stays; only the status changes. Reconnecting (same `clientId`) flips it back to active. Keys written via SSH / Admin have no owning client and are always active.
+
+**TTL reclaim of offline data.** Offline is "kept for now", not "kept forever". The leader periodically scans and actually deletes the keys of any client that has been **offline longer than `ttl-seconds`** (default 24h).
+
+> `ttl-seconds` is "how long offline before reclaim"; `interval-seconds` is only "how often to scan" — don't conflate them (setting the interval to 24h too would let keys live up to 48h). Keys of a **live** client are never reclaimed; reconnecting within the TTL restores active status and resets the clock. Sessions that were already offline before this feature existed (no trustworthy start point) are left alone.
 
 The status rides along with read results:
 

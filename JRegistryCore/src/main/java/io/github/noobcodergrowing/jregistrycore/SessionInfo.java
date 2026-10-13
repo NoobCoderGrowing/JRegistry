@@ -24,4 +24,14 @@ public class SessionInfo {
      * 客户端重新连上（{@code clientAttach}）会把它翻回生效。
      */
     private boolean offline;
+
+    /**
+     * 何时被标为离线（墙钟毫秒，由 leader 在追加 {@code clientOffline} 日志时写入，
+     * 因此各副本 apply 到的是同一个值、重放也一致）。
+     *
+     * <p>离线数据的 TTL 回收以它为起点；重新上线（{@code clientAttach}）会清零。
+     *
+     * @see StateMachine#sessionsOfflineBefore(long)
+     */
+    private long offlineSinceMillis;
 }
