@@ -2,6 +2,7 @@ package io.github.noobcodergrowing.jregistrycore;
 
 import io.github.noobcodergrowing.jregistrycore.Log.LogEntry;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -162,7 +163,11 @@ public class StateMachine {
             current = current.getChildren().get(paths[i]);
         }
         List<KV> result = new ArrayList<>();
-        collectKVs(current, "", result);
+        // 遍历结束后 current 是「查询路径最后一段」那个节点，它之上的段要当作前缀补回去。
+        // 传空串会让深层查询丢掉最外层：ls("cloud/text-indexer") 会算出 "text-indexer/..."，
+        // 既不再是注释承诺的绝对路径，也让 isKeyOffline 拿这个缺前缀的 key 去归属表里查空。
+        // paths.length == 1 时前缀为空串，浅层查询行为不变。
+        collectKVs(current, String.join(KeyPath.SEPARATOR, Arrays.copyOf(paths, paths.length - 1)), result);
         return result;
     }
 
