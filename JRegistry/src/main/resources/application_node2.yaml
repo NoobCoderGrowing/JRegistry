@@ -12,6 +12,14 @@ raft:
   auto-persist: true
   image-path: "persistency/"
   log-compaction-interval: 14400
+  # Raft 协议时间参数（毫秒）。election-timeout 必须显著大于 heartbeat-interval，
+  # 否则 follower 会抢在收到 leader 心跳之前发起选举，集群陷入无休止重新选主。
+  timing:
+    election-timeout-min-ms: 15000
+    election-timeout-max-ms: 30000
+    heartbeat-interval-ms: 5000
+    reconnect-delay-ms: 5000
+    connect-timeout-ms: 5000
 
 admin:
   peer-http-ports: "{1:6101, 2:6102, 3:6103}"

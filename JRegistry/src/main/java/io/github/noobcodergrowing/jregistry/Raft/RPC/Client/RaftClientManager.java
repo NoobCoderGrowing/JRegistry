@@ -49,6 +49,21 @@ public class RaftClientManager {
     @Value("${raft.node-id}")
     private int id;
 
+    /**
+     * 到 peer 的连接写空闲多久就补发一次心跳。它同时是 leader 的心跳间隔——
+     * {@code RaftClientHandler.userEventTriggered} 收到 IdleStateEvent 时才调 sendHeartBeat，
+     * 且只在自身是 leader 时发。必须显著小于 {@code raft.timing.election-timeout-min-ms}。
+     */
+    @Value("${raft.timing.heartbeat-interval-ms:5000}")
+    private int heartbeatIntervalMs;
+
+    @Value("${raft.timing.connect-timeout-ms:5000}")
+    private int connectTimeoutMs;
+
+    /** peer 连接断开后隔多久重连。 */
+    @Value("${raft.timing.reconnect-delay-ms:5000}")
+    private int reconnectDelayMs;
+
     @Autowired
     private AppendEntriesService appendEntriesService;
 
@@ -113,13 +128,13 @@ public class RaftClientManager {
          .channel(NioSocketChannel.class) //使用NIO Socket通道
          .option(ChannelOption.TCP_NODELAY, true)  // 禁用 Nagle 算法，降低延迟
          .option(ChannelOption.SO_KEEPALIVE, true)  // 开启 TCP keepalive
-         .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 5000)
+         .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeoutMs)
          .handler(new ChannelInitializer<SocketChannel>() {
              @Override
              protected void initChannel(SocketChannel ch) {
                  ChannelPipeline p = ch.pipeline();
-                 // 30秒无读写则触发ideleStateEvent
-                 p.addLast(new IdleStateHandler(0, 5000, 0, TimeUnit.MILLISECONDS)); 
+                 // 写空闲 heartbeat-interval-ms 后触发 IdleStateEvent；leader 借此补发心跳
+                 p.addLast(new IdleStateHandler(0, heartbeatIntervalMs, 0, TimeUnit.MILLISECONDS));
                  p.addLast(new LineBasedFrameDecoder(8192)); //使用行分隔符解码器，每行一个消息
                  p.addLast(new StringDecoder(StandardCharsets.UTF_8)); //使用字符串解码器，将字符串解码为消息
                  p.addLast(new StringEncoder(StandardCharsets.UTF_8)); //使用字符串编码器，将消息编码为字符串
@@ -179,7 +194,7 @@ public class RaftClientManager {
                 !peerChannels.get(nodeId).isActive()) {
                 connectToPeer(nodeId, host, port);
             }
-        }, 5, TimeUnit.SECONDS);
+        }, reconnectDelayMs, TimeUnit.MILLISECONDS);
     }
     
     // 启动时连接所有 peer

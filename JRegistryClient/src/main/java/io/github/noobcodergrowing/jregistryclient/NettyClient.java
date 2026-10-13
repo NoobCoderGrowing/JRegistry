@@ -34,15 +34,14 @@ import lombok.extern.slf4j.Slf4j;
 @Data
 public class NettyClient {
 
-    private static final int RECONNECT_DELAY_SECONDS = 5;
-    private  int CONNECT_TIMEOUT_MILLIS = 5000;
-    private static final int HEARTBEAT_INTERVAL_SECONDS = 10;
-    /** 连续重连失败多少次后换下一个候选节点（配合 5s 重连间隔 ≈ 20s 才搬家）。 */
-    private static final int FAILOVER_AFTER_FAILED_ATTEMPTS = 3;
-
     private volatile String host;
 
     private volatile int port;
+
+    private final int connectTimeoutMs;
+    private final long heartbeatIntervalMs;
+    private final long reconnectDelayMs;
+    private final int failoverAfterAttempts;
 
     private final EventLoopGroup group = new NioEventLoopGroup(1);
 
@@ -76,10 +75,25 @@ public class NettyClient {
     private volatile Channel channel;
     private volatile Consumer<String> messageListener;
 
+    /**
+     * 只指定连接超时的便捷构造，其余取 {@link JRegistryClient} 上公开的默认值常量
+     * （默认值只在那一处声明，避免两边各写一份漂移）。
+     */
     public NettyClient(String host, int port, int connectTimeoutMillis) {
+        this(host, port, connectTimeoutMillis,
+                JRegistryClient.DEFAULT_HEARTBEAT_INTERVAL_MS,
+                JRegistryClient.DEFAULT_RECONNECT_DELAY_MS,
+                JRegistryClient.DEFAULT_FAILOVER_AFTER_ATTEMPTS);
+    }
+
+    public NettyClient(String host, int port, int connectTimeoutMillis, long heartbeatIntervalMs,
+                       long reconnectDelayMs, int failoverAfterAttempts) {
         this.host = host;
         this.port = port;
-        this.CONNECT_TIMEOUT_MILLIS = connectTimeoutMillis;
+        this.connectTimeoutMs = connectTimeoutMillis;
+        this.heartbeatIntervalMs = heartbeatIntervalMs;
+        this.reconnectDelayMs = reconnectDelayMs;
+        this.failoverAfterAttempts = failoverAfterAttempts;
     }
 
     public void setMessageListener(Consumer<String> messageListener) {
@@ -98,7 +112,7 @@ public class NettyClient {
             return true;
         }
         if (!connecting.compareAndSet(false, true)) {
-            return waitUntilConnected(CONNECT_TIMEOUT_MILLIS);
+            return waitUntilConnected(connectTimeoutMs);
         }
         try {
             NettyClientHandler handler = new NettyClientHandler(NettyClient.this);
@@ -107,12 +121,12 @@ public class NettyClient {
                     .channel(NioSocketChannel.class)
                     .option(ChannelOption.TCP_NODELAY, true)
                     .option(ChannelOption.SO_KEEPALIVE, true)
-                    .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, CONNECT_TIMEOUT_MILLIS)
+                    .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeoutMs)
                     .handler(new ChannelInitializer<SocketChannel>() {
                         @Override
                         protected void initChannel(SocketChannel ch) {
                             ch.pipeline()
-                                    .addLast(new IdleStateHandler(0, HEARTBEAT_INTERVAL_SECONDS, 0, TimeUnit.SECONDS))
+                                    .addLast(new IdleStateHandler(0, heartbeatIntervalMs, 0, TimeUnit.MILLISECONDS))
                                     .addLast(new LineBasedFrameDecoder(8192))
                                     .addLast(new StringDecoder(StandardCharsets.UTF_8))
                                     .addLast(new StringEncoder(StandardCharsets.UTF_8))
@@ -121,7 +135,7 @@ public class NettyClient {
                     });
 
             ChannelFuture future = bootstrap.connect(host, port);
-            if (!future.await(CONNECT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
+            if (!future.await(connectTimeoutMs, TimeUnit.MILLISECONDS)) {
                 log.warn("netty client connect to {}:{} timed out", host, port);
                 return false;
             }
@@ -186,7 +200,7 @@ public class NettyClient {
         if (closed.get() || isConnected()) {
             return;
         }
-        if (consecutiveFailures.incrementAndGet() > FAILOVER_AFTER_FAILED_ATTEMPTS) {
+        if (consecutiveFailures.incrementAndGet() > failoverAfterAttempts) {
             moveToNextCandidate();
         }
         if (connectSync()) {
@@ -227,7 +241,7 @@ public class NettyClient {
             if (!isConnected()) {
                 connectAsync();
             }
-        }, RECONNECT_DELAY_SECONDS, TimeUnit.SECONDS);
+        }, reconnectDelayMs, TimeUnit.MILLISECONDS);
     }
 
     /**

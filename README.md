@@ -68,8 +68,8 @@ JRegistry 是一个基于 [Raft](https://raft.github.io/) 共识算法的多节�
 下载release压缩包后执行：
 
 ```bash
-tar -xzf JRegistry-1.0.4.tar.gz #解压包
-cd JRegistry-1.0.4
+tar -xzf JRegistry-1.0.5.tar.gz #解压包
+cd JRegistry-1.0.5
 ./start-cluster.sh
 ```
 
@@ -121,10 +121,27 @@ raft:
   auto-persist: true
   image-path: "persistency/"
   log-compaction-interval: 14400   # 秒
+  timing:                        # Raft 协议时间参数（毫秒）
+    election-timeout-min-ms: 15000  # 选举超时下限，随机区间 [min, max]
+    election-timeout-max-ms: 30000  # 选举超时上限；必须显著大于 heartbeat-interval-ms
+    heartbeat-interval-ms: 5000     # Leader 写空闲这么久就补一次心跳
+    reconnect-delay-ms: 5000        # peer 断开后多久重连
+    connect-timeout-ms: 5000        # peer 连接超时
 
 admin:
   peer-http-ports: "{1:6101, 2:6102, 3:6103}"  # 集群管理后台HTTP端口
   election-log-path: logs/JRegistry.log
+
+registry:
+  client-heartbeat:          # 客户端连接探活
+    read-timeout-seconds: 20 # 连续这么久无入站流量算丢一次心跳（须大于客户端 10s 心跳间隔）
+    max-misses: 3            # 连续丢几次 → 把该客户端标为「离线」
+    retry-delay-seconds: 5
+  session-sweep:             # 仅 Leader 生效：节点失效后回收它名下的客户端会话
+    enabled: true
+    sweep-interval-seconds: 10
+    peer-dead-threshold-seconds: 60
+    leader-grace-seconds: 30
 
 ssh:
   enabled: true
@@ -162,13 +179,15 @@ ssh:
 <dependency>
     <groupId>io.github.noobcodergrowing</groupId>
     <artifactId>JRegistryClient</artifactId>
-    <version>1.0.4</version>
+    <version>1.0.5</version>
 </dependency>
 ```
 
 > **从 1.0.0 升级：** 包名已由 `hawk.JRegistryClient` / `hawk.JRegitstryCore` 统一为 `io.github.noobcodergrowing.jregistryclient` / `io.github.noobcodergrowing.jregistrycore`，请同步更新 import。
 >
 > **1.0.4 新增：** `JRegistryClient#listAll(path)` —— 递归列出某个路径下所有带值的 key:value 对。旧版本升级只需替换依赖版本号，无破坏性变更。
+>
+> **1.0.5 新增：** 客户端连接**离线状态**（过期不再删 key，只翻二值状态；读结果一并带出状态）、**连接负载均衡**（新增 5 参构造：种子地址 + 服务端按连接数下发选点 + 自动故障转移）、**客户端时间参数外置**（新增全参构造，心跳间隔 / 重连间隔 / 故障转移阈值都可显式传入），并修复了**断线重连此前从未真正生效**的问题。详见下文「连接状态与负载均衡」。
 
 ### 前置条件
 
@@ -176,14 +195,19 @@ ssh:
 
 ### API 概览
 
-构造方法：`JRegistryClient(host, port, taskTimeoutMs, connectTimeoutMillis)`
+构造方法：
+
+- `JRegistryClient(host, port, taskTimeoutMs, connectTimeoutMillis)` —— 基础用法
+- `JRegistryClient(host, port, taskTimeoutMs, connectTimeoutMillis, serverSideBalancing)` —— 开启连接负载均衡
+- `JRegistryClient(host, port, taskTimeoutMs, connectTimeoutMillis, serverSideBalancing, heartbeatIntervalMs, reconnectDelayMs, failoverAfterAttempts)` —— 全参构造，需要自定义心跳间隔 / 重连间隔 / 故障转移阈值时用这个
 
 | 方法 | 说明 |
 |------|------|
-| `connect()` | 同步建立 TCP 连接，成功返回 `true` |
+| `connect()` | 同步建立 TCP 连接，成功返回 `true`；开启负载均衡时会先连种子地址，再由服务端下发选点结果 |
 | `isConnected()` | 当前是否已连接 |
 | `get(key)` | 同步读取，返回 `Pair<byte[], String>`（值 + 类型）；失败或超时返回 `null` |
-| `listAll(path)` | 同步递归列出该路径及其所有后代中带值的 key:value 对，返回 `List<KV>`（`key` 为绝对完整路径，可直接再传给 `get`）；路径不存在或超时返回 `null` |
+| `getWithStatus(key)` | 同 `get`，但返回 `KV`，额外带出该 key 所属客户端的二值状态（`isOffline()`） |
+| `listAll(path)` | 同步递归列出该路径及其所有后代中带值的 key:value 对，返回 `List<KV>`（`key` 为绝对完整路径，可直接再传给 `get`，每个 `KV` 都带 `isOffline()`）；路径不存在或超时返回 `null` |
 | `set(key, data, dataType)` | 异步写入（fire-and-forget） |
 | `delete(key)` | 异步删除 |
 | `shutdown()` | 关闭连接并释放资源 |
@@ -236,6 +260,59 @@ public class Example {
     }
 }
 ```
+
+### 连接状态与负载均衡
+
+**离线状态。** 服务端为每个客户端连接维持一份租约。以下任一情况都会把该客户端标记为**离线**：连接断开、连续 `max-misses` 次心跳超时、或它所在的节点被判定失效。
+
+> **关键语义：只翻二值状态，不删除它写过的 key。** 数据仍在，只是状态变了。客户端重新连上（`clientId` 不变）即恢复「生效」。由 SSH / Admin 写入、没有归属客户端的 key 恒为「生效」。
+
+状态随读结果带出：
+
+```java
+KV kv = client.getWithStatus("app/config/name");
+if (kv != null) {
+    System.out.println(new String(kv.getData()) + " offline=" + kv.isOffline());
+}
+
+for (KV item : client.listAll("app")) {
+    System.out.println(item.getKey() + " offline=" + item.isOffline());
+}
+```
+
+**连接负载均衡。** 客户端默认钉在构造时给的那一个地址上。用 5 参构造可以把它当作**种子地址**，让服务端决定落点：
+
+```java
+// 只需配置一个入口；服务端按各节点当前在线连接数下发候选并自动迁过去
+JRegistryClient client = new JRegistryClient("127.0.0.1", 6001, 1000, 5000, true);
+```
+
+流程：连种子 → 服务端按各节点在线连接数排出候选列表（同负载的节点按 `clientId` 打散，避免所有客户端都拿到同一个首选）→ 迁到候选首位 → 连不上依次往下试。
+
+落位后地址**保持稳定**，不会因节点抖动来回搬家；目标连续不可达（约 20s）时才故障转移到下一个候选。
+
+> **注意：** 写的负载最终都落在 Leader 上（连到 follower 的写会被服务端转发一跳），所以连接均衡真正分摊的是**每个连接的固定开销**（IO、心跳、会话跟踪）和**读**。
+
+**时间参数。** 用短构造时，心跳间隔、重连间隔、故障转移阈值取默认值——即外置之前的原值，行为与旧版一致；需要调就用全参构造。
+
+| 参数 | 默认 |
+|------|------|
+| `heartbeatIntervalMs` | 10000 |
+| `reconnectDelayMs` | 5000 |
+| `failoverAfterAttempts` | 3 |
+
+这三个默认值是 `JRegistryClient` 上的公开常量（`DEFAULT_HEARTBEAT_INTERVAL_MS` / `DEFAULT_RECONNECT_DELAY_MS` / `DEFAULT_FAILOVER_AFTER_ATTEMPTS`），可以直接引用。
+
+```java
+// 短构造：心跳 10s / 重连 5s / 连续失败 3 次后故障转移，全走默认值
+JRegistryClient plain = new JRegistryClient("127.0.0.1", 6001, 1000, 5000, false);
+
+// 全参构造，顺序：
+// taskTimeout, connectTimeout, serverSideBalancing, heartbeatInterval, reconnectDelay, failoverAfterAttempts
+JRegistryClient tuned = new JRegistryClient("127.0.0.1", 6001, 1000, 5000, true, 5000, 3000, 2);
+```
+
+> `heartbeatIntervalMs` 必须小于服务端的 `registry.client-heartbeat.read-timeout-seconds`（默认 10000 < 20000），否则服务端会把正常连接误判为掉线。位置参数多且单位相同，只改一两项时建议用短构造。
 
 ## SSH 命令行
 
@@ -370,8 +447,8 @@ The default deployment is a local **3-node cluster** (`127.0.0.1` / `127.0.0.2` 
 After downloading the release archive:
 
 ```bash
-tar -xzf JRegistry-1.0.4.tar.gz   # extract
-cd JRegistry-1.0.4
+tar -xzf JRegistry-1.0.5.tar.gz   # extract
+cd JRegistry-1.0.5
 ./start-cluster.sh
 ```
 
@@ -423,10 +500,27 @@ raft:
   auto-persist: true
   image-path: "persistency/"
   log-compaction-interval: 14400   # seconds
+  timing:                        # Raft protocol timings (milliseconds)
+    election-timeout-min-ms: 15000  # election timeout lower bound, random in [min, max]
+    election-timeout-max-ms: 30000  # election timeout upper bound; must exceed heartbeat-interval-ms
+    heartbeat-interval-ms: 5000     # leader sends a heartbeat after this much write-idle
+    reconnect-delay-ms: 5000        # delay before reconnecting to a peer
+    connect-timeout-ms: 5000        # peer connect timeout
 
 admin:
   peer-http-ports: "{1:6101, 2:6102, 3:6103}"  # admin HTTP ports for all nodes
   election-log-path: logs/JRegistry.log
+
+registry:
+  client-heartbeat:          # client connection liveness
+    read-timeout-seconds: 20 # silence for this long counts as one missed heartbeat (> client's 10s interval)
+    max-misses: 3            # this many consecutive misses -> mark the client offline
+    retry-delay-seconds: 5
+  session-sweep:             # leader-only: reclaim sessions owned by a node judged dead
+    enabled: true
+    sweep-interval-seconds: 10
+    peer-dead-threshold-seconds: 60
+    leader-grace-seconds: 30
 
 ssh:
   enabled: true
@@ -462,13 +556,15 @@ ssh:
 <dependency>
     <groupId>io.github.noobcodergrowing</groupId>
     <artifactId>JRegistryClient</artifactId>
-    <version>1.0.4</version>
+    <version>1.0.5</version>
 </dependency>
 ```
 
 > **Upgrading from 1.0.0:** packages were renamed from `hawk.JRegistryClient` / `hawk.JRegitstryCore` to `io.github.noobcodergrowing.jregistryclient` / `io.github.noobcodergrowing.jregistrycore`. Update your imports accordingly.
 >
 > **New in 1.0.4:** `JRegistryClient#listAll(path)` — recursively lists every valued key:value pair under a path. Upgrading from an earlier release only requires bumping the dependency version; no breaking changes.
+>
+> **New in 1.0.5:** an **offline status** for client connections (expiry flips a binary status instead of deleting keys; read results carry it), **connection load balancing** (new 5-arg constructor: seed address + server-side placement by connection count + automatic failover), client **timing tunables exposed on the client constructor** (new all-args overload: heartbeat interval / reconnect delay / failover threshold), and a fix for **reconnect never actually working**. See *Connection status and load balancing* below.
 
 ### Prerequisites
 
@@ -476,14 +572,19 @@ Start the JRegistry cluster first (see **Quick start** above). The client connec
 
 ### API overview
 
-Constructor: `JRegistryClient(host, port, taskTimeoutMs, connectTimeoutMillis)`
+Constructors:
+
+- `JRegistryClient(host, port, taskTimeoutMs, connectTimeoutMillis)` — basic
+- `JRegistryClient(host, port, taskTimeoutMs, connectTimeoutMillis, serverSideBalancing)` — connection load balancing
+- `JRegistryClient(host, port, taskTimeoutMs, connectTimeoutMillis, serverSideBalancing, heartbeatIntervalMs, reconnectDelayMs, failoverAfterAttempts)` — all-args overload, for tuning the heartbeat interval / reconnect delay / failover threshold
 
 | Method | Description |
 |--------|-------------|
-| `connect()` | Establish TCP connection synchronously; returns `true` on success |
+| `connect()` | Establish TCP connection synchronously; returns `true` on success. With balancing enabled it first connects to the seed, then follows the server's placement result |
 | `isConnected()` | Whether the client is currently connected |
 | `get(key)` | Synchronous read; returns `Pair<byte[], String>` (value + type), or `null` on failure/timeout |
-| `listAll(path)` | Synchronously lists, recursively, the key:value pairs that hold a value at or below `path`; returns `List<KV>` (`key` is the absolute path, reusable with `get`), or `null` if the path does not exist / on timeout |
+| `getWithStatus(key)` | Same as `get`, but returns a `KV` carrying the owning client's binary status (`isOffline()`) |
+| `listAll(path)` | Synchronously lists, recursively, the key:value pairs that hold a value at or below `path`; returns `List<KV>` (`key` is the absolute path, reusable with `get`; each `KV` carries `isOffline()`), or `null` if the path does not exist / on timeout |
 | `set(key, data, dataType)` | Asynchronous write (fire-and-forget) |
 | `delete(key)` | Asynchronous delete |
 | `shutdown()` | Close the connection and release resources |
@@ -536,6 +637,59 @@ public class Example {
     }
 }
 ```
+
+### Connection status and load balancing
+
+**Offline status.** The server keeps a lease per client connection. Any of these marks the client **offline**: the connection drops, `max-misses` consecutive heartbeats time out, or the node holding it is judged dead.
+
+> **Key semantics: only the binary status flips — the keys it wrote are never deleted.** The data stays; only the status changes. Reconnecting (same `clientId`) flips it back to active. Keys written via SSH / Admin have no owning client and are always active.
+
+The status rides along with read results:
+
+```java
+KV kv = client.getWithStatus("app/config/name");
+if (kv != null) {
+    System.out.println(new String(kv.getData()) + " offline=" + kv.isOffline());
+}
+
+for (KV item : client.listAll("app")) {
+    System.out.println(item.getKey() + " offline=" + item.isOffline());
+}
+```
+
+**Connection load balancing.** By default the client is pinned to the single address it was constructed with. The 5-arg constructor treats it as a **seed** and lets the server pick the placement:
+
+```java
+// configure a single entry point; the server hands out candidates by live connection count
+JRegistryClient client = new JRegistryClient("127.0.0.1", 6001, 1000, 5000, true);
+```
+
+Flow: connect to the seed → the server ranks candidates by each node's live connection count (ties spread by `clientId` so clients don't all pick the same node) → move to the top candidate → walk down the list on failure.
+
+Once placed the address is **stable** — no shuffling on transient blips; failover to the next candidate only kicks in after the target has been unreachable for ~20s.
+
+> **Note:** writes ultimately land on the Leader anyway (a write to a follower is forwarded one hop), so connection balancing spreads the **per-connection overhead** (IO, heartbeats, session tracking) and **reads**.
+
+**Timings.** With the short constructors the heartbeat interval, reconnect delay and failover threshold take their defaults — the values that used to be hard-coded, so behaviour matches earlier versions. The all-args constructor is there when you need to tune them.
+
+| Parameter | Default |
+|-----------|---------|
+| `heartbeatIntervalMs` | 10000 |
+| `reconnectDelayMs` | 5000 |
+| `failoverAfterAttempts` | 3 |
+
+These defaults are public constants on `JRegistryClient` (`DEFAULT_HEARTBEAT_INTERVAL_MS` / `DEFAULT_RECONNECT_DELAY_MS` / `DEFAULT_FAILOVER_AFTER_ATTEMPTS`), so you can reference them directly.
+
+```java
+// short form: heartbeat 10s / reconnect 5s / fail over after 3 failures, all defaults
+JRegistryClient plain = new JRegistryClient("127.0.0.1", 6001, 1000, 5000, false);
+
+// all-args, in this order:
+// taskTimeout, connectTimeout, serverSideBalancing, heartbeatInterval, reconnectDelay, failoverAfterAttempts
+JRegistryClient tuned = new JRegistryClient("127.0.0.1", 6001, 1000, 5000, true, 5000, 3000, 2);
+```
+
+> `heartbeatIntervalMs` must stay below the server's `registry.client-heartbeat.read-timeout-seconds` (default 10000 < 20000), otherwise the server will judge a healthy connection as offline. Several of the positional parameters share a unit, so prefer the short form when changing only one or two.
 
 ## SSH Shell
 

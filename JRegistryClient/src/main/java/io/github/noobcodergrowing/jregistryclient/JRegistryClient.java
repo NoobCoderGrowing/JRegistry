@@ -14,6 +14,16 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class JRegistryClient {
+
+    /** 心跳间隔默认值（ms）：连接写空闲这么久就补发一次心跳。 */
+    public static final long DEFAULT_HEARTBEAT_INTERVAL_MS = 10_000;
+
+    /** 断线后重连间隔的默认值（ms）。 */
+    public static final long DEFAULT_RECONNECT_DELAY_MS = 5000;
+
+    /** 连续重连失败多少次后故障转移到下一个候选节点的默认值。 */
+    public static final int DEFAULT_FAILOVER_AFTER_ATTEMPTS = 3;
+
     private long TASK_TIMEOUT_MS = 1000;
 
     private final NettyClient nettyClient;
@@ -27,18 +37,49 @@ public class JRegistryClient {
     /** 当前落在候选列表的第几位，故障转移时从它往后走。 */
     private final AtomicInteger candidateIndex = new AtomicInteger(-1);
 
+    /**
+     * 心跳间隔、重连间隔、故障转移阈值一律取 {@code DEFAULT_*} 默认值。
+     *
+     * @param taskTimeoutMs        单次请求（get / listAll / pickNode）等待回复的超时
+     * @param connectTimeoutMillis TCP 连接超时
+     */
     public JRegistryClient(String host, int port, long taskTimeoutMs, int connectTimeoutMillis) {
-        this(host, port, taskTimeoutMs, connectTimeoutMillis, false);
+        this(host, port, taskTimeoutMs, connectTimeoutMillis, false,
+                DEFAULT_HEARTBEAT_INTERVAL_MS, DEFAULT_RECONNECT_DELAY_MS, DEFAULT_FAILOVER_AFTER_ATTEMPTS);
     }
 
     /**
+     * 心跳间隔、重连间隔、故障转移阈值一律取 {@code DEFAULT_*} 默认值。
+     *
      * @param serverSideBalancing 为 true 时把 {@code host:port} 当作<b>种子地址</b>：连上后向服务端
      *        查询当前连接数最少的节点并迁过去。客户端因此只需配置一个地址、不必知道全量拓扑，
      *        也不会所有客户端都挤在同一个节点上。
      */
     public JRegistryClient(String host, int port, long taskTimeoutMs, int connectTimeoutMillis,
                            boolean serverSideBalancing) {
-        this.nettyClient = new NettyClient(host, port, connectTimeoutMillis);
+        this(host, port, taskTimeoutMs, connectTimeoutMillis, serverSideBalancing,
+                DEFAULT_HEARTBEAT_INTERVAL_MS, DEFAULT_RECONNECT_DELAY_MS, DEFAULT_FAILOVER_AFTER_ATTEMPTS);
+    }
+
+    /**
+     * 全参构造：时间参数与行为开关全部显式给出。上面两个短构造最终都委托到这里。
+     *
+     * <p>位置参数较多，其中几个单位相同，传错顺序编译器不会报错——只改一两项时建议用上面的短构造。
+     *
+     * @param taskTimeoutMs         单次请求（get / listAll / pickNode）等待回复的超时
+     * @param connectTimeoutMillis  TCP 连接超时
+     * @param serverSideBalancing   是否向服务端查询选点结果（连接负载均衡）
+     * @param heartbeatIntervalMs   心跳间隔：连接写空闲这么久就补发一次心跳。
+     *                              <b>必须小于服务端的 {@code registry.client-heartbeat.read-timeout-seconds}</b>，
+     *                              否则服务端会把正常连接误判为掉线（默认 10000 &lt; 20000）
+     * @param reconnectDelayMs      断线后重连的间隔
+     * @param failoverAfterAttempts 连续重连失败多少次后故障转移到下一个候选节点
+     */
+    public JRegistryClient(String host, int port, long taskTimeoutMs, int connectTimeoutMillis,
+                           boolean serverSideBalancing, long heartbeatIntervalMs,
+                           long reconnectDelayMs, int failoverAfterAttempts) {
+        this.nettyClient = new NettyClient(host, port, connectTimeoutMillis,
+                heartbeatIntervalMs, reconnectDelayMs, failoverAfterAttempts);
         this.TASK_TIMEOUT_MS = taskTimeoutMs;
         this.serverSideBalancing = serverSideBalancing;
     }
