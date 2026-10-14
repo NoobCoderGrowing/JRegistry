@@ -441,31 +441,34 @@ public class StateMachine {
         return true;
     }
 
-    public boolean applyLog(LogEntry logEntry){
+    public ApplyOutcome applyLog(LogEntry logEntry){
         String cmd = logEntry.getCommand();
         log.info("apply log: {}", JSON.toJSONString(logEntry));
-        boolean success = false;
+        ApplyOutcome outcome = ApplyOutcome.REJECTED;
         // A malformed key must never propagate: the caller advances commitIndex only after this
         // returns, so throwing here would stall the commit loop and wedge the whole cluster.
         try {
             switch (cmd) {
                 case "set":
-                    success = put(logEntry);
+                    outcome = of(put(logEntry));
                     break;
                 case "delete":
-                    success = delete(logEntry.getKey());
+                    outcome = of(delete(logEntry.getKey()));
+                    break;
+                case "cas":
+                    outcome = cas(logEntry);
                     break;
                 case "clientAttach":
-                    success = clientAttach(logEntry);
+                    outcome = of(clientAttach(logEntry));
                     break;
                 case "clientOffline":
-                    success = clientOffline(logEntry);
+                    outcome = of(clientOffline(logEntry));
                     break;
                 case "reapOffline":
-                    success = reapOffline(logEntry);
+                    outcome = of(reapOffline(logEntry));
                     break;
                 case "noOp":
-                    success = true;
+                    outcome = ApplyOutcome.APPLIED;
                     break;
                 default:
                     break;
@@ -474,7 +477,41 @@ public class StateMachine {
             log.error("node {} skip log entry with invalid key, index {}: {}",
                     id, logEntry.getIndex(), e.getMessage());
         }
-        return success;
+        return outcome;
+    }
+
+    private static ApplyOutcome of(boolean applied){
+        return applied ? ApplyOutcome.APPLIED : ApplyOutcome.REJECTED;
+    }
+
+    /**
+     * 条件写：前值与期望一致才写入，否则什么都不做。
+     *
+     * <p>比较发生在 <b>apply 阶段</b>——所有副本按同样的日志顺序看到同样的前值，判定必然一致，
+     * 重放也得到同一个结论。所以 CAS 不需要锁、也不需要任何分布式协调，Raft 的全序本身就够了。
+     *
+     * <p>{@link LogEntry#isCasExpectAbsent()} 为 true 时要求该 key 当前<b>没有值</b>，
+     * 拼不出「期望值恰好等于某个字节序列」的歧义（null 字节数组无法与「不存在」区分）；
+     * 否则把当前值与 {@link LogEntry#getExpectedData()} 按字节比较。
+     */
+    private ApplyOutcome cas(LogEntry logEntry){
+        String key = logEntry.getKey();
+        Pair<String, byte[]> current = get(key);
+        byte[] currentValue = current == null ? null : current.getRight();
+
+        if(logEntry.isCasExpectAbsent()){
+            if(currentValue != null){
+                log.info("node {} cas on {} not applied: expected absent, but a value exists", id, key);
+                return ApplyOutcome.CONDITION_FAILED;
+            }
+        }else if(!Arrays.equals(currentValue, logEntry.getExpectedData())){
+            log.info("node {} cas on {} not applied: current value does not match the expectation", id, key);
+            return ApplyOutcome.CONDITION_FAILED;
+        }
+
+        put(logEntry); // 复用普通写入路径，顺带记录归属（离线追踪要用）
+        log.info("node {} cas on {} applied", id, key);
+        return ApplyOutcome.APPLIED;
     }
 
     public BPlusNode getRoot(){

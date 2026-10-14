@@ -53,4 +53,8 @@ public class RaftRequest {
 
     /** pickNode 回复：按当前连接数升序排好的候选节点，客户端从头开始试。 */
     private List<NodeAddress> nodes;
+
+    // cas 请求：期望不存在时 casExpectAbsent=true，否则拿 expectedData 与当前值按字节比较。
+    private boolean casExpectAbsent;
+    private byte[] expectedData;
 }

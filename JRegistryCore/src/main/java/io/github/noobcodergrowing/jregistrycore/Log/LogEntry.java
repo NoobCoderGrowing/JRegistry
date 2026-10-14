@@ -23,6 +23,18 @@ public class LogEntry implements Comparable<LogEntry>{
      */
     private long offlineSinceMillis;
 
+    /**
+     * 关联 id，<b>只有需要回包的写（如 CAS）才填</b>。apply 之后由持有该客户端连接的节点
+     * 按它把结果回给客户端；普通 set/delete 是 fire-and-forget，这里保持 null。
+     */
+    private String uuid;
+
+    /** {@code cas} 专用：为 true 表示「期望该 key 当前不存在」，为 false 则与 {@link #expectedData} 比较。 */
+    private boolean casExpectAbsent;
+
+    /** {@code cas} 专用：期望的前值。{@link #casExpectAbsent} 为 true 时忽略。 */
+    private byte[] expectedData;
+
     public LogEntry(LogEntry other){
         this.term = other.term;
         this.index = other.index;
@@ -34,6 +46,9 @@ public class LogEntry implements Comparable<LogEntry>{
         this.clientEpoch = other.clientEpoch;
         this.ownerNodeId = other.ownerNodeId;
         this.offlineSinceMillis = other.offlineSinceMillis;
+        this.uuid = other.uuid;
+        this.casExpectAbsent = other.casExpectAbsent;
+        this.expectedData = other.expectedData;
     }
 
     public LogEntry(){}

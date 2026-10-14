@@ -5,8 +5,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import io.github.noobcodergrowing.jregistrycore.Raft.RaftNode;
 import io.github.noobcodergrowing.jregistry.Raft.RPC.Client.RaftClientManager;
 import io.github.noobcodergrowing.jregistry.Services.Timer.TimeoutService;
+import io.github.noobcodergrowing.jregistrycore.ApplyOutcome;
 import io.github.noobcodergrowing.jregistrycore.KeyPath;
 import io.github.noobcodergrowing.jregistrycore.Log.LogEntry;
+import io.github.noobcodergrowing.jregistry.Services.WriteAckService;
 import java.util.ArrayList;
 import io.github.noobcodergrowing.jregistrycore.RPC.RaftRequest;
 import io.github.noobcodergrowing.jregistrycore.RPC.SSH.SSHRequest;
@@ -87,6 +89,10 @@ public class LogService {
 
     @Autowired
     private StateMachine stateMachine;
+
+    /** 给需要回包的写（CAS）回话。它不依赖本类，所以不需要 ObjectProvider 打破环。 */
+    @Autowired
+    private WriteAckService writeAckService;
 
 
     @PostConstruct
@@ -172,6 +178,28 @@ public class LogService {
         return "clientAttach".equals(cmd) || "clientOffline".equals(cmd) || "reapOffline".equals(cmd);
     }
 
+    /** 需要 apply 之后回包的写命令（目前只有 CAS）。 */
+    public static boolean isAckedWrite(String cmd){
+        return "cas".equals(cmd);
+    }
+
+    /**
+     * 给「需要回包的写」回话。<b>谁 apply 到、谁手里有这个客户端连接，就由谁回</b>——
+     * 客户端连在 follower 上时，follower 自己 apply 这条日志时就会结清；
+     * leader 只在客户端恰好连在自己身上时才会命中。所以不需要任何额外的回传消息。
+     */
+    private void completeWriteAck(LogEntry logEntry, ApplyOutcome outcome){
+        if(logEntry.getUuid() == null){
+            return;
+        }
+        try {
+            writeAckService.complete(logEntry.getUuid(), outcome == ApplyOutcome.APPLIED);
+        } catch (Exception e) {
+            // 回包失败绝不能把提交循环带崩
+            log.error("node {} completing write ack {} failed: {}", raftNode.getId(), logEntry.getUuid(), e.getMessage());
+        }
+    }
+
     public void redirectWriteRequest2Leader(RaftRequest request){
         if(raftNode.getLeaderId() == -1){
             log.error("node {} redirect write request to leader failed, leader id is -1", raftNode.getId());
@@ -199,6 +227,13 @@ public class LogService {
         // 于是各副本 apply 到的、以及日后重放到的，都是同一个值（在 applyLog 里现算就不是了）。
         if("clientOffline".equals(request.getCmd())){
             logEntry.setOfflineSinceMillis(System.currentTimeMillis());
+        }
+        // 需要回包的写带上关联 id 与条件：apply 之后由持有该客户端连接的节点按 id 回话。
+        // 普通 set/delete 是 fire-and-forget，不填 uuid，免得日志里白背一串字节。
+        if(isAckedWrite(request.getCmd())){
+            logEntry.setUuid(request.getUuid() == null ? null : request.getUuid().toString());
+            logEntry.setCasExpectAbsent(request.isCasExpectAbsent());
+            logEntry.setExpectedData(request.getExpectedData());
         }
         logger.add(logEntry);
         // raftNode.setLastLogIndex(logEntry.getIndex());
@@ -548,7 +583,8 @@ public class LogService {
         while (currentCommitIndex < commitableIndex) {
             if((startIndex < logger.size()) && startIndex >= 0){
                 LogEntry logEntry = logger.get(startIndex);
-                stateMachine.applyLog(logEntry);
+                ApplyOutcome outcome = stateMachine.applyLog(logEntry);
+                completeWriteAck(logEntry, outcome);
                 stateMachine.setCommitIndex(logEntry.getIndex());
                 startIndex++;
                 currentCommitIndex++;
@@ -577,7 +613,8 @@ public class LogService {
             
             if((startIndex < logger.size()) && startIndex >= 0){
                 LogEntry logEntry = logger.get(startIndex);
-                stateMachine.applyLog(logEntry);
+                ApplyOutcome outcome = stateMachine.applyLog(logEntry);
+                completeWriteAck(logEntry, outcome);
                 stateMachine.setCommitIndex(logEntry.getIndex());
                 startIndex++;
                 currentCommitIndex++;

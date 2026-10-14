@@ -25,6 +25,7 @@ import io.github.noobcodergrowing.jregistry.Raft.Log.LogService;
 import io.github.noobcodergrowing.jregistry.Services.AppendEntriesService;
 import io.github.noobcodergrowing.jregistry.Services.ClientSessionService;
 import io.github.noobcodergrowing.jregistry.Services.RequestVoteService;
+import io.github.noobcodergrowing.jregistry.Services.WriteAckService;
 import io.github.noobcodergrowing.jregistry.Services.Persist.PersistService;
 import io.github.noobcodergrowing.jregistrycore.StateMachine;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -67,6 +68,9 @@ public class RaftServerManager {
     @Autowired
     private ClientSessionService clientSessionService;
 
+    @Autowired
+    private WriteAckService writeAckService;
+
     /** 客户端的读超时：连续这么长时间没有任何入站流量，算客户端丢了一次心跳。 */
     @Value("${registry.client-heartbeat.read-timeout-seconds:20}")
     private int clientReadTimeoutSeconds;
@@ -107,7 +111,7 @@ public class RaftServerManager {
                      p.addLast(new StringDecoder(StandardCharsets.UTF_8));
                      p.addLast(new StringEncoder(StandardCharsets.UTF_8));
                      p.addLast(new RaftServerHandler(RaftServerManager.this, appendEntriesService, requestVoteService, raftNode,
-                        logService, writePool, persistService, stateMachine, clientSessionService));
+                        logService, writePool, persistService, stateMachine, clientSessionService, writeAckService));
                  }
              });
             

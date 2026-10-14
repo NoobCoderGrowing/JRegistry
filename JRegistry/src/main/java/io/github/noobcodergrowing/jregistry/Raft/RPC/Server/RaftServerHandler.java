@@ -14,6 +14,7 @@ import io.github.noobcodergrowing.jregistry.Raft.Log.LogService;
 import io.github.noobcodergrowing.jregistry.Services.AppendEntriesService;
 import io.github.noobcodergrowing.jregistry.Services.ClientSessionService;
 import io.github.noobcodergrowing.jregistry.Services.RequestVoteService;
+import io.github.noobcodergrowing.jregistry.Services.WriteAckService;
 import io.github.noobcodergrowing.jregistry.Services.Persist.PersistService;
 
 import java.util.concurrent.ThreadPoolExecutor;
@@ -45,6 +46,8 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
 
     private ClientSessionService clientSessionService;
 
+    private WriteAckService writeAckService;
+
     /**
      * 这条连接是不是 Raft peer（收到过 shakeHand）。用来把「客户端发来的请求」和
      * 「peer 转发过来的请求」区分开——后者绝不代表本节点收留了一个客户端连接。
@@ -54,7 +57,7 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
     public RaftServerHandler(RaftServerManager raftServer, AppendEntriesService appendEntriesService,
         RequestVoteService requestVoteService, RaftNode raftNode, LogService logService,
         ThreadPoolExecutor writePool, PersistService persistService, StateMachine stateMachine,
-        ClientSessionService clientSessionService) {
+        ClientSessionService clientSessionService, WriteAckService writeAckService) {
         this.raftServer = raftServer;
         this.appendEntriesService = appendEntriesService;
         this.requestVoteService = requestVoteService;
@@ -64,6 +67,7 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
         this.persistService = persistService;
         this.stateMachine = stateMachine;
         this.clientSessionService = clientSessionService;
+        this.writeAckService = writeAckService;
     }
 
     @Override
@@ -101,6 +105,11 @@ public class RaftServerHandler extends SimpleChannelInboundHandler<String> {
                 case "writeRequest":
                     // touch 必须在处理写之前：它决定 clientAttach 与首条 set 的日志先后。
                     touchIfClient(request, ctx);
+                    // 需要回包的写（CAS）先登记待回包。只对真正的客户端连接登记——
+                    // peer 连接上转发来的写请求，客户端并不在这条连接上。
+                    if(!peerConnection && LogService.isAckedWrite(request.getCmd())){
+                        writeAckService.register(String.valueOf(request.getUuid()), ctx.channel());
+                    }
                     reply = logService.handleWriteRequest(request);
                     break;
                 case "persist":

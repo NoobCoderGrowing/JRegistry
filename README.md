@@ -68,8 +68,8 @@ JRegistry 是一个基于 [Raft](https://raft.github.io/) 共识算法的多节�
 下载release压缩包后执行：
 
 ```bash
-tar -xzf JRegistry-1.0.5.tar.gz #解压包
-cd JRegistry-1.0.5
+tar -xzf JRegistry-1.0.6.tar.gz #解压包
+cd JRegistry-1.0.6
 ./start-cluster.sh
 ```
 
@@ -146,6 +146,9 @@ registry:
     enabled: true
     ttl-seconds: 86400       # 24 小时。注意这是「离线多久之后回收」
     interval-seconds: 600    # 只是「多久扫一次」，别把它也设成 24h（那样 key 最长活 48h）
+  write-ack:                 # 写回包（CAS 用）：apply 之后把「到底写没写进去」回给客户端
+    timeout-seconds: 30      # 超时丢弃待回包记录（客户端侧更早超时）
+    prune-interval-seconds: 10
 
 ssh:
   enabled: true
@@ -183,7 +186,7 @@ ssh:
 <dependency>
     <groupId>io.github.noobcodergrowing</groupId>
     <artifactId>JRegistryClient</artifactId>
-    <version>1.0.5</version>
+    <version>1.0.6</version>
 </dependency>
 ```
 
@@ -192,6 +195,12 @@ ssh:
 > **1.0.4 新增：** `JRegistryClient#listAll(path)` —— 递归列出某个路径下所有带值的 key:value 对。旧版本升级只需替换依赖版本号，无破坏性变更。
 >
 > **1.0.5 新增：** 客户端连接**离线状态**（过期不再删 key，只翻二值状态；读结果一并带出状态）、**连接负载均衡**（新增 5 参构造：种子地址 + 服务端按连接数下发选点 + 自动故障转移）、**客户端时间参数外置**（新增全参构造，心跳间隔 / 重连间隔 / 故障转移阈值都可显式传入），并修复了**断线重连此前从未真正生效**的问题。详见下文「连接状态与负载均衡」。
+>
+> **1.0.6 新增：**
+>
+> - **原子条件写** `JRegistryClient#cas(key, expected, newValue, dataType)`（抢锁 / 乐观并发）——比较在状态机的 apply 阶段做，并发调用只有一个能成功；超时用独立的 `casTimeoutMs`（默认 5000ms）。见下文「CAS」。
+> - **离线数据 TTL 回收**：客户端离线超过 `ttl-seconds`（默认 24 小时）后，删掉它离线期间留下的 key。见下文「连接状态与负载均衡」。
+> - **修复** `ls` / `listAll` 的深层查询：`ls("cloud/text-indexer")` 返回的 key 丢了最外层前缀，不再是文档承诺的绝对路径，同时导致这些 key 的离线状态恒为「生效」。
 
 ### 前置条件
 
@@ -203,7 +212,7 @@ ssh:
 
 - `JRegistryClient(host, port, taskTimeoutMs, connectTimeoutMillis)` —— 基础用法
 - `JRegistryClient(host, port, taskTimeoutMs, connectTimeoutMillis, serverSideBalancing)` —— 开启连接负载均衡
-- `JRegistryClient(host, port, taskTimeoutMs, connectTimeoutMillis, serverSideBalancing, heartbeatIntervalMs, reconnectDelayMs, failoverAfterAttempts)` —— 全参构造，需要自定义心跳间隔 / 重连间隔 / 故障转移阈值时用这个
+- `JRegistryClient(host, port, taskTimeoutMs, connectTimeoutMillis, serverSideBalancing, heartbeatIntervalMs, reconnectDelayMs, failoverAfterAttempts, casTimeoutMs)` —— 全参构造，需要自定义心跳间隔 / 重连间隔 / 故障转移阈值 / CAS 超时时用这个
 
 | 方法 | 说明 |
 |------|------|
@@ -214,6 +223,7 @@ ssh:
 | `listAll(path)` | 同步递归列出该路径及其所有后代中带值的 key:value 对，返回 `List<KV>`（`key` 为绝对完整路径，可直接再传给 `get`，每个 `KV` 都带 `isOffline()`）；路径不存在或超时返回 `null` |
 | `set(key, data, dataType)` | 异步写入（fire-and-forget） |
 | `delete(key)` | 异步删除 |
+| `cas(key, expected, newValue, dataType)` | **原子**条件写，要等一次共识往返，返回 `CasResult`；`expected` 传 `null` 表示「期望该 key 当前不存在」 |
 | `shutdown()` | 关闭连接并释放资源 |
 
 键名使用 `/` 作为路径分隔符，例如 `app/config/timeout`。除 `/` 外的任意字符都可以作为键名的一部分（`.` 只是普通字符，因此 `app.config.name` 是一个键名而非三级路径）。
@@ -265,6 +275,30 @@ public class Example {
 }
 ```
 
+### CAS（条件写：抢锁 / 乐观并发）
+
+`cas(key, expected, newValue, dataType)` 是**原子**条件写：前值与 `expected` 一致才写入。
+
+比较发生在状态机的 **apply 阶段**——所有副本按同样的日志顺序看到同样的前值，判定必然一致，所以并发调用里只有一个能拿到 `APPLIED`。做分布式锁、选主、乐观并发控制就靠它，不需要额外的锁服务。
+
+```java
+// expected 传 null = 期望该 key 当前不存在，也就是抢锁
+CasResult r = client.cas("app/lock", null, "holder-1".getBytes(), "string");
+if (r.isApplied()) {
+    // 拿到锁了
+}
+```
+
+返回的是**三态**而不是 boolean：
+
+| 结果 | 含义 |
+|------|------|
+| `APPLIED` | 前值匹配，已写入 |
+| `NOT_APPLIED` | 前值不匹配，**确定没有写** |
+| `UNKNOWN` | 超时没收到答复，**写没写未知**（可能已提交、只是回包丢了）——重试安全 |
+
+> 与 `set` / `delete` 不同，CAS **要等一次共识往返**（追加日志 → 多数派复制 → 提交 → apply），所以比读慢得多。等待上限是构造时的 `casTimeoutMs`（默认 5000ms），它和普通请求的 `taskTimeoutMs` 是分开的——别拿读的超时去卡共识，否则会频繁拿到 `UNKNOWN`；而拿到 `UNKNOWN` **不要当成失败**处理。
+
 ### 连接状态与负载均衡
 
 **离线状态。** 服务端为每个客户端连接维持一份租约。以下任一情况都会把该客户端标记为**离线**：连接断开、连续 `max-misses` 次心跳超时、或它所在的节点被判定失效。
@@ -308,16 +342,17 @@ JRegistryClient client = new JRegistryClient("127.0.0.1", 6001, 1000, 5000, true
 | `heartbeatIntervalMs` | 10000 |
 | `reconnectDelayMs` | 5000 |
 | `failoverAfterAttempts` | 3 |
+| `casTimeoutMs` | 5000 |
 
-这三个默认值是 `JRegistryClient` 上的公开常量（`DEFAULT_HEARTBEAT_INTERVAL_MS` / `DEFAULT_RECONNECT_DELAY_MS` / `DEFAULT_FAILOVER_AFTER_ATTEMPTS`），可以直接引用。
+这几个默认值都是 `JRegistryClient` 上的公开常量（`DEFAULT_HEARTBEAT_INTERVAL_MS` / `DEFAULT_RECONNECT_DELAY_MS` / `DEFAULT_FAILOVER_AFTER_ATTEMPTS`），可以直接引用。
 
 ```java
 // 短构造：心跳 10s / 重连 5s / 连续失败 3 次后故障转移，全走默认值
 JRegistryClient plain = new JRegistryClient("127.0.0.1", 6001, 1000, 5000, false);
 
 // 全参构造，顺序：
-// taskTimeout, connectTimeout, serverSideBalancing, heartbeatInterval, reconnectDelay, failoverAfterAttempts
-JRegistryClient tuned = new JRegistryClient("127.0.0.1", 6001, 1000, 5000, true, 5000, 3000, 2);
+// taskTimeout, connectTimeout, serverSideBalancing, heartbeatInterval, reconnectDelay, failoverAfterAttempts, casTimeout
+JRegistryClient tuned = new JRegistryClient("127.0.0.1", 6001, 1000, 5000, true, 5000, 3000, 2, 5000);
 ```
 
 > `heartbeatIntervalMs` 必须小于服务端的 `registry.client-heartbeat.read-timeout-seconds`（默认 10000 < 20000），否则服务端会把正常连接误判为掉线。位置参数多且单位相同，只改一两项时建议用短构造。
@@ -455,8 +490,8 @@ The default deployment is a local **3-node cluster** (`127.0.0.1` / `127.0.0.2` 
 After downloading the release archive:
 
 ```bash
-tar -xzf JRegistry-1.0.5.tar.gz   # extract
-cd JRegistry-1.0.5
+tar -xzf JRegistry-1.0.6.tar.gz   # extract
+cd JRegistry-1.0.6
 ./start-cluster.sh
 ```
 
@@ -533,6 +568,9 @@ registry:
     enabled: true
     ttl-seconds: 86400       # 24h — this is "how long offline before reclaim"
     interval-seconds: 600    # just "how often to scan"; don't set this to 24h too (keys would live up to 48h)
+  write-ack:                 # write ack (for CAS): report "did it actually get written" after apply
+    timeout-seconds: 30      # drop a pending ack after this long (the client times out sooner)
+    prune-interval-seconds: 10
 
 ssh:
   enabled: true
@@ -568,7 +606,7 @@ ssh:
 <dependency>
     <groupId>io.github.noobcodergrowing</groupId>
     <artifactId>JRegistryClient</artifactId>
-    <version>1.0.5</version>
+    <version>1.0.6</version>
 </dependency>
 ```
 
@@ -577,6 +615,12 @@ ssh:
 > **New in 1.0.4:** `JRegistryClient#listAll(path)` — recursively lists every valued key:value pair under a path. Upgrading from an earlier release only requires bumping the dependency version; no breaking changes.
 >
 > **New in 1.0.5:** an **offline status** for client connections (expiry flips a binary status instead of deleting keys; read results carry it), **connection load balancing** (new 5-arg constructor: seed address + server-side placement by connection count + automatic failover), client **timing tunables exposed on the client constructor** (new all-args overload: heartbeat interval / reconnect delay / failover threshold), and a fix for **reconnect never actually working**. See *Connection status and load balancing* below.
+>
+> **New in 1.0.6:**
+>
+> - The atomic conditional write `JRegistryClient#cas(key, expected, newValue, dataType)` (locking / optimistic concurrency) — the comparison runs in the state machine's apply phase, so only one of several concurrent callers succeeds; the wait uses its own `casTimeoutMs` (default 5000ms). See *CAS*.
+> - **TTL reclaim** of offline data: a client's keys are deleted once it has been offline longer than `ttl-seconds` (default 24h). See *Connection status and load balancing*.
+> - **Fix** for deep `ls` / `listAll`: `ls("cloud/text-indexer")` returned keys with the outermost prefix missing — no longer the absolute paths the docs promised, and it also made those keys report an always-active offline status.
 
 ### Prerequisites
 
@@ -588,7 +632,7 @@ Constructors:
 
 - `JRegistryClient(host, port, taskTimeoutMs, connectTimeoutMillis)` — basic
 - `JRegistryClient(host, port, taskTimeoutMs, connectTimeoutMillis, serverSideBalancing)` — connection load balancing
-- `JRegistryClient(host, port, taskTimeoutMs, connectTimeoutMillis, serverSideBalancing, heartbeatIntervalMs, reconnectDelayMs, failoverAfterAttempts)` — all-args overload, for tuning the heartbeat interval / reconnect delay / failover threshold
+- `JRegistryClient(host, port, taskTimeoutMs, connectTimeoutMillis, serverSideBalancing, heartbeatIntervalMs, reconnectDelayMs, failoverAfterAttempts, casTimeoutMs)` — all-args overload, for tuning the heartbeat interval / reconnect delay / failover threshold / CAS timeout
 
 | Method | Description |
 |--------|-------------|
@@ -599,6 +643,7 @@ Constructors:
 | `listAll(path)` | Synchronously lists, recursively, the key:value pairs that hold a value at or below `path`; returns `List<KV>` (`key` is the absolute path, reusable with `get`; each `KV` carries `isOffline()`), or `null` if the path does not exist / on timeout |
 | `set(key, data, dataType)` | Asynchronous write (fire-and-forget) |
 | `delete(key)` | Asynchronous delete |
+| `cas(key, expected, newValue, dataType)` | **Atomic** conditional write; waits for one consensus round trip and returns a `CasResult`. Pass `null` as `expected` to mean "this key must not exist yet" |
 | `shutdown()` | Close the connection and release resources |
 
 Keys use `/` as a path separator, e.g. `app/config/timeout`. Any character other than `/` is allowed inside a key (`.` is just an ordinary character, so `app.config.name` is a single key, not a three-level path).
@@ -650,6 +695,30 @@ public class Example {
 }
 ```
 
+### CAS (conditional write: locking, optimistic concurrency)
+
+`cas(key, expected, newValue, dataType)` is an **atomic** conditional write: it only writes when the current value equals `expected`.
+
+The comparison happens in the state machine's **apply** phase — every replica sees the same prior value in the same log order, so the verdict is necessarily identical. That means only one of several concurrent callers can get `APPLIED`. It is what you build distributed locks, leader election and optimistic concurrency on, with no extra lock service.
+
+```java
+// expected == null means "this key must not exist yet" — i.e. take the lock
+CasResult r = client.cas("app/lock", null, "holder-1".getBytes(), "string");
+if (r.isApplied()) {
+    // lock acquired
+}
+```
+
+The result is **three-valued**, not a boolean:
+
+| Result | Meaning |
+|--------|---------|
+| `APPLIED` | The prior value matched; written |
+| `NOT_APPLIED` | The prior value did not match; **definitely not written** |
+| `UNKNOWN` | No reply in time; **unknown whether it was written** (it may have committed with the ack lost) — safe to retry |
+
+> Unlike `set` / `delete`, CAS **waits for one consensus round trip** (append → replicate to a majority → commit → apply), so it is much slower than a read. The wait uses `casTimeoutMs` (default 5000ms) given at construction, kept separate from the `taskTimeoutMs` used for ordinary requests — don't size a consensus round trip with a read timeout, or you will see frequent `UNKNOWN`; and do **not** treat `UNKNOWN` as failure.
+
 ### Connection status and load balancing
 
 **Offline status.** The server keeps a lease per client connection. Any of these marks the client **offline**: the connection drops, `max-misses` consecutive heartbeats time out, or the node holding it is judged dead.
@@ -693,6 +762,7 @@ Once placed the address is **stable** — no shuffling on transient blips; failo
 | `heartbeatIntervalMs` | 10000 |
 | `reconnectDelayMs` | 5000 |
 | `failoverAfterAttempts` | 3 |
+| `casTimeoutMs` | 5000 |
 
 These defaults are public constants on `JRegistryClient` (`DEFAULT_HEARTBEAT_INTERVAL_MS` / `DEFAULT_RECONNECT_DELAY_MS` / `DEFAULT_FAILOVER_AFTER_ATTEMPTS`), so you can reference them directly.
 
@@ -701,8 +771,8 @@ These defaults are public constants on `JRegistryClient` (`DEFAULT_HEARTBEAT_INT
 JRegistryClient plain = new JRegistryClient("127.0.0.1", 6001, 1000, 5000, false);
 
 // all-args, in this order:
-// taskTimeout, connectTimeout, serverSideBalancing, heartbeatInterval, reconnectDelay, failoverAfterAttempts
-JRegistryClient tuned = new JRegistryClient("127.0.0.1", 6001, 1000, 5000, true, 5000, 3000, 2);
+// taskTimeout, connectTimeout, serverSideBalancing, heartbeatInterval, reconnectDelay, failoverAfterAttempts, casTimeout
+JRegistryClient tuned = new JRegistryClient("127.0.0.1", 6001, 1000, 5000, true, 5000, 3000, 2, 5000);
 ```
 
 > `heartbeatIntervalMs` must stay below the server's `registry.client-heartbeat.read-timeout-seconds` (default 10000 < 20000), otherwise the server will judge a healthy connection as offline. Several of the positional parameters share a unit, so prefer the short form when changing only one or two.

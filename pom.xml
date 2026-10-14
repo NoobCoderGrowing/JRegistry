@@ -18,7 +18,7 @@
 
     <groupId>io.github.noobcodergrowing</groupId>
     <artifactId>JRegistryParent</artifactId>
-    <version>1.0.5</version>
+    <version>1.0.6</version>
     <name>JRegistryParent</name>
     <description>Raft-based distributed key-value registry</description>
     <url>https://github.com/NoobCoderGrowing/JRegistry</url>

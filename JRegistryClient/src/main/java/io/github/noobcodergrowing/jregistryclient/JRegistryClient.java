@@ -24,7 +24,18 @@ public class JRegistryClient {
     /** 连续重连失败多少次后故障转移到下一个候选节点的默认值。 */
     public static final int DEFAULT_FAILOVER_AFTER_ATTEMPTS = 3;
 
+    /**
+     * {@link #cas} 等待答复的超时默认值（ms）。
+     *
+     * <p>比普通请求的 {@code taskTimeoutMs} 宽得多：CAS 要走完「追加日志 → 多数派复制 → 提交 →
+     * apply」一整趟共识，不是一次 RPC 往返。给太紧只会换来一堆 {@link CasResult#UNKNOWN}。
+     */
+    public static final long DEFAULT_CAS_TIMEOUT_MS = 5000;
+
     private long TASK_TIMEOUT_MS = 1000;
+
+    /** {@link #cas} 的等待上限；与普通请求分开，因为要覆盖一次共识往返。 */
+    private final long casTimeoutMs;
 
     private final NettyClient nettyClient;
 
@@ -38,18 +49,19 @@ public class JRegistryClient {
     private final AtomicInteger candidateIndex = new AtomicInteger(-1);
 
     /**
-     * 心跳间隔、重连间隔、故障转移阈值一律取 {@code DEFAULT_*} 默认值。
+     * 心跳间隔、重连间隔、故障转移阈值、CAS 超时一律取 {@code DEFAULT_*} 默认值。
      *
      * @param taskTimeoutMs        单次请求（get / listAll / pickNode）等待回复的超时
      * @param connectTimeoutMillis TCP 连接超时
      */
     public JRegistryClient(String host, int port, long taskTimeoutMs, int connectTimeoutMillis) {
         this(host, port, taskTimeoutMs, connectTimeoutMillis, false,
-                DEFAULT_HEARTBEAT_INTERVAL_MS, DEFAULT_RECONNECT_DELAY_MS, DEFAULT_FAILOVER_AFTER_ATTEMPTS);
+                DEFAULT_HEARTBEAT_INTERVAL_MS, DEFAULT_RECONNECT_DELAY_MS, DEFAULT_FAILOVER_AFTER_ATTEMPTS,
+                DEFAULT_CAS_TIMEOUT_MS);
     }
 
     /**
-     * 心跳间隔、重连间隔、故障转移阈值一律取 {@code DEFAULT_*} 默认值。
+     * 心跳间隔、重连间隔、故障转移阈值、CAS 超时一律取 {@code DEFAULT_*} 默认值。
      *
      * @param serverSideBalancing 为 true 时把 {@code host:port} 当作<b>种子地址</b>：连上后向服务端
      *        查询当前连接数最少的节点并迁过去。客户端因此只需配置一个地址、不必知道全量拓扑，
@@ -58,7 +70,8 @@ public class JRegistryClient {
     public JRegistryClient(String host, int port, long taskTimeoutMs, int connectTimeoutMillis,
                            boolean serverSideBalancing) {
         this(host, port, taskTimeoutMs, connectTimeoutMillis, serverSideBalancing,
-                DEFAULT_HEARTBEAT_INTERVAL_MS, DEFAULT_RECONNECT_DELAY_MS, DEFAULT_FAILOVER_AFTER_ATTEMPTS);
+                DEFAULT_HEARTBEAT_INTERVAL_MS, DEFAULT_RECONNECT_DELAY_MS, DEFAULT_FAILOVER_AFTER_ATTEMPTS,
+                DEFAULT_CAS_TIMEOUT_MS);
     }
 
     /**
@@ -74,13 +87,15 @@ public class JRegistryClient {
      *                              否则服务端会把正常连接误判为掉线（默认 10000 &lt; 20000）
      * @param reconnectDelayMs      断线后重连的间隔
      * @param failoverAfterAttempts 连续重连失败多少次后故障转移到下一个候选节点
+     * @param casTimeoutMs          {@link #cas} 的等待上限，要覆盖一次共识往返（默认 5000）
      */
     public JRegistryClient(String host, int port, long taskTimeoutMs, int connectTimeoutMillis,
                            boolean serverSideBalancing, long heartbeatIntervalMs,
-                           long reconnectDelayMs, int failoverAfterAttempts) {
+                           long reconnectDelayMs, int failoverAfterAttempts, long casTimeoutMs) {
         this.nettyClient = new NettyClient(host, port, connectTimeoutMillis,
                 heartbeatIntervalMs, reconnectDelayMs, failoverAfterAttempts);
         this.TASK_TIMEOUT_MS = taskTimeoutMs;
+        this.casTimeoutMs = casTimeoutMs;
         this.serverSideBalancing = serverSideBalancing;
     }
 
@@ -295,5 +310,54 @@ public class JRegistryClient {
         request.setKey(key);
         request.setUuid(UuidCreator.getTimeOrderedEpoch());
         nettyClient.sendRequest(request);
+    }
+
+    /**
+     * 条件写：前值与 {@code expected} 一致才写入 {@code newValue}，否则什么都不做。
+     *
+     * <p>比较是在状态机的 apply 阶段做的——所有副本按同样的日志顺序看到同样的前值，
+     * 判定必然一致，所以这是**原子**的：并发调用里只有一个能拿到 {@link CasResult#APPLIED}，
+     * 这正是做分布式锁、选主、乐观并发控制需要的东西。
+     *
+     * <p>与 {@link #set} / {@link #delete} 不同，本方法<b>要等回包</b>：它返回的是"到底写没写进去"，
+     * 所以耗时是<b>一次共识往返</b>（追加日志 → 多数派复制 → 提交 → apply），比读操作慢得多。
+     * 等待上限是构造时的 {@code casTimeoutMs}（默认 {@value #DEFAULT_CAS_TIMEOUT_MS}ms），
+     * 它和普通请求的 {@code taskTimeoutMs} 分开，就是为了别拿读的超时去卡共识。
+     *
+     * @param expected 期望的当前值；<b>传 {@code null} 表示"期望该 key 当前不存在"</b>（创建即抢锁）
+     * @return 见 {@link CasResult}；超时返回 {@code UNKNOWN}，重试安全
+     */
+    public CasResult cas(String key, byte[] expected, byte[] newValue, String dataType) {
+        requireConnected();
+        RaftRequest request = new RaftRequest();
+        request.setType("writeRequest");
+        request.setCmd("cas");
+        request.setKey(key);
+        request.setExpectedData(expected);
+        request.setCasExpectAbsent(expected == null);
+        request.setData(newValue);
+        request.setDataType(dataType);
+        request.setUuid(UuidCreator.getTimeOrderedEpoch());
+
+        CompletableFuture<Boolean> future = new CompletableFuture<>();
+        nettyClient.setMessageListener(message -> {
+            RaftRequest reply = JSON.parseObject(message, RaftRequest.class);
+            if (reply == null || reply.getUuid() == null) {
+                return;
+            }
+            if (reply.getUuid().equals(request.getUuid())) {
+                future.complete(reply.isSuccess());
+            }
+        });
+        nettyClient.sendRequest(request);
+
+        try {
+            boolean applied = future.get(casTimeoutMs, TimeUnit.MILLISECONDS);
+            return applied ? CasResult.APPLIED : CasResult.NOT_APPLIED;
+        } catch (Exception e) {
+            log.warn("cas on {} got no ack within {}ms ({}), outcome unknown",
+                    key, casTimeoutMs, e.getMessage());
+            return CasResult.UNKNOWN;
+        }
     }
 }

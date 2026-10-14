@@ -50,6 +50,11 @@ registry:
     enabled: true
     ttl-seconds: 86400        # 24 小时
     interval-seconds: 600     # 每 10 分钟扫一次有没有到期的
+  # 写回包（CAS 用）：日志 apply 之后，把「到底写没写进去」回给客户端。
+  # 客户端连在哪个节点，就由那个节点回——不需要额外的回程消息。
+  write-ack:
+    timeout-seconds: 30       # 超过这么久还没 apply 就丢弃待回包记录（客户端侧更早超时）
+    prune-interval-seconds: 10
 
 ssh:
   enabled: true
